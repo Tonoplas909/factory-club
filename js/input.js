@@ -400,6 +400,7 @@
       case 'v': setTool('inspect'); break;
       case 'e': setTool('select'); break;
       case 'x': setTool('delete'); break;
+      case 'i': CO.ui.showGuide(); break;
       case 'escape': if (tool !== 'inspect') setTool('inspect'); else { inspected = null; selection = { rect: null, blds: [] }; CO.emit('inspect'); CO.emit('selection'); } break;
       case 'delete': case 'backspace': {
         e.preventDefault();

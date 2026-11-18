@@ -50,6 +50,7 @@ Aucune étape de build : le site est statique. Les chemins sont relatifs, donc i
 | Supprimer (remboursement intégral) | Clic droit (glisser) ou outil Supprimer (`X`) : un rectangle rouge supprime tout ce qu'il touche |
 | Tourner / tourner à l'envers | `R` / `Maj+R` |
 | Supprimer la sélection ou le bâtiment visé | `Suppr` |
+| Ressources et recettes (popup) | `I`, bouton « Recettes » de la barre d'outils, ou menu ☰ |
 | Outils | `V` Inspecter · `E` Sélection · `X` Supprimer · `1`…`9`, `0` bâtiments |
 | Copier / couper / coller une disposition | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` (`R` tourne le collage) |
 | Annuler / rétablir | `Ctrl+Z` / `Ctrl+Y` |

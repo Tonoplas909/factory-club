@@ -51,9 +51,9 @@
   // ------------------------------------------------------------------- modal
   UI.modalOpen = function () { return !modalEl.hidden; };
   UI.closeModal = function () { modalEl.hidden = true; modalEl.innerHTML = ''; };
-  function openModal(title, body, buttons) {
+  function openModal(title, body, buttons, cls) {
     modalEl.innerHTML = '';
-    const box = h('div', { class: 'dialog' }, h('h2', { text: title }), body);
+    const box = h('div', { class: 'dialog' + (cls ? ' ' + cls : '') }, h('h2', { text: title }), body);
     const row = h('div', { class: 'dialog-buttons' });
     (buttons || [{ label: 'Fermer' }]).forEach(function (b) {
       row.appendChild(h('button', { class: 'btn' + (b.primary ? ' primary' : ''), text: b.label, onclick: function () { UI.closeModal(); if (b.run) b.run(); } }));
@@ -66,6 +66,7 @@
   function buildMenu() {
     const m = $('menu');
     const item = function (label, fn) { return h('button', { class: 'menu-item', text: label, onclick: function () { m.hidden = true; fn(); } }); };
+    m.appendChild(item('Ressources et recettes', function () { showGuide(); }));
     m.appendChild(item('Aide et commandes', showHelp));
     m.appendChild(item('Exporter la partie (fichier)', function () { CO.save.save(); CO.save.exportFile(); CO.emit('toast', 'Partie exportée.', 'good'); }));
     m.appendChild(item('Importer une partie…', function () { $('file-import').click(); }));
@@ -98,6 +99,7 @@
       row('R / Maj+R', 'Tourner / tourner à l’envers'),
       row('Suppr', 'Supprimer la sélection ou le bâtiment sous le curseur'),
       row('V · E · X', 'Outils : Inspecter, Sélection (rectangle), Supprimer'),
+      row('I', 'Ressources et recettes (cycles de transformation)'),
       row('1 … 9, 0', 'Choisir un bâtiment de la palette'),
       row('Ctrl+C / X / V', 'Copier, couper, coller une disposition (R tourne le collage)'),
       row('Ctrl+Z / Ctrl+Y', 'Annuler / rétablir'),
@@ -108,6 +110,61 @@
       h('p', { text: 'Objectif : extraire, transformer, puis livrer les pièces au Port pour assembler la station. Pas de chronomètre : prends ton temps.' }), tbl,
       h('p', { class: 'small', text: 'Astuces : la flèche jaune d’une machine indique sa sortie. Les voyants : vert = en production, orange = attend des matières, rouge = sortie bloquée. Le Port revend automatiquement le surplus.' })));
   }
+
+  // ------------------------------------------------ guide: all resources and recipes
+  function showGuide() {
+    const used = {}, forStation = {};
+    for (const id in RECIPES) for (const k in RECIPES[id].in) (used[k] = used[k] || []).push(id);
+    CO.PHASES.forEach(function (p) { for (const k in p.need) forStation[k] = true; });
+
+    const chip = function (id, n) {
+      return h('span', { class: 'gchip', title: itemName(id) }, itemIcon(id, 3), n ? h('b', { text: '×' + n }) : null, h('small', { text: itemName(id) }));
+    };
+    const plus = function () { return h('span', { class: 'gop', text: '+' }); };
+
+    function card(id) {
+      const rec = RECIPES[id], it = ITEMS[id];
+      const recOk = !rec || CO.isRecipeUnlocked(id);
+      const mach = rec ? BUILDINGS[rec.machine] : null;
+      const machOk = !mach || CO.isBuildingUnlocked(rec.machine);
+      const left = h('div', { class: 'gleft' }, itemIcon(id, 4),
+        h('div', null, h('b', { text: it.name }), h('div', { class: 'small', text: it.price + ' ¢ l’unité' + (forStation[id] ? ' · ★ station' : '') })));
+      const right = h('div', { class: 'gright' });
+      if (rec) {
+        const line = h('div', { class: 'gline' });
+        Object.keys(rec.in).forEach(function (k, i) { if (i) line.appendChild(plus()); line.appendChild(chip(k, rec.in[k])); });
+        line.appendChild(h('span', { class: 'garrow' }, thumb(rec.machine, 30), h('small', { text: mach.name })));
+        Object.keys(rec.out).forEach(function (k, i) { if (i) line.appendChild(plus()); line.appendChild(chip(k, rec.out[k])); });
+        right.appendChild(line);
+        const t = CO.craftTime(rec), per = rec.out[id] / t;
+        right.appendChild(h('div', { class: 'small', text: 'Cycle ' + t.toFixed(1).replace('.', ',') + ' s · ' + fmtRate(per) + ' par machine' }));
+        if (!recOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
+        else if (!machOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Machine à débloquer : ' + TECHS[mach.tech].name }));
+      } else {
+        right.appendChild(h('div', { class: 'gline' }, h('span', { class: 'garrow' }, thumb('drill', 30), h('small', { text: 'Foreuse' })), h('span', { class: 'gop', text: '➜' }), chip(id, 1)));
+        right.appendChild(h('div', { class: 'small', text: 'Se récolte sur un gisement de ce minerai : 0,25/s par case couverte (1/s pour une foreuse 2×2 entière).' }));
+      }
+      if (used[id]) {
+        const u = h('div', { class: 'guse' }, h('span', { class: 'small', text: 'Sert à :' }));
+        used[id].forEach(function (r) { u.appendChild(h('span', { class: 'gchip mini', title: itemName(r) }, itemIcon(r, 2), h('small', { text: itemName(r) }))); });
+        right.appendChild(u);
+      }
+      return h('div', { class: 'gcard' + (recOk && machOk ? '' : ' locked') }, left, right);
+    }
+
+    const body = h('div', { class: 'guide' },
+      h('p', { class: 'small', text: 'Toutes les ressources du jeu et leur cycle de transformation. Les cadences tiennent compte de tes recherches. ★ = demandé par la station. Les éléments grisés sont à débloquer.' }));
+    const sec = function (title, ids) {
+      body.appendChild(h('div', { class: 'tier', text: title }));
+      ids.forEach(function (id) { body.appendChild(card(id)); });
+    };
+    sec('Matières premières (gisements)', CO.ITEM_ORDER.filter(function (id) { return !RECIPES[id]; }));
+    ['smelter', 'assembler', 'steelmill', 'fabricator'].forEach(function (m) {
+      sec(BUILDINGS[m].name, CO.ITEM_ORDER.filter(function (id) { return RECIPES[id] && RECIPES[id].machine === m; }));
+    });
+    openModal('Ressources et recettes', body, [{ label: 'Fermer', primary: true }], 'wide');
+  }
+  UI.showGuide = function () { showGuide(); };
 
   // ----------------------------------------------------------------- palette
   function buildPalette() {
@@ -161,6 +218,7 @@
     mk('zoomin', ['＋', 'Zoom'], 'Zoom avant (+)', function () { CO.input.zoomBy(1.25); });
     mk('zoomout', ['－', 'Zoom'], 'Zoom arrière (-)', function () { CO.input.zoomBy(0.8); });
     mk('home', ['⌖', 'Port'], 'Recentrer sur le Port', function () { CO.input.centerOnPort(); });
+    mk('guide', ['📖', 'Recettes'], 'Ressources et recettes (I)', function () { showGuide(); });
   }
   function updateToolbar() {
     const st = CO.input.get();

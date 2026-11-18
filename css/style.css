@@ -199,3 +199,22 @@ kbd { background: #0b1020; border: 1px solid var(--line); border-bottom-width: 2
   background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 4px 14px #0008; white-space: nowrap; }
 #oretip span { display: flex; flex-direction: column; line-height: 1.2; }
 #oretip small { color: var(--muted); font-size: 11px; }
+
+/* ---------- guide popup (resources and recipes) */
+.dialog.wide { max-width: 900px; }
+.guide .tier { position: sticky; top: -16px; background: #121935; padding: 6px 0; z-index: 1; border-bottom: 1px solid var(--line); }
+.gcard { display: grid; grid-template-columns: 190px 1fr; gap: 12px; align-items: center; padding: 8px 10px; margin: 6px 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 11px; }
+.gcard.locked { opacity: 0.55; }
+.gleft { display: flex; align-items: center; gap: 10px; }
+.gline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }
+.gchip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; background: #0c1226; border: 1px solid var(--line); border-radius: 8px; }
+.gchip b { font-family: "Courier New", monospace; font-size: 13px; }
+.gchip small { color: var(--muted); font-size: 11px; }
+.gchip.mini { padding: 1px 6px; }
+.gop { color: var(--gold); font-weight: 700; padding: 0 2px; }
+.garrow { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--gold); }
+.garrow::before, .garrow::after { content: '➜'; font-size: 16px; }
+.garrow small { color: var(--txt); font-size: 11px; order: 0; }
+.garrow .thumb { width: 30px; height: 30px; }
+.guse { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; }
+@media (max-width: 700px) { .gcard { grid-template-columns: 1fr; } }
