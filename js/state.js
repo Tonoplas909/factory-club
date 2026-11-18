@@ -5,7 +5,7 @@
 (function (CO) {
   'use strict';
 
-  CO.mods = { machine: 1, drill: 1 };   // research multipliers
+  CO.mods = { machine: 1, drill: 1, chest: 0 };   // research bonuses (speed multipliers, extra chest capacity)
   CO.cam = { x: 48, y: 32, zoom: 32 };  // camera centre (tiles) and zoom (CSS px per tile)
 
   function freshState(seed) {
@@ -27,13 +27,15 @@
 
   // ------------------------------------------------------------ unlocks
   CO.recalcMods = function () {
-    let m = 0, d = 0;
+    let m = 0, d = 0, c = 0;
     for (const id in CO.state.tech) {
       const t = CO.TECHS[id];
-      if (t && t.effect) { m += t.effect.machineSpeed || 0; d += t.effect.drillSpeed || 0; }
+      if (t && t.effect) { m += t.effect.machineSpeed || 0; d += t.effect.drillSpeed || 0; c += t.effect.chestCap || 0; }
     }
-    CO.mods.machine = 1 + m; CO.mods.drill = 1 + d;
+    CO.mods.machine = 1 + m; CO.mods.drill = 1 + d; CO.mods.chest = c;
   };
+  /** Capacity of a buffer chest with current research. */
+  CO.chestCap = function (def) { return def.capacity + CO.mods.chest; };
   CO.isBuildingUnlocked = function (type) {
     const t = CO.BUILDINGS[type].tech;
     return !t || !!CO.state.tech[t];
@@ -113,7 +115,7 @@
       v: 1, savedAt: Date.now(),
       state: {
         seed: st.seed, money: st.money, tech: st.tech, research: st.research, researchProg: st.researchProg,
-        phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe
+        phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe, rev: 2
       },
       cam: { x: CO.cam.x, y: CO.cam.y, zoom: CO.cam.zoom },
       buildings: CO.world.serialize()
@@ -129,6 +131,9 @@
     st.researchProg = st.research ? (s.researchProg || {}) : {};
     st.phase = Math.max(0, Math.floor(s.phase) || 0);
     st.phaseHave = s.phaseHave || {};
+    if (s.rev !== 2) {                       // saves made before the 16-step station had 8 steps: map them across
+      st.phase = st.phase < 8 ? st.phase * 2 : st.phase + 8; st.phaseHave = {};
+    }
     st.stats = { produced: (s.stats && s.stats.produced) || {}, sold: (s.stats && s.stats.sold) || 0, delivered: (s.stats && s.stats.delivered) || 0 };
     st.time = Number(s.time) || 0;
     st.lastRecipe = s.lastRecipe || {};

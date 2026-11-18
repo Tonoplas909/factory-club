@@ -199,7 +199,7 @@
       } else if (k === 'router' && b.filter) {
         drawIcon(b.filter, cx, cy, ts * 0.36);
       } else if (k === 'chest') {
-        const f = b.q.length / b.def.capacity;
+        const f = b.q.length / CO.chestCap(b.def);
         ctx.fillStyle = '#10131d'; ctx.fillRect(px + ts * 0.15, py + ts * 0.84, ts * 0.7, Math.max(2, ts * 0.09));
         ctx.fillStyle = f > 0.9 ? '#ff5a5a' : '#5de0e6'; ctx.fillRect(px + ts * 0.15, py + ts * 0.84, ts * 0.7 * f, Math.max(2, ts * 0.09));
       } else if (k === 'port') {

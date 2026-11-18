@@ -142,7 +142,7 @@
         else if (!machOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Machine à débloquer : ' + TECHS[mach.tech].name }));
       } else {
         right.appendChild(h('div', { class: 'gline' }, h('span', { class: 'garrow' }, thumb('drill', 30), h('small', { text: 'Foreuse' })), h('span', { class: 'gop', text: '➜' }), chip(id, 1)));
-        right.appendChild(h('div', { class: 'small', text: 'Se récolte sur un gisement de ce minerai : 0,25/s par case couverte (1/s pour une foreuse 2×2 entière).' }));
+        right.appendChild(h('div', { class: 'small', text: 'Se récolte sur un gisement de ce minerai : ' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill / 4) + ' par case couverte (' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill) + ' pour une foreuse 2×2 entière).' }));
       }
       if (used[id]) {
         const u = h('div', { class: 'guse' }, h('span', { class: 'small', text: 'Sert à :' }));
@@ -159,7 +159,7 @@
       ids.forEach(function (id) { body.appendChild(card(id)); });
     };
     sec('Matières premières (gisements)', CO.ITEM_ORDER.filter(function (id) { return !RECIPES[id]; }));
-    ['smelter', 'assembler', 'steelmill', 'fabricator'].forEach(function (m) {
+    ['smelter', 'assembler', 'steelmill', 'fabricator', 'spaceyard'].forEach(function (m) {
       sec(BUILDINGS[m].name, CO.ITEM_ORDER.filter(function (id) { return RECIPES[id] && RECIPES[id].machine === m; }));
     });
     openModal('Ressources et recettes', body, [{ label: 'Fermer', primary: true }], 'wide');
@@ -381,7 +381,7 @@
   // ------------------------------------------------------------ info panel
   let live = null;   // {b, bar, pct}: progress bar updated every frame without re-rendering the panel
 
-  function fmtRate(x) { return (Math.round(x * 100) / 100).toLocaleString('fr-FR') + '/s'; }
+  function fmtRate(x) { return (Math.round(x * 1000) / 1000).toLocaleString('fr-FR') + '/s'; }
   function pill(cls, text) { return h('span', { class: 'pill ' + cls }, h('i'), text); }
 
   function statusPill(b) {
@@ -394,7 +394,7 @@
         return b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('good', 'Extraction');
       case 'lab': return CO.state.research ? pill('good', 'Recherche en cours') : pill('warn', 'Aucune recherche');
       case 'seller': case 'port': return pill('good', 'Actif');
-      case 'chest': return pill('info', b.q.length + ' / ' + b.def.capacity);
+      case 'chest': return pill('info', b.q.length + ' / ' + CO.chestCap(b.def));
       case 'router': return pill('info', b.type === 'splitter' ? (b.filter ? 'Filtré' : 'Équitable') : 'Fusion');
       default: return pill('info', b.items.length + ' objet(s)');
     }
@@ -502,7 +502,7 @@
         kv('Alimente', (Math.round(eq * 10) / 10).toLocaleString('fr-FR') + ' fonderie(s)'),
         progressBar(b, function () { return Math.min(1, b.acc); }))));
     } else if (b.kind === 'chest') {
-      const f = b.q.length / b.def.capacity;
+      const f = b.q.length / CO.chestCap(b.def);
       body.appendChild(section('Contenu', h('div', null,
         h('div', { class: 'bar' }, h('i', { style: 'width:' + (f * 100) + '%' })), stockChips(countBy(b.q)))));
     } else if (b.kind === 'lab') {

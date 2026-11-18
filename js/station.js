@@ -83,6 +83,58 @@
       R(g, '#ffffff', x, y, 1, 1);
     }
   }
+  function partDock(g, solid, t) {             // docking arm on the left end of the truss, with a parked shuttle
+    R(g, '#4a5374', 22, 58, 18, 12); R(g, '#a3aecb', 22, 58, 18, 2); R(g, '#222a45', 24, 62, 6, 4);
+    for (let i = 0; i < 3; i++) R(g, '#ffd24a', 33 + i * 2, 60, 1, 8);
+    R(g, '#6b7596', 14, 61, 8, 6); R(g, '#8d97b5', 8, 59, 6, 10);
+    R(g, solid && Math.floor(t * 2) % 2 ? '#7bff9a' : '#2f6a40', 9, 60, 2, 2);
+    R(g, '#e3e8f5', 2, 62, 8, 4); R(g, '#8d97b5', 4, 66, 4, 2); R(g, '#5de0e6', 8, 63, 2, 2);
+  }
+  function partLab(g) {                        // science module with a dome, right of the hub
+    line(g, '#6b7596', 108, 67, 112, 72, 1);
+    R(g, '#4a5374', 112, 70, 34, 16); R(g, '#e3e8f5', 114, 71, 30, 5); R(g, '#c2cbe4', 114, 76, 30, 5); R(g, '#8d97b5', 114, 81, 30, 3);
+    disc(g, '#9fd0e0', 128, 70, 7); disc(g, '#d9f6ff', 128, 69, 5); R(g, '#7be0a0', 126, 68, 5, 3);
+    for (let i = 0; i < 4; i++) R(g, '#7be0a0', 118 + i * 7, 78, 3, 2);
+  }
+  function partAntenna(g, solid, t) {          // mast and parabolic dish, upper right
+    line(g, '#cfd6ea', 136, 61, 136, 38, 2);
+    for (let i = 0; i < 16; i++) {
+      const dx = i - 8, dy = Math.round(dx * dx / 10);
+      R(g, '#e3e8f5', 136 + dx, 24 + dy, 2, 2); R(g, '#8d97b5', 136 + dx, 26 + dy, 2, 1);
+    }
+    line(g, '#ffd24a', 136, 26, 136, 12, 1); R(g, solid && Math.floor(t * 3) % 2 ? '#ff6a6a' : '#7a3a3a', 135, 10, 3, 3);
+  }
+  function partRadiator(g) {                   // heat fins, upper left
+    line(g, '#8d97b5', 52, 52, 40, 36, 2);
+    for (let i = 0; i < 4; i++) { R(g, '#d9e2f5', 14 + i * 9, 14, 7, 24); R(g, '#e8854a', 14 + i * 9, 14, 7, 3); R(g, '#9aa6c0', 14 + i * 9 + 3, 17, 1, 21); }
+    R(g, '#4a5374', 12, 38, 38, 3);
+  }
+  function partCargo(g) {                      // stacked containers under the truss, left
+    const cols = ['#d9503a', '#e8c14a', '#3f86b0', '#7bb86a'];
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 4; i++) {
+      const x = 28 + i * 11, y = 82 + j * 8;
+      R(g, '#2a3050', x, y, 10, 7); R(g, cols[(i + j) % 4], x + 1, y + 1, 8, 5); R(g, '#ffffff', x + 1, y + 1, 8, 1);
+    }
+    line(g, '#6b7596', 50, 67, 50, 82, 1);
+  }
+  function partReactor(g, solid, t) {          // glowing core, lower right
+    line(g, '#6b7596', 108, 67, 150, 92, 1);
+    R(g, '#4a5374', 138, 90, 32, 24); R(g, '#2c3042', 140, 92, 28, 20);
+    const p = solid ? 1 + Math.floor((Math.sin(t * 4) + 1) * 1.5) : 2;
+    disc(g, '#ff8a3a', 154, 102, 8 + (p > 2 ? 1 : 0)); disc(g, '#ffe27a', 154, 102, 5); disc(g, '#ffffff', 154, 102, 2);
+    for (let i = 0; i < 4; i++) R(g, '#8d97b5', 140 + i * 8, 112, 4, 3);
+  }
+  function partShield(g, solid, t) {           // magnetic arcs around the whole station
+    for (let a = -50; a <= 50; a += 3) for (let s = -1; s <= 1; s += 2) {
+      const r = a * Math.PI / 180;
+      R(g, solid && Math.floor(t * 4 + a / 6) % 4 === 0 ? '#ffffff' : '#5de0e6', Math.round(CX + s * Math.cos(r) * 84), Math.round(CY + Math.sin(r) * 52), 2, 2);
+    }
+  }
+  function partGarden(g) {                     // greenhouse dome above the habitat
+    disc(g, '#2f6a40', 66, 44, 11); disc(g, '#7bd68a', 66, 44, 9); disc(g, '#bff0c8', 64, 41, 4);
+    for (let i = 0; i < 5; i++) R(g, '#2f8a4a', 59 + i * 3, 46, 2, 4);
+    R(g, '#8d97b5', 62, 53, 8, 3);
+  }
   const SPOTS = [[58, 30], [134, 30], [58, 96], [134, 96], [30, 46], [162, 46], [30, 82], [162, 82]];
   function partExtension(g, n) {               // extra modules for the endless extensions
     const s = SPOTS[(n - 1) % SPOTS.length];
@@ -92,8 +144,10 @@
     R(g, '#5de0e6', x + 3, y + 3, 4, 3); R(g, '#5de0e6', x + 9, y + 3, 4, 3);
   }
 
-  const ORDER = [7, 5, 4, 6, 0, 1, 2, 3];
-  const FUNCS = [partFrame, partHabitat, partPower, partHull, partSolar, partRing, partEngines, partLaunch];
+  // FUNCS[i] is drawn for phase i (same order as CO.PHASES); ORDER = painting order, back to front.
+  const FUNCS = [partFrame, partHabitat, partPower, partHull, partDock, partSolar, partLab, partRing,
+    partAntenna, partRadiator, partEngines, partCargo, partReactor, partShield, partGarden, partLaunch];
+  const ORDER = [15, 13, 7, 5, 10, 0, 1, 2, 3, 4, 6, 8, 9, 11, 12, 14];
   let tmp = null;
   let stars = null;
 
@@ -121,13 +175,13 @@
     const g = cv.getContext('2d');
     g.imageSmoothingEnabled = false;
     background(g);
-    const launched = phase >= CO.PHASES.length;
+    const last = CO.PHASES.length - 1, launched = phase > last;
     const bob = launched ? Math.round(Math.sin(time * 0.9) * 2) : 0;
     if (!tmp) { tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H; }
     const t = tmp.getContext('2d');
 
     function part(i, n) {                                   // i: part index (or -1 for extension n)
-      const state = n ? (phase > 7 + n ? 2 : phase === 7 + n ? 1 : 0) : (i < phase ? 2 : i === phase ? 1 : 0);
+      const state = n ? (phase > last + n ? 2 : phase === last + n ? 1 : 0) : (i < phase ? 2 : i === phase ? 1 : 0);
       if (state === 0 && n) return;
       function paint(ctx, solid) { if (n) partExtension(ctx, n); else FUNCS[i](ctx, solid, time); }
       if (state === 2) { g.save(); g.translate(0, bob); paint(g, true); g.restore(); return; }
@@ -142,7 +196,7 @@
       g.restore();
     }
     for (let k = 0; k < ORDER.length; k++) part(ORDER[k], 0);
-    const exts = Math.max(0, phase - 7);
+    const exts = Math.max(0, phase - last);
     for (let n = 1; n <= exts; n++) part(-1, n);
   };
 })(window.CO = window.CO || {});

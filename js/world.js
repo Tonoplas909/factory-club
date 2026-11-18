@@ -42,7 +42,9 @@
       const patches = [
         [1, 37, 25, 5.2], [2, 60, 40, 5.0], [3, 35, 41, 4.4], [5, 62, 23, 4.6], [4, 47, 12, 4.6],
         [1, 14, 14, 6.5], [2, 82, 50, 6.5], [4, 82, 12, 5.5], [5, 14, 50, 5.5], [3, 48, 54, 5.0],
-        [1, 80, 30, 4.2], [2, 15, 32, 4.2]
+        [1, 80, 30, 4.2], [2, 15, 32, 4.2],
+        // titanium: far from the port (appended last so older patch layouts stay identical)
+        [6, 27, 6, 4.4], [6, 90, 22, 4.4], [6, 68, 58, 4.2]
       ];
       for (let p = 0; p < patches.length; p++) {
         const pt = patches[p];
@@ -63,7 +65,7 @@
 
     /** Dominant ore under a w×h footprint: {id, n (covered tiles of that ore)}. */
     countOre: function (x, y, w, h) {
-      const c = [0, 0, 0, 0, 0, 0];
+      const c = new Array(CO.ORE_IDS.length).fill(0);
       for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) c[this.oreAt(x + i, y + j)]++;
       let best = 0, bn = 0;
       for (let k = 1; k < c.length; k++) if (c[k] > bn) { bn = c[k]; best = k; }

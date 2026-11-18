@@ -39,7 +39,12 @@
     panel:   ['oooooooo', 'obhbhbbo', 'oaaaaaao', 'obhbhbbo', 'oaaaaaao', 'obhbhbbo', 'oooooooo', '...oo...'],
     cube:    ['..oooo..', '.ohhhho.', 'ohhhhhbo', 'oooooooo', 'obbbbsso', 'obbabsso', 'obbbbsso', '.oooooo.'],
     hull:    ['.oooooo.', 'ohhhhhho', 'obbbbbbo', 'obbabbbo', 'obbbbbso', '.osssso.', '..oooo..', '........'],
-    nozzle:  ['..oooo..', '.obhhbo.', '.obbbso.', '..obso..', '.oobsoo.', 'oaaaaaao', '.oaaaao.', '..oooo..']
+    nozzle:  ['..oooo..', '.obhhbo.', '.obbbso.', '..obso..', '.oobsoo.', 'oaaaaaao', '.oaaaao.', '..oooo..'],
+    battery: ['..oooo..', '.oaaaao.', 'oobbbboo', 'obhbbbso', 'obhabbso', 'obhbabso', 'obbbbbso', '.oooooo.'],
+    chip:    ['o.o.o.o.', 'oooooooo', 'obbbbbbo', 'ohbaabbo', 'obbaahbo', 'obbbbsbo', 'oooooooo', 'o.o.o.o.'],
+    tank:    ['..oooo..', '.ohhbbo.', 'ohhbbbso', 'oaaaaaao', 'obhbbbso', 'obbbbsso', '.osssso.', '..oooo..'],
+    orb:     ['..oooo..', '.ohhhho.', 'ohhaabbo', 'ohabbbbo', 'obbbbbso', 'obbbbsso', '.osssso.', '..oooo..'],
+    probe:   ['...oo...', '..oaao..', '.oabbao.', 'oobhbboo', '..obbo..', '.oobboo.', 'o..oo..o', '........']
   };
 
   function itemIcon(id) {
@@ -150,6 +155,17 @@
     R(g, '#10201f', 10, 3, 8, 4); R(g, '#10201f', 30, 3, 8, 4);
     for (let i = 0; i < 5; i++) R(g, (i + f) % 2 ? '#ffd24a' : '#3a5a58', 8 + i * 8, 40, 4, 3);
   }
+  function drawSpaceyard(g, f) {                               // 4×4 : gantry crane over a glowing slipway
+    chassis(g, 64, 64, '#5a3a8a');
+    R(g, '#1a1030', 6, 20, 52, 38);
+    for (let k = 0; k < 5; k++) R(g, (k + f) % 2 ? '#c8a0ff' : '#6a4aa0', 8 + k * 10, 56, 6, 2);
+    R(g, '#2a1a4a', 10, 24, 44, 30);
+    disc(g, '#ff8a3a', 32, 40, 9 + (f % 2)); disc(g, '#ffe27a', 32, 40, 5); disc(g, '#ffffff', 32, 40, 2);
+    R(g, '#cfd6ea', 6, 6, 52, 3); R(g, '#8d97b5', 6, 9, 52, 1);
+    const cx = 10 + ((f * 9) % 40);
+    R(g, '#ffd24a', cx, 6, 6, 5); line(g, '#cfd6ea', cx + 3, 11, cx + 3, 24, 1); R(g, '#ffd24a', cx + 1, 24, 5, 3);
+    R(g, '#d95a5a', 4, 14, 3, 3); R(g, '#d95a5a', 57, 14, 3, 3);
+  }
   function drawLab(g, f) {
     chassis(g, 32, 32, '#6a4aa8');
     R(g, '#d9f6ff', 13, 5, 6, 9); R(g, '#9fd0e0', 13, 5, 1, 9);
@@ -214,7 +230,7 @@
   }
 
   const BIG = { drill: [2, drawDrill], drill_heavy: [3, drawDrill], smelter: [2, drawSmelter], assembler: [2, drawAssembler],
-    steelmill: [3, drawSteelmill], fabricator: [3, drawFabricator], lab: [2, drawLab], seller: [2, drawSeller], port: [4, drawPort] };
+    steelmill: [3, drawSteelmill], fabricator: [3, drawFabricator], spaceyard: [4, drawSpaceyard], lab: [2, drawLab], seller: [2, drawSeller], port: [4, drawPort] };
   const SMALL = { splitter: drawSplitter, merger: drawMerger, chest: drawChest, underground_in: drawTunnelIn, underground_out: drawTunnelOut };
 
   function buildingSprite(type, dir, f) {
@@ -267,5 +283,5 @@
   }
 
   CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrain: terrain,
-    frames: { drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, lab: 4, port: 2 } };
+    frames: { drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
 })(window.CO = window.CO || {});

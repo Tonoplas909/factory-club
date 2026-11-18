@@ -2,7 +2,7 @@
 
 Jeu d'automatisation 2D en vue du dessus, jouable dans le navigateur. Tu extrais des ressources, tu les transformes dans une usine que tu construis case par case, puis tu livres les pièces au **Port** pour assembler une **station spatiale**. Pas de chronomètre, pas d'échec : on optimise, on regarde la station grandir.
 
-- Une seule partie continue, sans remise à zéro entre les étapes (8 étapes, puis des extensions sans fin).
+- Une seule partie continue, sans remise à zéro entre les étapes (16 étapes, soit bien plus d'une heure de jeu (estimation), puis des extensions sans fin).
 - Pixel art généré par code (aucune image à télécharger), sauvegarde automatique, fonctionne à la souris, au clavier et au tactile (tablette).
 
 ## Technologie choisie
@@ -69,13 +69,20 @@ Voyants des machines : vert = en production, orange = attend des matières, roug
 
 ## Cadences (équilibrage)
 
-Les cadences sont pensées pour que chaque étape se cale sur la suivante avec de petits ratios entiers :
+Toutes les cadences de base sont **deux fois plus lentes** qu'à la première version, mais les ratios restent des petits nombres entiers : chaque étape se cale sur la suivante.
 
-- **Foreuse** : 1 minerai/s à pleine couverture (0,25 par case), soit 2 fonderies. **Foreuse lourde** : 4/s, soit 8 fonderies.
-- **Fonderie** : 0,5 objet/s. **Atelier** : plaque 0,5/s (1 fonderie), engrenage 0,25/s (1 fonderie), fil 1/s (1 fonderie), circuit 0,5/s (1 atelier de fil + 1 de plaques).
-- **Haut-fourneau** : acier ou silicium 0,25/s (1 fonderie + 0,25 charbon/s). **Fabrique** : coque 0,25/s, panneau, kit et propulseur 0,125/s.
-- **Convoyeur de base** : environ 4,8 objets/s (4 foreuses), **rapide** : environ 9,7/s.
-- Les recherches *Automatisation* et *Forage* donnent le même gain (+25 % chacune) : si tu fais les deux, le ratio foreuse / machines ne change pas.
+- **Foreuse** : 0,5 minerai/s à pleine couverture (0,125 par case), soit 2 fonderies. **Foreuse lourde** : 2/s, soit 8 fonderies.
+- **Fonderie** : 0,25 objet/s (fer, cuivre, titane, pierre, sable). **Atelier** : plaque 0,25/s (1 fonderie), engrenage 0,125/s (1 fonderie), fil 0,5/s (1 fonderie), circuit 0,25/s (1 atelier de fil + 1 de plaques), batterie 0,125/s (1 fonderie de cuivre + 1 atelier de plaques).
+- **Haut-fourneau** : acier, silicium ou alliage 0,125/s (1 fonderie + 0,125 charbon/s).
+- **Fabrique orbitale** : coque et processeur 0,125/s ; panneau, kit, propulseur et réservoir 0,0625/s. **Chantier spatial** (4×4) : cœur 0,0625/s, sonde 0,031/s.
+- **Convoyeur de base** : environ 4,8 objets/s, **rapide** : environ 9,7/s (ils ne sont jamais le goulot).
+- Les améliorations *Automatisation I à IV* (+25 % chacune sur les machines) et *Forage I à IV* (+25 % chacune sur les foreuses) rendent progressivement les cadences d'origine. Elles vont par paires, donc le ratio foreuse / machines ne change pas. *Entrepôts* porte les coffres à 900 objets.
+
+## Progression
+
+- 16 étapes de station (armature, cabine, réseau, coque, quai, ailes, module scientifique, anneau, antenne, radiateurs, propulseurs, soute, réacteur, bouclier, serre, mise en orbite), puis des extensions sans fin.
+- 27 recherches, dont une chaîne **titane** (minerai turquoise, loin du Port) : lingot de titane, alliage, batterie, processeur, réservoir, puis le **Chantier spatial** pour les cœurs de réacteur et les sondes profondes.
+- Les parties enregistrées avec l'ancienne station à 8 étapes sont converties automatiquement au chargement.
 
 Pour ne jamais déborder : un coffre tampon lisse les pics, un Comptoir de vente absorbe tout, et le Port revend le surplus. Le panneau **Infos** d'une machine affiche sa cadence exacte et le ratio « alimente N fonderies » pour les foreuses.
 

@@ -32,31 +32,49 @@
     hull:         { name: 'Plaque de coque',   price: 40,  shape: 'hull',    color: '#8fa2c9', accent: '#e8f0ff' },
     solar:        { name: 'Panneau solaire',   price: 70,  shape: 'panel',   color: '#2f6fe0', accent: '#9fd0ff' },
     kit:          { name: 'Kit modulaire',     price: 120, shape: 'cube',    color: '#e8c14a', accent: '#fff0a0' },
-    thruster:     { name: 'Propulseur',        price: 150, shape: 'nozzle',  color: '#d95a5a', accent: '#ffd24a' }
+    thruster:     { name: 'Propulseur',        price: 150, shape: 'nozzle',  color: '#d95a5a', accent: '#ffd24a' },
+    // ---- late game (titanium chain)
+    titanium_ore: { name: 'Minerai de titane', price: 2,   shape: 'rock',    color: '#4fc3b0', accent: '#b8f5ea' },
+    ingot_titanium: { name: 'Lingot de titane', price: 6,  shape: 'bar',     color: '#5fd4c0', accent: '#e0fff8' },
+    alloy:        { name: 'Alliage de titane', price: 30,  shape: 'plate',   color: '#38a3a5', accent: '#c8fff4' },
+    battery:      { name: 'Batterie',          price: 30,  shape: 'battery', color: '#6fcf5a', accent: '#f0ff9a' },
+    processor:    { name: 'Processeur',        price: 90,  shape: 'chip',    color: '#3a5fc8', accent: '#ffd24a' },
+    tank:         { name: 'Réservoir',         price: 80,  shape: 'tank',    color: '#d0d6e8', accent: '#5de0e6' },
+    core:         { name: 'Cœur de réacteur',  price: 180, shape: 'orb',     color: '#ff8a3a', accent: '#fff0a0' },
+    probe:        { name: 'Sonde profonde',    price: 400, shape: 'probe',   color: '#c36bff', accent: '#ffffff' }
   };
   CO.ITEM_ORDER = Object.keys(CO.ITEMS);
 
   // Ore tile ids used in the ore layer (0 = none).
-  CO.ORE_IDS = ['', 'iron_ore', 'copper_ore', 'stone', 'coal', 'sand'];
+  CO.ORE_IDS = ['', 'iron_ore', 'copper_ore', 'stone', 'coal', 'sand', 'titanium_ore'];
 
   // ------------------------------------------------------------- recipes
   // `machine`: building type that can run it. `tech`: research needed (null = from the start).
   // Output item id == recipe id.
   CO.RECIPES = {
-    ingot_iron:   { machine: 'smelter',    in: { iron_ore: 1 },   out: { ingot_iron: 1 },   time: 2, tech: null },
-    ingot_copper: { machine: 'smelter',    in: { copper_ore: 1 }, out: { ingot_copper: 1 }, time: 2, tech: null },
-    brick:        { machine: 'smelter',    in: { stone: 1 },      out: { brick: 1 },        time: 2, tech: null },
-    glass:        { machine: 'smelter',    in: { sand: 1 },       out: { glass: 1 },        time: 2, tech: null },
-    plate:        { machine: 'assembler',  in: { ingot_iron: 1 }, out: { plate: 1 },        time: 2, tech: null },
-    gear:         { machine: 'assembler',  in: { ingot_iron: 2 }, out: { gear: 1 },         time: 4, tech: null },
-    wire:         { machine: 'assembler',  in: { ingot_copper: 1 }, out: { wire: 2 },       time: 2, tech: null },
-    circuit:      { machine: 'assembler',  in: { wire: 2, plate: 1 }, out: { circuit: 1 },   time: 2, tech: 'electronics' },
-    steel:        { machine: 'steelmill',  in: { ingot_iron: 2, coal: 1 }, out: { steel: 1 }, time: 4, tech: 'metallurgy' },
-    silicon:      { machine: 'steelmill',  in: { sand: 2, coal: 1 },       out: { silicon: 1 }, time: 4, tech: 'metallurgy' },
-    hull:         { machine: 'fabricator', in: { steel: 2, brick: 1 },     out: { hull: 1 },  time: 4, tech: 'advanced' },
-    solar:        { machine: 'fabricator', in: { silicon: 2, glass: 1, circuit: 1 }, out: { solar: 1 }, time: 8, tech: 'photovoltaics' },
-    kit:          { machine: 'fabricator', in: { hull: 2, circuit: 1, gear: 1 },     out: { kit: 1 },   time: 8, tech: 'modules' },
-    thruster:     { machine: 'fabricator', in: { steel: 4, circuit: 2, gear: 1 },    out: { thruster: 1 }, time: 8, tech: 'propulsion' }
+    // Balance rule: every base time is DOUBLE the old one and drills are twice slower, so all
+    // integer machine ratios (1 drill = 2 smelters, 1 wire + 1 plate workshop = 1 circuit workshop...) still hold.
+    ingot_iron:   { machine: 'smelter',    in: { iron_ore: 1 },   out: { ingot_iron: 1 },   time: 4, tech: null },
+    ingot_copper: { machine: 'smelter',    in: { copper_ore: 1 }, out: { ingot_copper: 1 }, time: 4, tech: null },
+    brick:        { machine: 'smelter',    in: { stone: 1 },      out: { brick: 1 },        time: 4, tech: null },
+    glass:        { machine: 'smelter',    in: { sand: 1 },       out: { glass: 1 },        time: 4, tech: null },
+    ingot_titanium: { machine: 'smelter',  in: { titanium_ore: 1 }, out: { ingot_titanium: 1 }, time: 4, tech: 'titanium' },
+    plate:        { machine: 'assembler',  in: { ingot_iron: 1 }, out: { plate: 1 },        time: 4, tech: null },
+    gear:         { machine: 'assembler',  in: { ingot_iron: 2 }, out: { gear: 1 },         time: 8, tech: null },
+    wire:         { machine: 'assembler',  in: { ingot_copper: 1 }, out: { wire: 2 },       time: 4, tech: null },
+    circuit:      { machine: 'assembler',  in: { wire: 2, plate: 1 }, out: { circuit: 1 },   time: 4, tech: 'electronics' },
+    battery:      { machine: 'assembler',  in: { ingot_copper: 2, plate: 2 }, out: { battery: 1 }, time: 8, tech: 'batteries' },
+    steel:        { machine: 'steelmill',  in: { ingot_iron: 2, coal: 1 }, out: { steel: 1 }, time: 8, tech: 'metallurgy' },
+    silicon:      { machine: 'steelmill',  in: { sand: 2, coal: 1 },       out: { silicon: 1 }, time: 8, tech: 'metallurgy' },
+    alloy:        { machine: 'steelmill',  in: { ingot_titanium: 2, coal: 1 }, out: { alloy: 1 }, time: 8, tech: 'alloys' },
+    hull:         { machine: 'fabricator', in: { steel: 2, brick: 1 },     out: { hull: 1 },  time: 8, tech: 'advanced' },
+    solar:        { machine: 'fabricator', in: { silicon: 2, glass: 1, circuit: 1 }, out: { solar: 1 }, time: 16, tech: 'photovoltaics' },
+    kit:          { machine: 'fabricator', in: { hull: 2, circuit: 1, gear: 1 },     out: { kit: 1 },   time: 16, tech: 'modules' },
+    thruster:     { machine: 'fabricator', in: { steel: 4, circuit: 2, gear: 1 },    out: { thruster: 1 }, time: 16, tech: 'propulsion' },
+    processor:    { machine: 'fabricator', in: { circuit: 2, silicon: 2 },            out: { processor: 1 }, time: 8, tech: 'processors' },
+    tank:         { machine: 'fabricator', in: { alloy: 2, glass: 2 },               out: { tank: 1 },  time: 16, tech: 'tanks' },
+    core:         { machine: 'spaceyard',  in: { alloy: 2, processor: 1, battery: 2 }, out: { core: 1 }, time: 16, tech: 'spaceyard' },
+    probe:        { machine: 'spaceyard',  in: { thruster: 1, processor: 2, tank: 1 }, out: { probe: 1 }, time: 32, tech: 'probes' }
   };
   for (const id in CO.RECIPES) CO.RECIPES[id].id = id;
 
@@ -77,10 +95,10 @@
                        desc: 'Fait ressortir les objets d’une entrée souterraine alignée.' },
     chest:           { name: 'Coffre tampon',        cat: 'Transport',  kind: 'chest',       w: 1, h: 1, cost: 30,  tech: 'storage', capacity: 300,
                        desc: 'Stocke jusqu’à 300 objets pour lisser la production. Sort par la flèche.' },
-    drill:           { name: 'Foreuse',              cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 40,  tech: null, rate: 1,
-                       desc: 'À poser sur un gisement : 1 minerai/s à pleine couverture (0,25 par case). Équivaut à 2 fonderies. Sort par la flèche.' },
-    drill_heavy:     { name: 'Foreuse lourde',       cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 180, tech: 'heavy_drill', rate: 4,
-                       desc: 'Grande foreuse 3×3 : 4 minerais/s à pleine couverture (9 cases). Équivaut à 8 fonderies.' },
+    drill:           { name: 'Foreuse',              cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 40,  tech: null, rate: 0.5,
+                       desc: 'À poser sur un gisement : 0,5 minerai/s à pleine couverture (0,125 par case). Équivaut à 2 fonderies. Sort par la flèche.' },
+    drill_heavy:     { name: 'Foreuse lourde',       cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 180, tech: 'heavy_drill', rate: 2,
+                       desc: 'Grande foreuse 3×3 : 2 minerais/s à pleine couverture (9 cases). Équivaut à 8 fonderies.' },
     smelter:         { name: 'Fonderie',             cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 60,  tech: null,
                        desc: 'Fond minerais, pierre et sable en lingots, briques et verre. La recette se choisit seule.' },
     assembler:       { name: 'Atelier',              cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 90,  tech: null,
@@ -89,6 +107,8 @@
                        desc: 'Produit acier et silicium.' },
     fabricator:      { name: 'Fabrique orbitale',    cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 380, tech: 'advanced',
                        desc: 'Assemble les pièces avancées de la station.' },
+    spaceyard:       { name: 'Chantier spatial',     cat: 'Production', kind: 'machine',     w: 4, h: 4, cost: 900, tech: 'spaceyard',
+                       desc: 'Géant 4×4 : cœurs de réacteur et sondes profondes, les pièces les plus complexes.' },
     lab:             { name: 'Laboratoire',          cat: 'Autres',     kind: 'lab',         w: 2, h: 2, cost: 80,  tech: null,
                        desc: 'Consomme les objets de la recherche en cours (onglet Recherche).' },
     seller:          { name: 'Comptoir de vente',    cat: 'Autres',     kind: 'seller',      w: 2, h: 2, cost: 25,  tech: null,
@@ -100,7 +120,8 @@
   CO.BUILD_ORDER = Object.keys(CO.BUILDINGS).filter(function (k) { return !CO.BUILDINGS[k].hidden; });
 
   // ------------------------------------------------------------ research
-  // effect.machineSpeed / effect.drillSpeed are additive bonuses.
+  // effect.machineSpeed / drillSpeed are additive bonuses (+0.25 = +25 % of the base speed);
+  // effect.chestCap adds capacity to every buffer chest.
   CO.TECHS = {
     logistics1:    { name: 'Aiguillages',           desc: 'Séparateurs et fusions de flux.',            cost: { ingot_iron: 20 }, req: [] },
     storage:       { name: 'Stockage tampon',       desc: 'Coffres pour lisser la production.',         cost: { brick: 15, plate: 10 }, req: ['logistics1'] },
@@ -112,25 +133,47 @@
     heavy_drill:   { name: 'Foreuse lourde',        desc: 'Foreuse 3×3 pour les grands gisements.',     cost: { circuit: 15, plate: 40 }, req: ['electronics', 'drilling1'] },
     metallurgy:    { name: 'Métallurgie',           desc: 'Haut-fourneau : acier et silicium.',         cost: { plate: 30, brick: 30, gear: 15, ingot_copper: 20 }, req: ['automation1'] },
     advanced:      { name: 'Assemblage avancé',     desc: 'Fabrique orbitale et plaques de coque.',     cost: { steel: 20, circuit: 20 }, req: ['metallurgy', 'electronics'] },
-    photovoltaics: { name: 'Photovoltaïque',        desc: 'Recette du panneau solaire.',                cost: { silicon: 20, glass: 20 }, req: ['advanced'] },
-    modules:       { name: 'Modules habitables',    desc: 'Recette du kit modulaire.',                  cost: { hull: 15, circuit: 20 }, req: ['advanced'] },
-    propulsion:    { name: 'Propulsion',            desc: 'Recette du propulseur.',                     cost: { steel: 30, circuit: 30, gear: 20 }, req: ['advanced'] },
-    automation2:   { name: 'Automatisation II',     desc: 'Machines 25 % plus rapides de plus.',        cost: { steel: 30, circuit: 30 }, req: ['advanced'], effect: { machineSpeed: 0.25 } },
-    drilling2:     { name: 'Forage profond',        desc: 'Foreuses 25 % plus rapides de plus.',        cost: { steel: 20, circuit: 20 }, req: ['drilling1', 'metallurgy'], effect: { drillSpeed: 0.25 } }
+    photovoltaics: { name: 'Photovoltaïque',        desc: 'Recette du panneau solaire.',                cost: { silicon: 30, glass: 30 }, req: ['advanced'] },
+    modules:       { name: 'Modules habitables',    desc: 'Recette du kit modulaire.',                  cost: { hull: 20, circuit: 30 }, req: ['advanced'] },
+    propulsion:    { name: 'Propulsion',            desc: 'Recette du propulseur.',                     cost: { steel: 40, circuit: 40, gear: 30 }, req: ['advanced'] },
+    automation2:   { name: 'Automatisation II',     desc: 'Machines 25 % plus rapides de plus.',        cost: { steel: 40, circuit: 40, gear: 20 }, req: ['advanced', 'automation1'], effect: { machineSpeed: 0.25 } },
+    drilling2:     { name: 'Forage profond',        desc: 'Foreuses 25 % plus rapides de plus.',        cost: { steel: 30, circuit: 30 }, req: ['drilling1', 'metallurgy', 'electronics'], effect: { drillSpeed: 0.25 } },
+    // ---- titanium chain
+    titanium:      { name: 'Prospection du titane', desc: 'Fondre le minerai de titane (gisements turquoise aux confins de la carte).', cost: { plate: 60, circuit: 30, steel: 20 }, req: ['advanced'] },
+    alloys:        { name: 'Alliages de titane',    desc: 'Recette de l’alliage (haut-fourneau : titane + charbon).', cost: { ingot_titanium: 40, steel: 30 }, req: ['titanium'] },
+    batteries:     { name: 'Batteries',             desc: 'Recette de la batterie (atelier).',          cost: { ingot_copper: 60, plate: 40, circuit: 20 }, req: ['electronics', 'metallurgy'] },
+    processors:    { name: 'Microprocesseurs',      desc: 'Recette du processeur (fabrique orbitale).', cost: { circuit: 60, silicon: 40, battery: 20 }, req: ['advanced', 'batteries'] },
+    tanks:         { name: 'Réservoirs sous pression', desc: 'Recette du réservoir (fabrique orbitale).', cost: { alloy: 30, glass: 40, hull: 10 }, req: ['alloys'] },
+    spaceyard:     { name: 'Chantier spatial',      desc: 'Bâtiment 4×4 : cœurs de réacteur.',          cost: { alloy: 40, processor: 15, hull: 20 }, req: ['processors', 'alloys'] },
+    probes:        { name: 'Sondes profondes',      desc: 'Recette de la sonde (chantier spatial).',    cost: { thruster: 10, processor: 20, tank: 10 }, req: ['spaceyard', 'propulsion', 'tanks'] },
+    // ---- upgrades
+    storage2:      { name: 'Entrepôts',             desc: 'Coffres tampons : 900 objets au lieu de 300.', cost: { alloy: 20, plate: 60, brick: 40 }, req: ['storage', 'alloys'], effect: { chestCap: 600 } },
+    automation3:   { name: 'Automatisation III',    desc: 'Machines 25 % plus rapides de plus.',        cost: { alloy: 30, battery: 30 }, req: ['automation2', 'alloys', 'batteries'], effect: { machineSpeed: 0.25 } },
+    automation4:   { name: 'Automatisation IV',     desc: 'Machines 25 % plus rapides de plus (retour aux cadences d’origine).', cost: { processor: 20, alloy: 40 }, req: ['automation3', 'processors'], effect: { machineSpeed: 0.25 } },
+    drilling3:     { name: 'Forage au titane',      desc: 'Foreuses 25 % plus rapides de plus.',        cost: { alloy: 25, circuit: 40 }, req: ['drilling2', 'alloys'], effect: { drillSpeed: 0.25 } },
+    drilling4:     { name: 'Forage laser',          desc: 'Foreuses 25 % plus rapides de plus (retour aux cadences d’origine).', cost: { processor: 15, alloy: 30 }, req: ['drilling3', 'processors'], effect: { drillSpeed: 0.25 } }
   };
   for (const id in CO.TECHS) CO.TECHS[id].id = id;
 
   // ------------------------------------------------------- station phases
-  // Each phase adds a visible part to the station (see station.js). Demand grows with every step.
+  // Phase i draws station part i (see station.js): keep the two lists in the same order.
   CO.PHASES = [
-    { id: 'frame',   name: 'Armature centrale',      desc: 'La poutre et le moyeu de la station.',          need: { plate: 30, gear: 20 },                      reward: 150 },
-    { id: 'habitat', name: 'Cabine de vie',          desc: 'Un premier module pressurisé pour l’équipage.',  need: { brick: 30, glass: 30, plate: 20 },          reward: 200 },
-    { id: 'power',   name: 'Réseau électrique',      desc: 'Câblage et nœuds de distribution.',             need: { circuit: 25, wire: 40 },                    reward: 300 },
-    { id: 'hull',    name: 'Coque renforcée',        desc: 'Blindage contre les micrométéorites.',          need: { steel: 40, brick: 20 },                     reward: 400 },
-    { id: 'solar',   name: 'Ailes solaires',         desc: 'Deux grandes ailes pour capter la lumière.',    need: { solar: 12, circuit: 20 },                   reward: 600 },
-    { id: 'ring',    name: 'Anneau d’habitation',    desc: 'Un anneau tournant pour vivre confortablement.', need: { kit: 10, hull: 20 },                        reward: 800 },
-    { id: 'engines', name: 'Propulseurs',            desc: 'Pour quitter la surface et rejoindre l’orbite.', need: { thruster: 8, steel: 40 },                   reward: 1000 },
-    { id: 'launch',  name: 'Mise en orbite',         desc: 'Dernière étape : allumer la station !',         need: { kit: 15, solar: 15, thruster: 10, circuit: 40 }, reward: 2000 }
+    { id: 'frame',    name: 'Armature centrale',      desc: 'La poutre et le moyeu de la station.',               need: { plate: 40, gear: 25 },                       reward: 200 },
+    { id: 'habitat',  name: 'Cabine de vie',          desc: 'Un premier module pressurisé pour l’équipage.',       need: { brick: 40, glass: 40, plate: 30 },           reward: 250 },
+    { id: 'power',    name: 'Réseau électrique',      desc: 'Câblage et nœuds de distribution.',                  need: { circuit: 30, wire: 60 },                     reward: 350 },
+    { id: 'hull',     name: 'Coque renforcée',        desc: 'Blindage contre les micrométéorites.',               need: { steel: 50, brick: 30 },                      reward: 500 },
+    { id: 'dock',     name: 'Quai d’amarrage',        desc: 'Un bras d’accueil pour les navettes de ravitaillement.', need: { steel: 40, gear: 40, circuit: 20 },      reward: 600 },
+    { id: 'solar',    name: 'Ailes solaires',         desc: 'Deux grandes ailes pour capter la lumière.',         need: { solar: 20, circuit: 20 },                    reward: 700 },
+    { id: 'lab',      name: 'Module scientifique',    desc: 'Des laboratoires en apesanteur.',                    need: { hull: 20, glass: 40, circuit: 30 },          reward: 800 },
+    { id: 'ring',     name: 'Anneau d’habitation',    desc: 'Un anneau tournant pour vivre confortablement.',      need: { kit: 12, hull: 25 },                         reward: 1000 },
+    { id: 'antenna',  name: 'Antenne de communication', desc: 'Une grande parabole pour parler à la Terre.',      need: { ingot_titanium: 40, circuit: 50, steel: 30 }, reward: 1200 },
+    { id: 'radiator', name: 'Radiateurs thermiques',  desc: 'Évacuer la chaleur dans le vide.',                   need: { alloy: 30, glass: 40, steel: 40 },           reward: 1400 },
+    { id: 'engines',  name: 'Propulseurs',            desc: 'Pour quitter la surface et rejoindre l’orbite.',      need: { thruster: 12, alloy: 20 },                   reward: 1600 },
+    { id: 'cargo',    name: 'Soute de fret',          desc: 'Des conteneurs pressurisés pour tout emporter.',     need: { tank: 15, hull: 20, battery: 20 },           reward: 1900 },
+    { id: 'reactor',  name: 'Réacteur de bord',       desc: 'Le cœur énergétique de la station.',                 need: { core: 8, battery: 30, processor: 10 },       reward: 2200 },
+    { id: 'shield',   name: 'Bouclier magnétique',    desc: 'Protège l’équipage des tempêtes solaires.',           need: { processor: 20, alloy: 40, kit: 10 },         reward: 2600 },
+    { id: 'garden',   name: 'Serre orbitale',         desc: 'Des plantes, de l’air frais et un peu de vert.',      need: { tank: 20, solar: 20, processor: 10 },        reward: 3000 },
+    { id: 'launch',   name: 'Mise en orbite',         desc: 'Dernière étape : allumer la station !',              need: { probe: 6, core: 8, kit: 15, thruster: 10, solar: 15 }, reward: 5000 }
   ];
 
   /** Phase `i`; beyond the planned phases, endless growing "extensions" are generated. */
@@ -138,16 +181,18 @@
     if (i < CO.PHASES.length) return CO.PHASES[i];
     const n = i - CO.PHASES.length + 1;
     const menus = [
-      { kit: 6, solar: 6, steel: 20 },
-      { thruster: 4, hull: 12, circuit: 20 },
-      { solar: 8, kit: 6, glass: 30 },
-      { hull: 16, steel: 30, thruster: 4 }
+      { kit: 8, solar: 8, steel: 30 },
+      { thruster: 6, hull: 16, processor: 8 },
+      { tank: 8, core: 3, battery: 20 },
+      { probe: 2, alloy: 30, solar: 10 },
+      { processor: 14, kit: 8, glass: 40 },
+      { core: 5, thruster: 6, tank: 8 }
     ];
     const base = menus[(n - 1) % menus.length], need = {};
     const scale = 1 + Math.floor((n - 1) / menus.length) * 0.6 + (n - 1) * 0.15;
     for (const k in base) need[k] = Math.round(base[k] * scale);
-    return { id: 'ext' + n, name: 'Extension n° ' + n, desc: 'La station grandit : de nouveaux modules sont commandés.', need: need, reward: 1200 + n * 300, extension: n };
+    return { id: 'ext' + n, name: 'Extension n° ' + n, desc: 'La station grandit : de nouveaux modules sont commandés.', need: need, reward: 4000 + n * 500, extension: n };
   };
 
-  CO.START_MONEY = 200;
+  CO.START_MONEY = 300;
 })(window.CO = window.CO || {});

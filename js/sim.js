@@ -109,7 +109,7 @@
       case 'belt': case 'tunnel_in': return beltIn(t, item, dir, carry);
       case 'router': return routerIn(t, item, dir);
       case 'chest':
-        if (dir === ((t.dir + 2) & 3) || t.q.length >= t.def.capacity) return false;
+        if (dir === ((t.dir + 2) & 3) || t.q.length >= CO.chestCap(t.def)) return false;
         t.q.push(item); return true;
       case 'machine': return machineIn(t, item, dir);
       case 'lab': return labIn(t, item);
