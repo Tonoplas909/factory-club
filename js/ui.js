@@ -20,11 +20,13 @@
     c.title = ITEMS[id].name;
     return c;
   }
-  function thumb(type) {
-    const spr = CO.sprites.building(type, 0, 0), s = 36 / Math.max(spr.width, spr.height);
-    const c = h('canvas', { width: 36, height: 36, class: 'thumb' });
+  function thumb(type, size) {
+    size = size || 36;
+    const spr = CO.sprites.building(type, 0, 0), s = size / Math.max(spr.width, spr.height);
+    const c = h('canvas', { width: size, height: size, class: 'thumb' });
+    c.style.width = c.style.height = size + 'px';
     const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
-    g.drawImage(spr, 0, 0, spr.width, spr.height, Math.round((36 - spr.width * s) / 2), Math.round((36 - spr.height * s) / 2), Math.round(spr.width * s), Math.round(spr.height * s));
+    g.drawImage(spr, 0, 0, spr.width, spr.height, Math.round((size - spr.width * s) / 2), Math.round((size - spr.height * s) / 2), Math.round(spr.width * s), Math.round(spr.height * s));
     return c;
   }
   function costRow(cost, prog) {
@@ -90,6 +92,7 @@
     const tbl = h('table', { class: 'keys' },
       row('Clic gauche', 'Utiliser l’outil actif (poser, inspecter…)'),
       row('Glisser', 'Poser plusieurs éléments d’un coup (les convoyeurs suivent ton tracé)'),
+      row('Poser sur des convoyeurs', 'Un bâtiment posé sur des convoyeurs, séparateurs ou souterrains les remplace (remboursés)'),
       row('Clic droit', 'Désélectionner le bâtiment en cours de pose'),
       row('Clic droit (glisser)', 'Rectangle rouge : supprime tout ce qu’il touche — remboursement intégral'),
       row('R / Maj+R', 'Tourner / tourner à l’envers'),
@@ -317,74 +320,157 @@
     body.appendChild(any ? tbl : h('p', { class: 'note', text: 'Rien produit pour l’instant. Pose une Foreuse sur un gisement !' }));
   }
 
-  function statusText(b) {
+  // ------------------------------------------------------------ info panel
+  let live = null;   // {b, bar, pct}: progress bar updated every frame without re-rendering the panel
+
+  function fmtRate(x) { return (Math.round(x * 100) / 100).toLocaleString('fr-FR') + '/s'; }
+  function pill(cls, text) { return h('span', { class: 'pill ' + cls }, h('i'), text); }
+
+  function statusPill(b) {
     switch (b.kind) {
       case 'machine':
-        if (!b.recipe) return 'Choisis une recette ci-dessous.';
-        return b.status === 'work' ? 'En production' : b.status === 'blocked' ? 'Sortie bloquée : relie la flèche jaune à un convoyeur' : 'En attente de matières';
+        if (!b.recipe) return pill('warn', 'Recette à choisir');
+        return b.status === 'work' ? pill('good', 'En production') : b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('warn', 'Attend des matières');
       case 'drill':
-        if (!b.ore) return 'Aucun gisement sous la foreuse.';
-        return itemName(b.ore) + ' · ' + b.n + ' case(s) · ' + (b.n * b.def.perTile * CO.mods.drill).toFixed(2) + '/s' + (b.status === 'blocked' ? ' · sortie bloquée' : '');
-      case 'belt': case 'tunnel_in': case 'tunnel_out': return b.items.length + ' objet(s) sur la case';
-      case 'chest': return b.q.length + ' / ' + b.def.capacity + ' objets';
-      case 'lab': return CO.state.research ? 'Recherche : ' + TECHS[CO.state.research].name : 'Aucune recherche active (onglet Recherche).';
-      case 'seller': return 'Achète tout à prix fixe.';
-      case 'port': return 'Livraisons pour la station ; surplus revendu.';
-      case 'router': return b.type === 'splitter' ? (b.filter ? 'Filtre : ' + itemName(b.filter) + ' tout droit' : 'Répartition équitable') : 'Fusionne les flux';
+        if (!b.ore) return pill('bad', 'Hors gisement');
+        return b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('good', 'Extraction');
+      case 'lab': return CO.state.research ? pill('good', 'Recherche en cours') : pill('warn', 'Aucune recherche');
+      case 'seller': case 'port': return pill('good', 'Actif');
+      case 'chest': return pill('info', b.q.length + ' / ' + b.def.capacity);
+      case 'router': return pill('info', b.type === 'splitter' ? (b.filter ? 'Filtré' : 'Équitable') : 'Fusion');
+      default: return pill('info', b.items.length + ' objet(s)');
     }
+  }
+  function statusHelp(b) {
+    if ((b.kind === 'machine' || b.kind === 'drill') && b.status === 'blocked') return 'Relie la flèche jaune à un convoyeur (ou à un bâtiment qui accepte la production).';
+    if (b.kind === 'machine' && b.recipe && b.status === 'idle') return 'Amène les matières par convoyeur sur n’importe quel côté, sauf la sortie.';
+    if (b.kind === 'drill' && !b.ore) return 'Déplace la foreuse sur un gisement coloré.';
+    if (b.kind === 'lab' && !CO.state.research) return 'Choisis une recherche dans l’onglet Recherche.';
     return '';
   }
 
+  function section(title, node) { return h('div', { class: 'isec' }, h('div', { class: 'isec-t', text: title }), node); }
+  function kv(label, value) { return h('div', { class: 'kv' }, h('span', { text: label }), h('b', { text: value })); }
+
+  /** Inputs → outputs with the throughput of ONE machine, so ratios between stages are easy to plan. */
+  function flowCard(rec) {
+    const t = CO.craftTime(rec);
+    const side = function (map) {
+      const col = h('div', { class: 'flow-col' });
+      for (const k in map) col.appendChild(h('div', { class: 'flow-item', title: itemName(k) }, itemIcon(k, 3), h('b', { text: '×' + map[k] }), h('small', { text: fmtRate(map[k] / t) })));
+      return col;
+    };
+    return h('div', { class: 'flow' }, side(rec.in), h('div', { class: 'flow-arrow', text: '➜' }), side(rec.out),
+      h('div', { class: 'flow-foot', text: 'Cycle : ' + t.toFixed(1).replace('.', ',') + ' s · cadence d’une machine' }));
+  }
+
+  function stockChips(map) {
+    const row = h('div', { class: 'chips' });
+    let n = 0;
+    for (const k in map) if (map[k] > 0) { n++; row.appendChild(h('span', { class: 'chip2', title: itemName(k) }, itemIcon(k, 2), h('b', { text: String(map[k]) }))); }
+    return n ? row : h('div', { class: 'small', text: 'vide' });
+  }
+  function countBy(arr) { const m = {}; arr.forEach(function (k) { m[k] = (m[k] || 0) + 1; }); return m; }
+
+  function progressBar(b, pct) {
+    const bar = h('i'); live = { b: b, bar: bar, pct: pct };
+    return h('div', { class: 'bar live' }, bar);
+  }
+
   function renderInfo(body) {
+    live = null;
     const sel = CO.input.get(), b = sel.inspected;
     if (!b || b.dead) {
       if (sel.selection.length) {
-        body.appendChild(h('p', { class: 'note', text: sel.selection.length + ' élément(s) sélectionné(s).' }));
-        body.appendChild(h('button', { class: 'btn', text: 'Copier (Ctrl+C)', onclick: function () { CO.input.copy(); } }));
-        body.appendChild(h('button', { class: 'btn danger', text: 'Supprimer (Suppr)', onclick: function () { CO.input.deleteSelected(); } }));
+        const counts = {};
+        sel.selection.forEach(function (x) { counts[x.type] = (counts[x.type] || 0) + 1; });
+        const grid = h('div', { class: 'sel-grid' });
+        for (const t in counts) grid.appendChild(h('div', { class: 'sel-item', title: BUILDINGS[t].name }, thumb(t), h('b', { text: '×' + counts[t] })));
+        body.appendChild(h('div', { class: 'icard' },
+          h('div', { class: 'ititle', text: sel.selection.length + ' élément(s) sélectionné(s)' }), grid,
+          h('div', { class: 'actions' },
+            h('button', { class: 'btn', text: '⧉ Copier', onclick: function () { CO.input.copy(); } }),
+            h('button', { class: 'btn danger', text: '✖ Supprimer', onclick: function () { CO.input.deleteSelected(); } }))));
       } else {
-        body.appendChild(h('p', { class: 'note', text: 'Clique sur un bâtiment avec l’outil Inspecter pour voir son état et régler sa recette.' }));
-        body.appendChild(h('button', { class: 'btn', text: 'Aide et commandes', onclick: showHelp }));
+        body.appendChild(h('div', { class: 'empty' },
+          h('div', { class: 'empty-ico', text: '✋' }),
+          h('div', { class: 'ititle', text: 'Aucun bâtiment sélectionné' }),
+          h('p', { class: 'small', text: 'Avec l’outil Inspecter, clique sur un bâtiment pour voir son état, ses cadences et régler sa recette.' }),
+          h('div', { class: 'tips' },
+            h('div', { class: 'tip' }, h('i', { class: 'dot good' }), h('span', { text: 'Vert : en production' })),
+            h('div', { class: 'tip' }, h('i', { class: 'dot warn' }), h('span', { text: 'Orange : attend des matières' })),
+            h('div', { class: 'tip' }, h('i', { class: 'dot bad' }), h('span', { text: 'Rouge : sortie bloquée' })),
+            h('div', { class: 'tip' }, h('i', { class: 'dot gold' }), h('span', { text: 'Flèche jaune : sortie' }))),
+          h('button', { class: 'btn', text: 'Aide et commandes', onclick: showHelp })));
       }
       return;
     }
-    body.appendChild(h('div', { class: 'insp-head' }, thumb(b.type), h('div', null, h('b', { text: b.def.name }), h('div', { class: 'small', text: b.w + '×' + b.h + ' · sortie ' + CO.DIR_ARROWS[b.dir] }))));
-    body.appendChild(h('p', { class: 'status-line', text: statusText(b) }));
-    body.appendChild(h('p', { class: 'small', text: b.def.desc }));
 
+    // ---- hero
+    body.appendChild(h('div', { class: 'hero' }, thumb(b.type, 60),
+      h('div', { class: 'hero-txt' },
+        h('div', { class: 'ititle', text: b.def.name }),
+        h('div', { class: 'hero-meta' },
+          h('span', { class: 'tag', text: b.w + '×' + b.h }),
+          b.def.fixed ? null : h('span', { class: 'tag', text: 'Sortie ' + CO.DIR_ARROWS[b.dir] }),
+          b.def.fixed ? null : h('span', { class: 'tag gold', text: b.def.cost + ' ¢' })))));
+    const help = statusHelp(b);
+    body.appendChild(h('div', { class: 'icard' }, statusPill(b), help ? h('div', { class: 'help', text: help }) : null,
+      h('p', { class: 'small', text: b.def.desc })));
+
+    // ---- per kind
     if (b.kind === 'machine') {
-      body.appendChild(h('div', { class: 'sub', text: 'Recette' }));
       const grid = h('div', { class: 'grid' });
       CO.recipesFor(b.type).forEach(function (r) {
         const ok = CO.isRecipeUnlocked(r.id), out = Object.keys(r.out)[0];
-        const ins = Object.keys(r.in).map(function (k) { return r.in[k] + '× ' + itemName(k); }).join(' + ');
         grid.appendChild(h('button', {
           class: 'rec' + (b.recipe === r.id ? ' active' : '') + (ok ? '' : ' locked'), disabled: !ok,
-          title: itemName(out) + ' ×' + r.out[out] + ' ← ' + ins + ' (' + r.time + ' s)' + (ok ? '' : '\nRecherche requise : ' + TECHS[r.tech].name),
+          title: ok ? itemName(out) : 'Recherche requise : ' + TECHS[r.tech].name,
           onclick: function () { CO.history.configure(b, r.id); renderSide(true); }
-        }, itemIcon(out, 3), h('span', { text: itemName(out) })));
+        }, itemIcon(out, 3), h('span', { text: itemName(out) }), ok ? null : h('em', { text: '🔒' })));
       });
-      body.appendChild(grid);
+      body.appendChild(section('Recette', grid));
       if (b.recipe) {
-        const r = RECIPES[b.recipe];
-        body.appendChild(h('div', { class: 'small', text: Object.keys(r.in).map(function (k) { return r.in[k] + '× ' + itemName(k); }).join(' + ') + ' → ' + Object.keys(r.out).map(function (k) { return r.out[k] + '× ' + itemName(k); }).join(' + ') + ' · ' + (r.time / CO.mods.machine).toFixed(1) + ' s' }));
-        const bufs = Object.keys(b.inBuf).filter(function (k) { return b.inBuf[k] > 0; }).map(function (k) { return b.inBuf[k] + '× ' + itemName(k); });
-        body.appendChild(h('div', { class: 'small', text: 'Stock entrant : ' + (bufs.join(', ') || 'vide') + ' · sortie en attente : ' + b.outBuf.length }));
+        const rec = RECIPES[b.recipe];
+        body.appendChild(section('Production', flowCard(rec)));
+        body.appendChild(section('Cycle en cours', progressBar(b, function () { return b.crafting ? b.prog / CO.craftTime(rec) : 0; })));
+        body.appendChild(h('div', { class: 'two' }, section('Stock entrant', stockChips(b.inBuf)), section('Prêt à sortir', stockChips(countBy(b.outBuf)))));
       }
-    }
-    if (b.type === 'splitter') {
-      body.appendChild(h('div', { class: 'sub', text: 'Filtre (l’objet choisi sort tout droit, les autres sur les côtés)' }));
+    } else if (b.kind === 'drill') {
+      const total = b.w * b.h, eq = CO.drillRate(b) / 0.5;
+      body.appendChild(section('Extraction', h('div', { class: 'icard flat' },
+        b.ore ? h('div', { class: 'ore-row' }, itemIcon(b.ore, 4), h('div', null, h('b', { text: itemName(b.ore) }), h('div', { class: 'small', text: fmtRate(CO.drillRate(b)) + ' · ' + b.n + '/' + total + ' cases' }))) : h('div', { class: 'small', text: 'Aucun gisement sous la foreuse.' }),
+        kv('Couverture', Math.round(b.n / total * 100) + ' %'),
+        kv('Alimente', (Math.round(eq * 10) / 10).toLocaleString('fr-FR') + ' fonderie(s)'),
+        progressBar(b, function () { return Math.min(1, b.acc); }))));
+    } else if (b.kind === 'chest') {
+      const f = b.q.length / b.def.capacity;
+      body.appendChild(section('Contenu', h('div', null,
+        h('div', { class: 'bar' }, h('i', { style: 'width:' + (f * 100) + '%' })), stockChips(countBy(b.q)))));
+    } else if (b.kind === 'lab') {
+      const st = CO.state;
+      if (st.research) {
+        const t = TECHS[st.research];
+        body.appendChild(section('Recherche : ' + t.name, costRow(t.cost, st.researchProg)));
+      }
+    } else if (b.kind === 'port') {
+      const p = CO.getPhase(CO.state.phase);
+      body.appendChild(section('Étape en cours', h('div', { class: 'icard flat' }, h('b', { text: p.name }), costRow(p.need, CO.state.phaseHave))));
+    } else if (b.type === 'splitter') {
       const grid = h('div', { class: 'grid' });
-      grid.appendChild(h('button', { class: 'rec' + (!b.filter ? ' active' : ''), text: 'Aucun', onclick: function () { CO.history.configure(b, null); renderSide(true); } }));
+      grid.appendChild(h('button', { class: 'rec' + (!b.filter ? ' active' : ''), onclick: function () { CO.history.configure(b, null); renderSide(true); } }, h('span', { class: 'none', text: '∅' }), h('span', { text: 'Aucun' })));
       CO.ITEM_ORDER.forEach(function (id) {
         grid.appendChild(h('button', { class: 'rec' + (b.filter === id ? ' active' : ''), title: itemName(id), onclick: function () { CO.history.configure(b, id); renderSide(true); } }, itemIcon(id, 3)));
       });
-      body.appendChild(grid);
+      body.appendChild(section('Filtre (l’objet choisi sort tout droit)', grid));
+    } else if (b.items && b.items.length) {
+      body.appendChild(section('Sur la case', stockChips(countBy(b.items.map(function (i) { return i.t; })))));
     }
+
     if (b.def.fixed) return;
-    body.appendChild(h('div', { class: 'row' },
-      h('button', { class: 'btn', text: 'Tourner (R)', onclick: function () { CO.history.rotate(b); renderSide(true); } }),
-      h('button', { class: 'btn danger', text: 'Supprimer', onclick: function () { CO.input.deleteSelected(); } })));
+    body.appendChild(h('div', { class: 'actions' },
+      h('button', { class: 'btn', text: '↻ Tourner (R)', onclick: function () { CO.history.rotate(b); renderSide(true); } }),
+      h('button', { class: 'btn danger', text: '✖ Supprimer', onclick: function () { CO.input.deleteSelected(); } })));
   }
 
   /** Cheap signature of what the current tab displays: re-render only when it changes. */
@@ -398,7 +484,7 @@
         const b = CO.input.get().inspected;
         const sel = CO.input.get().selection.length;
         if (!b || b.dead) return 'none' + sel;
-        return b.id + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + Object.keys(b.inBuf || {}).length + ':' + (st.research || '');
+        return b.id + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '');
       }
     }
     return '';
@@ -408,7 +494,7 @@
     if (!force && (pressing || signature() === lastSig)) return;
     lastSig = signature();
     const sc = body.scrollTop;
-    body.innerHTML = ''; stationCv = null;
+    body.innerHTML = ''; stationCv = null; live = null;
     ({ station: renderStation, research: renderResearch, stats: renderStats, info: renderInfo })[tab](body);
     body.scrollTop = sc;
   }
@@ -436,16 +522,37 @@
   // ----------------------------------------------------------------- per frame
   UI.update = function (dt) {
     simTime = CO.state.time;
-    updateTopbar(); updatePalette(); updateToolbar(); updateHint(); updateStatus();
+    updateTopbar(); updatePalette(); updateToolbar(); updateHint(); updateStatus(); updateOreTip();
     renderSide(false);
+    if (live && tab === 'info' && !live.b.dead) live.bar.style.width = (CO.clamp(live.pct(), 0, 1) * 100) + '%';
     if (stationCv && tab === 'station') CO.drawStation(stationCv, CO.state.phase, UI.phaseProgress(), performance.now() / 1000);
     if (UI.modalAnim && !modalEl.hidden) CO.drawStation(UI.modalAnim.cv, UI.modalAnim.phase, 0, performance.now() / 1000);
   };
+
+  // ------------------------------------------------- ore tooltip next to the mouse
+  let tipEl = null, tipOre = -1;
+  function updateOreTip() {
+    const hv = CO.input.hoverInfo();
+    const show = hv && hv.mouse && hv.ore && !hv.b && !UI.modalOpen();
+    if (!show) { tipEl.hidden = true; tipOre = -1; return; }
+    if (tipOre !== hv.ore) {                               // rebuild only when the hovered ore changes
+      tipOre = hv.ore;
+      const id = CO.ORE_IDS[hv.ore];
+      tipEl.innerHTML = '';
+      tipEl.appendChild(itemIcon(id, 3));
+      tipEl.appendChild(h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · pose une Foreuse dessus' })));
+    }
+    tipEl.hidden = false;
+    const w = tipEl.offsetWidth, hh = tipEl.offsetHeight;
+    tipEl.style.left = Math.min(hv.sx + 16, window.innerWidth - w - 8) + 'px';
+    tipEl.style.top = Math.min(hv.sy + 18, window.innerHeight - hh - 8) + 'px';
+  }
 
   UI.showHelp = function () { showHelp(); };
 
   UI.init = function () {
     modalEl = $('modal');
+    tipEl = h('div', { id: 'oretip', hidden: true }); $('app').appendChild(tipEl);
     modalEl.addEventListener('click', function (e) { if (e.target === modalEl) UI.closeModal(); });
     buildMenu(); buildPalette(); buildToolbar(); buildTabs();
     if (window.innerWidth < 1100) document.body.classList.add('side-collapsed');   // tablets: panel opens on demand

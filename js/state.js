@@ -59,6 +59,11 @@
     return !r || CO.isRecipeUnlocked(item);
   };
 
+  /** Items per second mined by a drill (covered tiles / footprint × full-coverage rate × research). */
+  CO.drillRate = function (b) { return b.ore ? b.n / (b.w * b.h) * b.def.rate * CO.mods.drill : 0; };
+  /** Seconds one craft takes with current research. */
+  CO.craftTime = function (rec) { return rec.time / CO.mods.machine; };
+
   // -------------------------------------------------------------- money
   CO.addMoney = function (n) {
     CO.state.money += n;

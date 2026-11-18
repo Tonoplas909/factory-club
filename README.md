@@ -45,6 +45,7 @@ Aucune étape de build : le site est statique. Les chemins sont relatifs, donc i
 | --- | --- |
 | Utiliser l'outil actif | Clic gauche |
 | Poser plusieurs éléments | Glisser (les convoyeurs suivent le tracé, les autres bâtiments se posent en ligne) |
+| Construire par-dessus des convoyeurs | Poser le bâtiment dessus : convoyeurs, séparateurs et souterrains sont remplacés et remboursés (annulable) |
 | Désélectionner le bâtiment en cours de pose | Clic droit |
 | Supprimer (remboursement intégral) | Clic droit (glisser) ou outil Supprimer (`X`) : un rectangle rouge supprime tout ce qu'il touche |
 | Tourner / tourner à l'envers | `R` / `Maj+R` |
@@ -64,6 +65,18 @@ Boucle de jeu :
 4. Livre les pièces demandées au **Port** : chaque étape termine une partie visible de la station.
 
 Voyants des machines : vert = en production, orange = attend des matières, rouge = sortie bloquée. La flèche jaune indique la sortie. Le panneau **Production** donne la cadence de la dernière minute pour repérer les goulots.
+
+## Cadences (équilibrage)
+
+Les cadences sont pensées pour que chaque étape se cale sur la suivante avec de petits ratios entiers :
+
+- **Foreuse** : 1 minerai/s à pleine couverture (0,25 par case), soit 2 fonderies. **Foreuse lourde** : 4/s, soit 8 fonderies.
+- **Fonderie** : 0,5 objet/s. **Atelier** : plaque 0,5/s (1 fonderie), engrenage 0,25/s (1 fonderie), fil 1/s (1 fonderie), circuit 0,5/s (1 atelier de fil + 1 de plaques).
+- **Haut-fourneau** : acier ou silicium 0,25/s (1 fonderie + 0,25 charbon/s). **Fabrique** : coque 0,25/s, panneau, kit et propulseur 0,125/s.
+- **Convoyeur de base** : environ 4,8 objets/s (4 foreuses), **rapide** : environ 9,7/s.
+- Les recherches *Automatisation* et *Forage* donnent le même gain (+25 % chacune) : si tu fais les deux, le ratio foreuse / machines ne change pas.
+
+Pour ne jamais déborder : un coffre tampon lisse les pics, un Comptoir de vente absorbe tout, et le Port revend le surplus. Le panneau **Infos** d'une machine affiche sa cadence exacte et le ratio « alimente N fonderies » pour les foreuses.
 
 ## Sauvegarde
 

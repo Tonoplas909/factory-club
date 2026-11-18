@@ -48,15 +48,15 @@
     brick:        { machine: 'smelter',    in: { stone: 1 },      out: { brick: 1 },        time: 2, tech: null },
     glass:        { machine: 'smelter',    in: { sand: 1 },       out: { glass: 1 },        time: 2, tech: null },
     plate:        { machine: 'assembler',  in: { ingot_iron: 1 }, out: { plate: 1 },        time: 2, tech: null },
-    gear:         { machine: 'assembler',  in: { ingot_iron: 2 }, out: { gear: 1 },         time: 2, tech: null },
+    gear:         { machine: 'assembler',  in: { ingot_iron: 2 }, out: { gear: 1 },         time: 4, tech: null },
     wire:         { machine: 'assembler',  in: { ingot_copper: 1 }, out: { wire: 2 },       time: 2, tech: null },
-    circuit:      { machine: 'assembler',  in: { wire: 2, plate: 1 }, out: { circuit: 1 },   time: 3, tech: 'electronics' },
+    circuit:      { machine: 'assembler',  in: { wire: 2, plate: 1 }, out: { circuit: 1 },   time: 2, tech: 'electronics' },
     steel:        { machine: 'steelmill',  in: { ingot_iron: 2, coal: 1 }, out: { steel: 1 }, time: 4, tech: 'metallurgy' },
     silicon:      { machine: 'steelmill',  in: { sand: 2, coal: 1 },       out: { silicon: 1 }, time: 4, tech: 'metallurgy' },
     hull:         { machine: 'fabricator', in: { steel: 2, brick: 1 },     out: { hull: 1 },  time: 4, tech: 'advanced' },
-    solar:        { machine: 'fabricator', in: { silicon: 2, glass: 1, circuit: 1 }, out: { solar: 1 }, time: 5, tech: 'photovoltaics' },
-    kit:          { machine: 'fabricator', in: { hull: 2, circuit: 1, gear: 1 },     out: { kit: 1 },   time: 6, tech: 'modules' },
-    thruster:     { machine: 'fabricator', in: { steel: 3, circuit: 2, gear: 1 },    out: { thruster: 1 }, time: 6, tech: 'propulsion' }
+    solar:        { machine: 'fabricator', in: { silicon: 2, glass: 1, circuit: 1 }, out: { solar: 1 }, time: 8, tech: 'photovoltaics' },
+    kit:          { machine: 'fabricator', in: { hull: 2, circuit: 1, gear: 1 },     out: { kit: 1 },   time: 8, tech: 'modules' },
+    thruster:     { machine: 'fabricator', in: { steel: 4, circuit: 2, gear: 1 },    out: { thruster: 1 }, time: 8, tech: 'propulsion' }
   };
   for (const id in CO.RECIPES) CO.RECIPES[id].id = id;
 
@@ -77,10 +77,10 @@
                        desc: 'Fait ressortir les objets d’une entrée souterraine alignée.' },
     chest:           { name: 'Coffre tampon',        cat: 'Transport',  kind: 'chest',       w: 1, h: 1, cost: 30,  tech: 'storage', capacity: 300,
                        desc: 'Stocke jusqu’à 300 objets pour lisser la production. Sort par la flèche.' },
-    drill:           { name: 'Foreuse',              cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 40,  tech: null, perTile: 0.2,
-                       desc: 'À poser sur un gisement : extrait 0,2 minerai/s par case couverte. Sort par la flèche.' },
-    drill_heavy:     { name: 'Foreuse lourde',       cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 180, tech: 'heavy_drill', perTile: 0.22,
-                       desc: 'Grande foreuse 3×3 : jusqu’à 9 cases de gisement.' },
+    drill:           { name: 'Foreuse',              cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 40,  tech: null, rate: 1,
+                       desc: 'À poser sur un gisement : 1 minerai/s à pleine couverture (0,25 par case). Équivaut à 2 fonderies. Sort par la flèche.' },
+    drill_heavy:     { name: 'Foreuse lourde',       cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 180, tech: 'heavy_drill', rate: 4,
+                       desc: 'Grande foreuse 3×3 : 4 minerais/s à pleine couverture (9 cases). Équivaut à 8 fonderies.' },
     smelter:         { name: 'Fonderie',             cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 60,  tech: null,
                        desc: 'Fond minerais, pierre et sable en lingots, briques et verre. La recette se choisit seule.' },
     assembler:       { name: 'Atelier',              cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 90,  tech: null,
@@ -107,7 +107,7 @@
     tunnels:       { name: 'Convoyeurs souterrains', desc: 'Passer sous les autres lignes.',            cost: { gear: 10, ingot_copper: 20 }, req: ['logistics1'] },
     fast_belt:     { name: 'Convoyeurs rapides',    desc: 'Des lignes deux fois plus rapides.',         cost: { gear: 25, wire: 20 }, req: ['logistics1'] },
     automation1:   { name: 'Automatisation I',      desc: 'Machines 25 % plus rapides.',                cost: { gear: 20, plate: 20 }, req: [], effect: { machineSpeed: 0.25 } },
-    drilling1:     { name: 'Forage renforcé',       desc: 'Foreuses 50 % plus rapides.',                cost: { plate: 20, gear: 10, ingot_iron: 20 }, req: [], effect: { drillSpeed: 0.5 } },
+    drilling1:     { name: 'Forage renforcé',       desc: 'Foreuses 25 % plus rapides (même gain que l’Automatisation I).', cost: { plate: 20, gear: 10, ingot_iron: 20 }, req: [], effect: { drillSpeed: 0.25 } },
     electronics:   { name: 'Électronique',          desc: 'Recette du circuit.',                        cost: { wire: 30, plate: 15 }, req: [] },
     heavy_drill:   { name: 'Foreuse lourde',        desc: 'Foreuse 3×3 pour les grands gisements.',     cost: { circuit: 15, plate: 40 }, req: ['electronics', 'drilling1'] },
     metallurgy:    { name: 'Métallurgie',           desc: 'Haut-fourneau : acier et silicium.',         cost: { plate: 30, brick: 30, gear: 15, ingot_copper: 20 }, req: ['automation1'] },
@@ -115,8 +115,8 @@
     photovoltaics: { name: 'Photovoltaïque',        desc: 'Recette du panneau solaire.',                cost: { silicon: 20, glass: 20 }, req: ['advanced'] },
     modules:       { name: 'Modules habitables',    desc: 'Recette du kit modulaire.',                  cost: { hull: 15, circuit: 20 }, req: ['advanced'] },
     propulsion:    { name: 'Propulsion',            desc: 'Recette du propulseur.',                     cost: { steel: 30, circuit: 30, gear: 20 }, req: ['advanced'] },
-    automation2:   { name: 'Automatisation II',     desc: 'Machines 35 % plus rapides.',                cost: { steel: 30, circuit: 30 }, req: ['advanced'], effect: { machineSpeed: 0.35 } },
-    drilling2:     { name: 'Forage profond',        desc: 'Foreuses 50 % plus rapides.',                cost: { steel: 20, circuit: 20 }, req: ['drilling1', 'metallurgy'], effect: { drillSpeed: 0.5 } }
+    automation2:   { name: 'Automatisation II',     desc: 'Machines 25 % plus rapides de plus.',        cost: { steel: 30, circuit: 30 }, req: ['advanced'], effect: { machineSpeed: 0.25 } },
+    drilling2:     { name: 'Forage profond',        desc: 'Foreuses 25 % plus rapides de plus.',        cost: { steel: 20, circuit: 20 }, req: ['drilling1', 'metallurgy'], effect: { drillSpeed: 0.25 } }
   };
   for (const id in CO.TECHS) CO.TECHS[id].id = id;
 

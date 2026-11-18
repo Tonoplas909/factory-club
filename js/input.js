@@ -122,12 +122,14 @@
         if (taken[key] && !(def.w === 1 && def.h === 1)) ok = false;
       }
       if (ok) {
-        const price = def.cost - (chk.replace ? BUILDINGS[chk.replace.type].cost : 0);
+        let price = def.cost;
+        for (let r = 0; r < chk.replaces.length; r++) price -= BUILDINGS[chk.replaces[r].type].cost;
         if (price > money) ok = false; else { money -= price; total += price; }
         for (let j = 0; j < def.h; j++) for (let k = 0; k < def.w; k++) taken[(p.x + k) + ',' + (p.y + j)] = true;
       }
       p.valid = ok || !!chk.same;
       p.same = !!chk.same;
+      p.replaces = (ok && chk.replaces && def.w * def.h > 1) ? chk.replaces : null;   // belts that will be removed
     }
     lastCost = total;
     return pl;
@@ -198,6 +200,7 @@
       if (tool === 'select' && !drag) { o.cursorCell = c; o.cursorColor = 'rgba(93,224,230,0.8)'; }
       if (tool === 'build') o.ghosts = validate(buildPlacements());
       if (tool === 'paste') o.ghosts = validate(pastePlacements());
+      for (let i = 0; i < o.ghosts.length; i++) if (o.ghosts[i].replaces) o.deleting = o.deleting.concat(o.ghosts[i].replaces);
     }
     o.selDelete = false;
     if (drag && drag.kind === 'delete') {          // red marquee: buildings inside will be deleted
@@ -210,7 +213,7 @@
   I.hoverInfo = function () {
     if (!cur) return null;
     const c = cellOf(cur);
-    return { x: c.x, y: c.y, b: world.at(c.x, c.y), ore: world.oreAt(c.x, c.y) };
+    return { x: c.x, y: c.y, b: world.at(c.x, c.y), ore: world.oreAt(c.x, c.y), sx: lastClient.x, sy: lastClient.y, mouse: lastClient.mouse };
   };
 
   function rectOf(a, b) { return { x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) }; }
@@ -242,8 +245,10 @@
 
   // --------------------------------------------------------------- pointers
   function pos(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  let lastClient = { x: 0, y: 0, mouse: false };
   function updateCursor(e) {
     const p = pos(e); cur = CO.render.screenToWorld(p.x, p.y);
+    lastClient = { x: e.clientX, y: e.clientY, mouse: e.pointerType === 'mouse' };
   }
 
   function onDown(e) {

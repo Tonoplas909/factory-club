@@ -9,6 +9,9 @@
   'use strict';
   const W = CO.MAP_W, H = CO.MAP_H, DX = CO.DX, DY = CO.DY, BUILDINGS = CO.BUILDINGS;
 
+  // Logistics pieces that a bigger building may simply be built over.
+  const REPLACEABLE = { belt: true, tunnel_in: true, tunnel_out: true, router: true };
+
   const world = CO.world = {
     W: W, H: H,
     cells: new Array(W * H).fill(null),
@@ -68,26 +71,31 @@
     },
 
     /**
-     * Can `type` be placed at (x,y)? Only a 1×1 building may replace another 1×1
-     * building (e.g. re-laying belts). Returns {ok, reason, replace, same}.
+     * Can `type` be placed at (x,y)? A 1×1 building may replace another 1×1 building
+     * (e.g. re-laying belts), and any building may replace the logistics pieces it covers
+     * (belts, tunnels, splitters/mergers): they are removed (and refunded) automatically.
+     * Returns {ok, reason, replaces: [buildings], replace: first one, same}.
      */
     check: function (type, x, y, dir) {
       const def = BUILDINGS[type];
-      let replace = null;
+      const replaces = [];
       for (let j = 0; j < def.h; j++) {
         for (let i = 0; i < def.w; i++) {
           const cx = x + i, cy = y + j;
           if (!this.inBounds(cx, cy)) return { ok: false, reason: 'Hors de la carte' };
           const o = this.cells[cy * W + cx];
           if (o) {
-            if (!o.def.fixed && def.w === 1 && def.h === 1 && o.w === 1 && o.h === 1) replace = o;
-            else return { ok: false, reason: 'Emplacement occupé' };
+            const swappable = !o.def.fixed && o.w === 1 && o.h === 1 &&
+              ((def.w === 1 && def.h === 1) || REPLACEABLE[o.kind]);
+            if (!swappable) return { ok: false, reason: 'Emplacement occupé' };
+            if (replaces.indexOf(o) < 0) replaces.push(o);
           }
         }
       }
       if (def.kind === 'drill' && this.countOre(x, y, def.w, def.h).n === 0) return { ok: false, reason: 'Doit couvrir un gisement' };
-      if (replace && replace.type === type && replace.dir === dir) return { ok: false, same: true, reason: 'Déjà posé' };
-      return { ok: true, replace: replace };
+      const replace = replaces[0] || null;
+      if (replaces.length === 1 && def.w === 1 && def.h === 1 && replace.type === type && replace.dir === dir) return { ok: false, same: true, reason: 'Déjà posé' };
+      return { ok: true, replace: replace, replaces: replaces };
     },
 
     /** Create a building and register it in the grid. `cfg` = {recipe, filter} (optional). */

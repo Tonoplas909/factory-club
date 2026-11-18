@@ -100,9 +100,10 @@
       if (!CO.isBuildingUnlocked(p.type)) continue;
       const chk = world.check(p.type, p.x, p.y, p.dir);
       if (!chk.ok) continue;
-      const price = BUILDINGS[p.type].cost - (chk.replace ? BUILDINGS[chk.replace.type].cost : 0);
+      let price = BUILDINGS[p.type].cost;
+      for (let r = 0; r < chk.replaces.length; r++) price -= BUILDINGS[chk.replaces[r].type].cost;
       if (st.money < price) { skippedMoney = true; break; }
-      if (chk.replace) { const o = snap(chk.replace, 'del'); ops.push(o); applyOp(o, false); }
+      for (let r = 0; r < chk.replaces.length; r++) { const o = snap(chk.replaces[r], 'del'); ops.push(o); applyOp(o, false); }
       const cfg = p.cfg || {};
       const add = { k: 'add', t: p.type, x: p.x, y: p.y, d: p.dir, c: { r: cfg.recipe || null, f: cfg.filter || null } };
       ops.push(add); applyOp(add, false); placed++;

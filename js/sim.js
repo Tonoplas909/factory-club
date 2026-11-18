@@ -255,7 +255,7 @@
     if (b.out.length) flush(b, b.out);
     if (!b.ore) { b.status = 'idle'; return; }
     if (b.out.length >= 4) { b.status = 'blocked'; b.acc = Math.min(b.acc, 1); return; }
-    b.acc += dt * b.n * b.def.perTile * CO.mods.drill;
+    b.acc += dt * CO.drillRate(b);
     b.status = 'work';
     if (b.acc >= 1) { b.acc -= 1; b.out.push(b.ore); sim.countProduced(b.ore, 1); }
   }
