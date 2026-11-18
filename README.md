@@ -55,6 +55,7 @@ Aucune étape de build : le site est statique. Les chemins sont relatifs, donc i
 | Copier / couper / coller une disposition | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` (`R` tourne le collage) |
 | Annuler / rétablir | `Ctrl+Z` / `Ctrl+Y` |
 | Déplacer la caméra | Flèches, WASD, ZQSD, ou Espace + glisser (ou glisser en mode Inspecter) |
+| Nom d'une ressource | Survoler son icône (menus, recherche, infos, popup des recettes) ou un gisement sur la carte |
 | Sélection rapide | Clic molette + glisser : rectangle de sélection, puis retour automatique à l'outil Inspecter |
 | Zoom | Molette, `+` / `-` |
 | Tablette | Un doigt = outil actif · deux doigts = déplacer et pincer pour zoomer |

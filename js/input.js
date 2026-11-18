@@ -338,8 +338,8 @@
         break;
       case 'select': {
         const r = rectOf(d.start, d.end);
-        selection = { rect: r, blds: buildingsInRect(r) };
-        if (d.auto) tool = 'inspect';          // one-shot: the selection stays, the tool goes back to inspect
+        selection = { rect: d.auto ? null : r, blds: buildingsInRect(r) };
+        if (d.auto) tool = 'inspect';          // one-shot: buildings stay selected, the rectangle vanishes, back to inspect
         CO.emit('tool'); CO.emit('selection');
         break;
       }

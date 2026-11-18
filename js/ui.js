@@ -17,7 +17,7 @@
     const c = h('canvas', { width: 8, height: 8, class: 'icon' });
     c.getContext('2d').drawImage(CO.sprites.item(id), 0, 0);
     c.style.width = c.style.height = (8 * (scale || 2)) + 'px';
-    c.title = ITEMS[id].name;
+    c.setAttribute('data-item', id);          // hover tooltip (see initItemTip)
     return c;
   }
   function thumb(type, size) {
@@ -119,7 +119,7 @@
     CO.PHASES.forEach(function (p) { for (const k in p.need) forStation[k] = true; });
 
     const chip = function (id, n) {
-      return h('span', { class: 'gchip', title: itemName(id) }, itemIcon(id, 3), n ? h('b', { text: '×' + n }) : null, h('small', { text: itemName(id) }));
+      return h('span', { class: 'gchip', 'data-item': id }, itemIcon(id, 3), n ? h('b', { text: '×' + n }) : null, h('small', { text: itemName(id) }));
     };
     const plus = function () { return h('span', { class: 'gop', text: '+' }); };
 
@@ -147,7 +147,7 @@
       }
       if (used[id]) {
         const u = h('div', { class: 'guse' }, h('span', { class: 'small', text: 'Sert à :' }));
-        used[id].forEach(function (r) { u.appendChild(h('span', { class: 'gchip mini', title: itemName(r) }, itemIcon(r, 2), h('small', { text: itemName(r) }))); });
+        used[id].forEach(function (r) { u.appendChild(h('span', { class: 'gchip mini', 'data-item': r }, itemIcon(r, 2), h('small', { text: itemName(r) }))); });
         right.appendChild(u);
       }
       return h('div', { class: 'gcard' + (recOk && machOk ? '' : ' locked') }, left, right);
@@ -416,7 +416,7 @@
     const t = CO.craftTime(rec);
     const side = function (map) {
       const col = h('div', { class: 'flow-col' });
-      for (const k in map) col.appendChild(h('div', { class: 'flow-item', title: itemName(k) }, itemIcon(k, 3), h('b', { text: '×' + map[k] }), h('small', { text: fmtRate(map[k] / t) })));
+      for (const k in map) col.appendChild(h('div', { class: 'flow-item', 'data-item': k }, itemIcon(k, 3), h('b', { text: '×' + map[k] }), h('small', { text: fmtRate(map[k] / t) })));
       return col;
     };
     return h('div', { class: 'flow' }, side(rec.in), h('div', { class: 'flow-arrow', text: '➜' }), side(rec.out),
@@ -426,7 +426,7 @@
   function stockChips(map) {
     const row = h('div', { class: 'chips' });
     let n = 0;
-    for (const k in map) if (map[k] > 0) { n++; row.appendChild(h('span', { class: 'chip2', title: itemName(k) }, itemIcon(k, 2), h('b', { text: String(map[k]) }))); }
+    for (const k in map) if (map[k] > 0) { n++; row.appendChild(h('span', { class: 'chip2', 'data-item': k }, itemIcon(k, 2), h('b', { text: String(map[k]) }))); }
     return n ? row : h('div', { class: 'small', text: 'vide' });
   }
   function countBy(arr) { const m = {}; arr.forEach(function (k) { m[k] = (m[k] || 0) + 1; }); return m; }
@@ -484,7 +484,7 @@
         const ok = CO.isRecipeUnlocked(r.id), out = Object.keys(r.out)[0];
         grid.appendChild(h('button', {
           class: 'rec' + (b.recipe === r.id ? ' active' : '') + (ok ? '' : ' locked'), disabled: !ok,
-          title: ok ? itemName(out) : 'Recherche requise : ' + TECHS[r.tech].name,
+          'data-item': ok ? out : null, title: ok ? null : 'Recherche requise : ' + TECHS[r.tech].name,
           onclick: function () { CO.history.configure(b, r.id); renderSide(true); }
         }, itemIcon(out, 3), h('span', { text: itemName(out) }), ok ? null : h('em', { text: '🔒' })));
       });
@@ -519,7 +519,7 @@
       const grid = h('div', { class: 'grid' });
       grid.appendChild(h('button', { class: 'rec' + (!b.filter ? ' active' : ''), onclick: function () { CO.history.configure(b, null); renderSide(true); } }, h('span', { class: 'none', text: '∅' }), h('span', { text: 'Aucun' })));
       CO.ITEM_ORDER.forEach(function (id) {
-        grid.appendChild(h('button', { class: 'rec' + (b.filter === id ? ' active' : ''), title: itemName(id), onclick: function () { CO.history.configure(b, id); renderSide(true); } }, itemIcon(id, 3)));
+        grid.appendChild(h('button', { class: 'rec' + (b.filter === id ? ' active' : ''), 'data-item': id, onclick: function () { CO.history.configure(b, id); renderSide(true); } }, itemIcon(id, 3)));
       });
       body.appendChild(section('Filtre (l’objet choisi sort tout droit)', grid));
     } else if (b.items && b.items.length) {
@@ -581,6 +581,7 @@
   // ----------------------------------------------------------------- per frame
   UI.update = function (dt) {
     simTime = CO.state.time;
+    if (itemTipSrc && (!itemTipSrc.isConnected || !itemTipSrc.getClientRects().length)) { itemTip.hidden = true; itemTipId = null; itemTipSrc = null; }   // hovered element was re-rendered or its dialog closed
     updateTopbar(); updatePalette(); updateToolbar(); updateHint(); updateStatus(); updateOreTip();
     renderSide(false);
     if (live && tab === 'info' && !live.b.dead) live.bar.style.width = (CO.clamp(live.pct(), 0, 1) * 100) + '%';
@@ -607,11 +608,38 @@
     tipEl.style.top = Math.min(hv.sy + 18, window.innerHeight - hh - 8) + 'px';
   }
 
+  // ------------------------------------------- item tooltip (any element carrying data-item)
+  let itemTip = null, itemTipId = null, itemTipSrc = null;
+  function initItemTip() {
+    itemTip = h('div', { id: 'itemtip', hidden: true }); $('app').appendChild(itemTip);
+    function place(e) {
+      const w = itemTip.offsetWidth, hh = itemTip.offsetHeight;
+      itemTip.style.left = Math.max(4, Math.min(e.clientX + 16, window.innerWidth - w - 8)) + 'px';
+      itemTip.style.top = Math.max(4, Math.min(e.clientY + 18, window.innerHeight - hh - 8)) + 'px';
+    }
+    document.addEventListener('mouseover', function (e) {
+      const el = e.target.closest ? e.target.closest('[data-item]') : null, id = el && el.getAttribute('data-item');
+      if (!id || !ITEMS[id]) { itemTip.hidden = true; itemTipId = null; itemTipSrc = null; return; }
+      itemTipSrc = el;
+      if (id !== itemTipId) {
+        itemTipId = id; itemTip.innerHTML = '';
+        const rec = RECIPES[id];
+        itemTip.appendChild(itemIcon(id, 3));
+        itemTip.appendChild(h('span', null, h('b', { text: itemName(id) }),
+          h('small', { text: ITEMS[id].price + ' ¢ · ' + (rec ? 'fabriqué : ' + BUILDINGS[rec.machine].name : 'matière première') })));
+      }
+      itemTip.hidden = false; place(e);
+    });
+    document.addEventListener('mousemove', function (e) { if (!itemTip.hidden) place(e); });
+    document.addEventListener('mouseout', function (e) { if (!e.relatedTarget) { itemTip.hidden = true; itemTipId = null; } });
+  }
+
   UI.showHelp = function () { showHelp(); };
 
   UI.init = function () {
     modalEl = $('modal');
     tipEl = h('div', { id: 'oretip', hidden: true }); $('app').appendChild(tipEl);
+    initItemTip();
     modalEl.addEventListener('click', function (e) { if (e.target === modalEl) UI.closeModal(); });
     buildMenu(); buildPalette(); buildToolbar(); buildTabs();
     if (window.innerWidth < 1100) document.body.classList.add('side-collapsed');   // tablets: panel opens on demand

@@ -195,10 +195,11 @@ kbd { background: #0b1020; border: 1px solid var(--line); border-bottom-width: 2
 .tip { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; }
 
 /* ---------- ore tooltip following the mouse */
-#oretip { position: fixed; z-index: 35; pointer-events: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 8px;
+#oretip, #itemtip { position: fixed; z-index: 35; pointer-events: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 8px;
   background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 4px 14px #0008; white-space: nowrap; }
-#oretip span { display: flex; flex-direction: column; line-height: 1.2; }
-#oretip small { color: var(--muted); font-size: 11px; }
+#itemtip { z-index: 999; }
+#oretip span, #itemtip span { display: flex; flex-direction: column; line-height: 1.2; }
+#oretip small, #itemtip small { color: var(--muted); font-size: 11px; }
 
 /* ---------- guide popup (resources and recipes) */
 .dialog.wide { max-width: 900px; }
