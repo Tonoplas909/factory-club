@@ -31,13 +31,14 @@
       this.cells.fill(null); this.list.length = 0; this.nextId = 1; this.version++;
       this.seed = seed;
       this.generateOre(seed);
-      this.port = this.create('port', 46, 30, 0, null);
+      this.port = this.create('port', CO.MAP_CX - 2, CO.MAP_CY - 2, 0, null);
     },
 
     /** Place ore patches around the map. Positions are jittered by the seed. */
     generateOre: function (seed) {
       this.ore.fill(0);
       const rnd = CO.rng(seed * 7919 + 13);
+      const OX = CO.LEGACY_OX, OY = CO.LEGACY_OY;
       // [ore id, centre x, centre y, radius]
       const patches = [
         [1, 37, 25, 5.2], [2, 60, 40, 5.0], [3, 35, 41, 4.4], [5, 62, 23, 4.6], [4, 47, 12, 4.6],
@@ -46,21 +47,48 @@
         // titanium: far from the port (appended last so older patch layouts stay identical)
         [6, 27, 6, 4.4], [6, 90, 22, 4.4], [6, 68, 58, 4.2]
       ];
+      const placed = [];                                   // [x, y, r] of every patch, to keep the extra ones apart
       for (let p = 0; p < patches.length; p++) {
         const pt = patches[p];
-        const cx = pt[1] + (rnd() - 0.5) * 3, cy = pt[2] + (rnd() - 0.5) * 3, r = pt[3];
+        const cx = pt[1] + OX + (rnd() - 0.5) * 3, cy = pt[2] + OY + (rnd() - 0.5) * 3, r = pt[3];
         const ns = Math.floor(rnd() * 1000);
-        for (let y = Math.floor(cy - r - 2); y <= cy + r + 2; y++) {
-          for (let x = Math.floor(cx - r - 2); x <= cx + r + 2; x++) {
-            if (!this.inBounds(x, y)) continue;
-            const d = Math.hypot(x - cx, y - cy);
-            const n = CO.vnoise(x * 0.4, y * 0.4, ns) * 2.4 - 1.2;
-            if (d + n < r && this.ore[y * W + x] === 0) this.ore[y * W + x] = pt[0];
+        placed.push([cx, cy, r]);
+        this.stamp(pt[0], cx, cy, r, ns, OX, OY);
+      }
+      // The extra, far-away patches that fill the big map: random but seeded, never touching each other
+      // nor crowding the Port. [ore id, how many, min radius, max radius, min distance to the Port]
+      const rnd2 = CO.rng(seed * 104729 + 31);
+      const extra = [[1, 16, 3.4, 6.4, 18], [2, 16, 3.4, 6.4, 18], [3, 12, 3.2, 5.6, 18], [4, 14, 3.2, 5.6, 22], [5, 12, 3.2, 5.6, 22], [6, 14, 3.4, 5.2, 50]];
+      for (let k = 0; k < extra.length; k++) {
+        const e = extra[k];
+        for (let n = 0; n < e[1]; n++) {
+          for (let tries = 0; tries < 300; tries++) {
+            const r = e[2] + rnd2() * (e[3] - e[2]);
+            const cx = 8 + rnd2() * (W - 16), cy = 8 + rnd2() * (H - 16);
+            if (Math.hypot(cx - CO.MAP_CX, cy - CO.MAP_CY) < e[4]) continue;
+            let ok = true;
+            for (let q = 0; q < placed.length && ok; q++) if (Math.hypot(cx - placed[q][0], cy - placed[q][1]) < r + placed[q][2] + 4) ok = false;
+            if (!ok) continue;
+            placed.push([cx, cy, r]);
+            this.stamp(e[0], cx, cy, r, Math.floor(rnd2() * 1000), 0, 0);
+            break;
           }
         }
       }
       // Keep the port area clean.
-      for (let y = 28; y < 36; y++) for (let x = 44; x < 52; x++) this.ore[y * W + x] = 0;
+      for (let y = CO.MAP_CY - 4; y < CO.MAP_CY + 4; y++) for (let x = CO.MAP_CX - 4; x < CO.MAP_CX + 4; x++) this.ore[y * W + x] = 0;
+    },
+
+    /** Paint one noisy round ore patch (ore id, centre, radius). The noise is sampled relative to (ox, oy). */
+    stamp: function (id, cx, cy, r, ns, ox, oy) {
+      for (let y = Math.floor(cy - r - 2); y <= cy + r + 2; y++) {
+        for (let x = Math.floor(cx - r - 2); x <= cx + r + 2; x++) {
+          if (!this.inBounds(x, y)) continue;
+          const d = Math.hypot(x - cx, y - cy);
+          const n = CO.vnoise((x - ox) * 0.4, (y - oy) * 0.4, ns) * 2.4 - 1.2;
+          if (d + n < r && this.ore[y * W + x] === 0) this.ore[y * W + x] = id;
+        }
+      }
     },
 
     /** Dominant ore under a w×h footprint: {id, n (covered tiles of that ore)}. */

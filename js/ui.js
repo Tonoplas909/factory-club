@@ -104,7 +104,8 @@
       row('Ctrl+C / X / V', 'Copier, couper, coller une disposition (R tourne le collage)'),
       row('Ctrl+Z / Ctrl+Y', 'Annuler / rétablir'),
       row('Molette', 'Zoom'),
-      row('Flèches, WASD, ZQSD', 'Déplacer la caméra (ou clic milieu, ou Espace + glisser)'),
+      row('Flèches, WASD, ZQSD', 'Déplacer la caméra (ou Espace + glisser)'),
+      row('Clic molette + glisser', 'Sélection rectangulaire (puis retour à l’outil Inspecter)'),
       row('Tablette', 'Un doigt : outil actif · deux doigts : déplacer et zoomer'));
     openModal('Commandes', h('div', null,
       h('p', { text: 'Objectif : extraire, transformer, puis livrer les pièces au Port pour assembler la station. Pas de chronomètre : prends ton temps.' }), tbl,

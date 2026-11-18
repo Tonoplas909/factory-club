@@ -6,7 +6,7 @@
   'use strict';
 
   CO.mods = { machine: 1, drill: 1, chest: 0 };   // research bonuses (speed multipliers, extra chest capacity)
-  CO.cam = { x: 48, y: 32, zoom: 32 };  // camera centre (tiles) and zoom (CSS px per tile)
+  CO.cam = { x: CO.MAP_CX, y: CO.MAP_CY, zoom: 32 };  // camera centre (tiles) and zoom (CSS px per tile)
 
   function freshState(seed) {
     return {
@@ -115,7 +115,7 @@
       v: 1, savedAt: Date.now(),
       state: {
         seed: st.seed, money: st.money, tech: st.tech, research: st.research, researchProg: st.researchProg,
-        phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe, rev: 2
+        phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe, rev: 3
       },
       cam: { x: CO.cam.x, y: CO.cam.y, zoom: CO.cam.zoom },
       buildings: CO.world.serialize()
@@ -131,17 +131,20 @@
     st.researchProg = st.research ? (s.researchProg || {}) : {};
     st.phase = Math.max(0, Math.floor(s.phase) || 0);
     st.phaseHave = s.phaseHave || {};
-    if (s.rev !== 2) {                       // saves made before the 16-step station had 8 steps: map them across
+    if (!s.rev) {                            // saves made before the 16-step station had 8 steps: map them across
       st.phase = st.phase < 8 ? st.phase * 2 : st.phase + 8; st.phaseHave = {};
     }
+    const legacyMap = !(s.rev >= 3);         // before the big map: the old 96×64 world is now centred in the new one
     st.stats = { produced: (s.stats && s.stats.produced) || {}, sold: (s.stats && s.stats.sold) || 0, delivered: (s.stats && s.stats.delivered) || 0 };
     st.time = Number(s.time) || 0;
     st.lastRecipe = s.lastRecipe || {};
     CO.state = st;
     CO.recalcMods();
     CO.world.reset(st.seed);
+    const ox = legacyMap ? CO.LEGACY_OX : 0, oy = legacyMap ? CO.LEGACY_OY : 0;
+    if (ox || oy) data.buildings.forEach(function (o) { o.x += ox; o.y += oy; });
     CO.world.restore(data.buildings);
-    if (data.cam) { CO.cam.x = data.cam.x; CO.cam.y = data.cam.y; CO.cam.zoom = CO.clamp(data.cam.zoom, 8, 72); }
+    if (data.cam) { CO.cam.x = data.cam.x + ox; CO.cam.y = data.cam.y + oy; CO.cam.zoom = CO.clamp(data.cam.zoom, 8, 72); }
     CO.history.clear();
     CO.emit('loaded');
   }
@@ -167,7 +170,7 @@
       CO.state = freshState(seed || (1 + Math.floor(Math.random() * 99999)));
       CO.recalcMods();
       CO.world.reset(CO.state.seed);
-      CO.cam.x = 48; CO.cam.y = 32; CO.cam.zoom = 32;
+      CO.cam.x = CO.MAP_CX; CO.cam.y = CO.MAP_CY; CO.cam.zoom = 32;
       CO.history.clear();
       CO.emit('loaded');
     },

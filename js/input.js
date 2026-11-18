@@ -3,7 +3,8 @@
  *
  * Tools:  inspect (drag = pan, click = inspect a building), select (rectangle),
  *         delete (drag over buildings), build (a building type), paste (clipboard blueprint).
- * Mouse:  left = tool action, right-drag = delete, middle-drag / Space+drag = pan, wheel = zoom.
+ * Mouse:  left = tool action, right-drag = delete, middle-drag = one-shot selection rectangle
+ *         (back to inspect afterwards), Space+drag = pan, wheel = zoom.
  * Touch:  one finger = tool action, two fingers = pan + pinch zoom.
  * Drag-placing: belts follow the finger/mouse path; other buildings are laid out in a line.
  */
@@ -230,7 +231,7 @@
 
   // ---------------------------------------------------------------- camera
   function zoomAt(sx, sy, z) {
-    z = CO.clamp(z, 10, 72);
+    z = CO.clamp(z, 8, 72);
     const before = CO.render.screenToWorld(sx, sy);
     CO.cam.zoom = z;
     const after = CO.render.screenToWorld(sx, sy);
@@ -241,7 +242,7 @@
   function clampCam() {
     CO.cam.x = CO.clamp(CO.cam.x, 0, world.W); CO.cam.y = CO.clamp(CO.cam.y, 0, world.H);
   }
-  I.centerOnPort = function () { CO.cam.x = 48; CO.cam.y = 32; clampCam(); };
+  I.centerOnPort = function () { CO.cam.x = CO.MAP_CX; CO.cam.y = CO.MAP_CY; clampCam(); };
 
   // --------------------------------------------------------------- pointers
   function pos(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
@@ -261,7 +262,12 @@
     if (pointers.size > 2) return;
     updateCursor(e);
     const cell = cellOf(cur);
-    if (e.button === 1 || (e.button === 0 && space)) { drag = { kind: 'pan', lx: p.x, ly: p.y }; return; }
+    if (e.button === 0 && space) { drag = { kind: 'pan', lx: p.x, ly: p.y }; return; }
+    if (e.button === 1) {                     // middle button: temporary selection tool
+      setTool('select');
+      drag = { kind: 'select', start: cell, end: cell, auto: true };
+      return;
+    }
     if (e.button === 2) {
       startDelete(cell);
       // With a building (or a paste) selected for placing, a plain right-click just deselects it;
@@ -333,7 +339,8 @@
       case 'select': {
         const r = rectOf(d.start, d.end);
         selection = { rect: r, blds: buildingsInRect(r) };
-        CO.emit('selection');
+        if (d.auto) tool = 'inspect';          // one-shot: the selection stays, the tool goes back to inspect
+        CO.emit('tool'); CO.emit('selection');
         break;
       }
       case 'delete': {

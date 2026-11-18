@@ -54,7 +54,8 @@ Aucune étape de build : le site est statique. Les chemins sont relatifs, donc i
 | Outils | `V` Inspecter · `E` Sélection · `X` Supprimer · `1`…`9`, `0` bâtiments |
 | Copier / couper / coller une disposition | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` (`R` tourne le collage) |
 | Annuler / rétablir | `Ctrl+Z` / `Ctrl+Y` |
-| Déplacer la caméra | Flèches, WASD, ZQSD, clic milieu, ou Espace + glisser |
+| Déplacer la caméra | Flèches, WASD, ZQSD, ou Espace + glisser (ou glisser en mode Inspecter) |
+| Sélection rapide | Clic molette + glisser : rectangle de sélection, puis retour automatique à l'outil Inspecter |
 | Zoom | Molette, `+` / `-` |
 | Tablette | Un doigt = outil actif · deux doigts = déplacer et pincer pour zoomer |
 
@@ -81,6 +82,7 @@ Toutes les cadences de base sont **deux fois plus lentes** qu'à la première ve
 ## Progression
 
 - 16 étapes de station (armature, cabine, réseau, coque, quai, ailes, module scientifique, anneau, antenne, radiateurs, propulseurs, soute, réacteur, bouclier, serre, mise en orbite), puis des extensions sans fin.
+- Une carte de 240×160 cases (6 fois plus grande qu'avant) : le Port est au centre, les gisements proches suffisent pour démarrer, les autres sont éparpillés sur toute la carte (le titane le plus loin). Les anciennes parties sont recentrées automatiquement.
 - 27 recherches, dont une chaîne **titane** (minerai turquoise, loin du Port) : lingot de titane, alliage, batterie, processeur, réservoir, puis le **Chantier spatial** pour les cœurs de réacteur et les sondes profondes.
 - Les parties enregistrées avec l'ancienne station à 8 étapes sont converties automatiquement au chargement.
 

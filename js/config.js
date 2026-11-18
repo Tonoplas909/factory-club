@@ -7,8 +7,13 @@
   'use strict';
 
   CO.TILE = 16;            // sprite size of one tile (pixels)
-  CO.MAP_W = 96;
-  CO.MAP_H = 64;
+  CO.MAP_W = 240;
+  CO.MAP_H = 160;
+  // The very first 96×64 map sits in the middle of the big one: old saves are shifted by this offset.
+  CO.LEGACY_OX = (CO.MAP_W - 96) / 2;
+  CO.LEGACY_OY = (CO.MAP_H - 64) / 2;
+  CO.MAP_CX = CO.MAP_W / 2;          // map centre = where the Port stands
+  CO.MAP_CY = CO.MAP_H / 2;
   CO.SAVE_KEY = 'chantier-orbital-save-v1';
 
   // ---------------------------------------------------------------- items
