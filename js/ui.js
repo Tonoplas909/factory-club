@@ -138,7 +138,7 @@
         Object.keys(rec.out).forEach(function (k, i) { if (i) line.appendChild(plus()); line.appendChild(chip(k, rec.out[k])); });
         right.appendChild(line);
         const t = CO.craftTime(rec), per = rec.out[id] / t;
-        right.appendChild(h('div', { class: 'small', text: 'Cycle ' + t.toFixed(1).replace('.', ',') + ' s · ' + fmtRate(per) + ' par machine' }));
+        right.appendChild(h('div', { class: 'small', text: 'Cycle ' + fmtTime(t) + ' · ' + fmtRate(per) + ' par machine' }));
         if (!recOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
         else if (!machOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Machine à débloquer : ' + TECHS[mach.tech].name }));
       } else {
@@ -382,7 +382,10 @@
   // ------------------------------------------------------------ info panel
   let live = null;   // {b, bar, pct}: progress bar updated every frame without re-rendering the panel
 
-  function fmtRate(x) { return (Math.round(x * 1000) / 1000).toLocaleString('fr-FR') + '/s'; }
+  // Exact-looking numbers: research bonuses give values like 0,3125/s or 4,57 s, so keep a few decimals.
+  function fmtNum(x, digits) { return x.toLocaleString('fr-FR', { maximumFractionDigits: digits }); }
+  function fmtRate(x) { return fmtNum(x, 7) + '/s'; }   // rates are binary fractions (n/128 at worst): 7 decimals are exact
+  function fmtTime(t) { return fmtNum(t, 2) + ' s'; }
   function pill(cls, text) { return h('span', { class: 'pill ' + cls }, h('i'), text); }
 
   function statusPill(b) {
@@ -420,7 +423,7 @@
       return col;
     };
     return h('div', { class: 'flow' }, side(rec.in), h('div', { class: 'flow-arrow', text: '➜' }), side(rec.out),
-      h('div', { class: 'flow-foot', text: 'Cycle : ' + t.toFixed(1).replace('.', ',') + ' s · cadence d’une machine' }));
+      h('div', { class: 'flow-foot', text: 'Cycle : ' + fmtTime(t) + ' · cadence d’une machine' }));
   }
 
   function stockChips(map) {
@@ -496,11 +499,11 @@
         body.appendChild(h('div', { class: 'two' }, section('Stock entrant', stockChips(b.inBuf)), section('Prêt à sortir', stockChips(countBy(b.outBuf)))));
       }
     } else if (b.kind === 'drill') {
-      const total = b.w * b.h, eq = CO.drillRate(b) / 0.5;
+      const total = b.w * b.h, eq = CO.drillRate(b) * CO.craftTime(RECIPES.ingot_iron);   // how many smelters (current research) it can feed
       body.appendChild(section('Extraction', h('div', { class: 'icard flat' },
         b.ore ? h('div', { class: 'ore-row' }, itemIcon(b.ore, 4), h('div', null, h('b', { text: itemName(b.ore) }), h('div', { class: 'small', text: fmtRate(CO.drillRate(b)) + ' · ' + b.n + '/' + total + ' cases' }))) : h('div', { class: 'small', text: 'Aucun gisement sous la foreuse.' }),
         kv('Couverture', Math.round(b.n / total * 100) + ' %'),
-        kv('Alimente', (Math.round(eq * 10) / 10).toLocaleString('fr-FR') + ' fonderie(s)'),
+        kv('Alimente', fmtNum(eq, 2) + ' fonderie(s)'),
         progressBar(b, function () { return Math.min(1, b.acc); }))));
     } else if (b.kind === 'chest') {
       const f = b.q.length / CO.chestCap(b.def);
@@ -543,7 +546,7 @@
         const b = CO.input.get().inspected;
         const sel = CO.input.get().selection.length;
         if (!b || b.dead) return 'none' + sel;
-        return b.id + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '');
+        return b.id + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest;
       }
     }
     return '';
