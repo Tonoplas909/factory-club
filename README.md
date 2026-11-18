@@ -46,7 +46,7 @@ Aucune étape de build : le site est statique. Les chemins sont relatifs, donc i
 | Utiliser l'outil actif | Clic gauche |
 | Poser plusieurs éléments | Glisser (les convoyeurs suivent le tracé, les autres bâtiments se posent en ligne) |
 | Désélectionner le bâtiment en cours de pose | Clic droit |
-| Supprimer (remboursement intégral) | Clic droit (glisser) ou outil Supprimer (`X`) |
+| Supprimer (remboursement intégral) | Clic droit (glisser) ou outil Supprimer (`X`) : un rectangle rouge supprime tout ce qu'il touche |
 | Tourner / tourner à l'envers | `R` / `Maj+R` |
 | Supprimer la sélection ou le bâtiment visé | `Suppr` |
 | Outils | `V` Inspecter · `E` Sélection · `X` Supprimer · `1`…`9`, `0` bâtiments |

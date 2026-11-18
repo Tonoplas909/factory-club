@@ -199,8 +199,11 @@
       if (tool === 'build') o.ghosts = validate(buildPlacements());
       if (tool === 'paste') o.ghosts = validate(pastePlacements());
     }
-    if (drag && drag.kind === 'delete') o.deleting = Array.from(drag.set.values());
-    if (drag && drag.kind === 'select') o.selRect = rectOf(drag.start, drag.end);
+    o.selDelete = false;
+    if (drag && drag.kind === 'delete') {          // red marquee: buildings inside will be deleted
+      const r = rectOf(drag.start, drag.end);
+      if (drag.moved || !drag.cancelTool) { o.deleting = buildingsInRect(r); o.selRect = r; o.selDelete = true; }
+    } else if (drag && drag.kind === 'select') o.selRect = rectOf(drag.start, drag.end);
     else if (selection.rect) o.selRect = selection.rect;
     return o;
   };
@@ -274,13 +277,9 @@
       case 'paste': drag = { kind: 'paste' }; break;
     }
   }
+  /** Start a deletion marquee: everything touched by the dragged rectangle is removed on release. */
   function startDelete(cell) {
-    drag = { kind: 'delete', set: new Map(), last: cell };
-    addDelete(cell);
-  }
-  function addDelete(cell) {
-    const b = world.at(cell.x, cell.y);
-    if (b && !b.def.fixed) drag.set.set(b.id, b);
+    drag = { kind: 'delete', start: cell, end: cell, moved: false };
   }
 
   function onMove(e) {
@@ -298,15 +297,10 @@
         if (drag.moved) doPan(p);
         break;
       case 'select': drag.end = cell; break;
-      case 'delete': {                      // fill gaps so fast drags do not skip buildings
-        let x = drag.last.x, y = drag.last.y, g = 0;
-        while ((x !== cell.x || y !== cell.y) && g++ < 200) {
-          if (Math.abs(cell.x - x) >= Math.abs(cell.y - y)) x += Math.sign(cell.x - x); else y += Math.sign(cell.y - y);
-          addDelete({ x: x, y: y });
-        }
-        if (cell.x !== drag.last.x || cell.y !== drag.last.y) drag.moved = true;
-        drag.last = cell; break;
-      }
+      case 'delete':
+        drag.end = cell;
+        if (cell.x !== drag.start.x || cell.y !== drag.start.y) drag.moved = true;
+        break;
       case 'build':
         if (BUILDINGS[buildType].kind === 'belt') extendPath(drag.path, cell);
         break;
@@ -339,7 +333,7 @@
       }
       case 'delete': {
         if (d.cancelTool && !d.moved) { drag = null; setTool('inspect'); return; }   // right-click = deselect
-        const arr = Array.from(d.set.values());
+        const arr = buildingsInRect(rectOf(d.start, d.end));
         if (arr.length) H.remove(arr);
         break;
       }

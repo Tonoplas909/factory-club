@@ -91,7 +91,7 @@
       row('Clic gauche', 'Utiliser l’outil actif (poser, inspecter…)'),
       row('Glisser', 'Poser plusieurs éléments d’un coup (les convoyeurs suivent ton tracé)'),
       row('Clic droit', 'Désélectionner le bâtiment en cours de pose'),
-      row('Clic droit (glisser)', 'Supprimer — remboursement intégral'),
+      row('Clic droit (glisser)', 'Rectangle rouge : supprime tout ce qu’il touche — remboursement intégral'),
       row('R / Maj+R', 'Tourner / tourner à l’envers'),
       row('Suppr', 'Supprimer la sélection ou le bâtiment sous le curseur'),
       row('V · E · X', 'Outils : Inspecter, Sélection (rectangle), Supprimer'),
@@ -145,7 +145,7 @@
     };
     mk('inspect', ['✋', 'Inspecter'], 'Inspecter / déplacer la carte (V)', function () { CO.input.setTool('inspect'); });
     mk('select', ['▭', 'Sélection'], 'Sélectionner un rectangle (E)', function () { CO.input.setTool('select'); });
-    mk('delete', ['✖', 'Supprimer'], 'Supprimer (X). Clic droit marche aussi.', function () { CO.input.setTool('delete'); });
+    mk('delete', ['✖', 'Supprimer'], 'Supprimer (X) : tire un rectangle. Le clic droit marche aussi.', function () { CO.input.setTool('delete'); });
     tb.appendChild(h('span', { class: 'sep' }));
     mk('rotate', ['↻', 'Tourner'], 'Tourner (R)', function () { CO.input.rotate(); });
     mk('undo', ['↶', 'Annuler'], 'Annuler (Ctrl+Z)', function () { CO.input.undo(); });
@@ -216,7 +216,7 @@
       txt = def.name + ' · ' + CO.DIR_ARROWS[st.rot] + ' · coût ' + CO.input.getCost() + ' ¢ · R pour tourner · glisser pour en poser plusieurs';
     } else if (st.tool === 'paste') txt = 'Coller : clique pour poser la disposition · R pour tourner · Échap pour annuler · coût ' + CO.input.getCost() + ' ¢';
     else if (st.tool === 'select') txt = 'Sélection : tire un rectangle, puis Ctrl+C (copier), Suppr (supprimer)' + (st.selection.length ? ' · ' + st.selection.length + ' sélectionné(s)' : '');
-    else if (st.tool === 'delete') txt = 'Suppression : clique ou glisse sur les bâtiments (remboursement intégral)';
+    else if (st.tool === 'delete') txt = 'Suppression : tire un rectangle sur les bâtiments à détruire (remboursement intégral)';
     else if (hv) {
       txt = hv.x + ', ' + hv.y;
       if (hv.b) txt += ' · ' + hv.b.def.name; else if (hv.ore) txt += ' · Gisement : ' + itemName(CO.ORE_IDS[hv.ore]);

@@ -258,9 +258,10 @@
     }
     if (ov.selRect) {
       const r = ov.selRect, x = ox + r.x0 * ts, y = oy + r.y0 * ts, w = (r.x1 - r.x0 + 1) * ts, h = (r.y1 - r.y0 + 1) * ts;
-      ctx.fillStyle = 'rgba(93,224,230,0.14)'; ctx.fillRect(x, y, w, h);
+      const col = ov.selDelete ? '#ff5a5a' : '#5de0e6';
+      ctx.fillStyle = ov.selDelete ? 'rgba(255,90,90,0.14)' : 'rgba(93,224,230,0.14)'; ctx.fillRect(x, y, w, h);
       ctx.save(); ctx.setLineDash([ts * 0.25, ts * 0.2]); ctx.lineDashOffset = -time * ts * 0.5;
-      ctx.strokeStyle = '#5de0e6'; ctx.lineWidth = lw; ctx.strokeRect(x, y, w, h); ctx.restore();
+      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.strokeRect(x, y, w, h); ctx.restore();
     }
   }
 })(window.CO = window.CO || {});
