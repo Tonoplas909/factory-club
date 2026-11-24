@@ -13,13 +13,13 @@
 
     <header id="topbar">
       <div class="brand"><span class="logo"></span><b>Chantier Orbital</b></div>
-      <div class="chip" id="money" title="Crédits"><span class="coin"></span><b id="money-val">0</b><small id="money-rate"></small></div>
-      <div class="chip grow" id="station-chip" title="Progression de la station">
+      <div class="chip" id="money" data-tip="Crédits|Gagnés en vendant au Comptoir ou au Port, et à chaque étape de la station"><span class="coin"></span><b id="money-val">0</b><small id="money-rate"></small></div>
+      <div class="chip grow" id="station-chip" data-tip="Station|Progression de l’étape en cours (onglet Station pour le détail)">
         <span id="phase-label"></span>
         <div class="bar"><i id="phase-bar"></i></div>
       </div>
-      <button id="btn-panel" class="ibtn" title="Afficher / masquer le panneau">▤</button>
-      <button id="btn-menu" class="ibtn" title="Menu">☰</button>
+      <button id="btn-panel" class="ibtn" data-tip="Panneau latéral|Afficher / masquer Station, Recherche, Production, Infos">▤</button>
+      <button id="btn-menu" class="ibtn" data-tip="Menu|Recettes, aide, export / import, nouvelle partie">☰</button>
       <div id="menu" hidden></div>
     </header>
 

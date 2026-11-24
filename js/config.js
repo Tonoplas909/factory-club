@@ -39,8 +39,8 @@
     kit:          { name: 'Kit modulaire',     price: 120, shape: 'cube',    color: '#e8c14a', accent: '#fff0a0' },
     thruster:     { name: 'Propulseur',        price: 150, shape: 'nozzle',  color: '#d95a5a', accent: '#ffd24a' },
     // ---- late game (titanium chain)
-    titanium_ore: { name: 'Minerai de titane', price: 2,   shape: 'rock',    color: '#4fc3b0', accent: '#b8f5ea' },
-    ingot_titanium: { name: 'Lingot de titane', price: 6,  shape: 'bar',     color: '#5fd4c0', accent: '#e0fff8' },
+    titanium_ore: { name: 'Minerai de titane', price: 2,   shape: 'rock',    color: '#8da1e3', accent: '#d8e2ff' },
+    ingot_titanium: { name: 'Lingot de titane', price: 6,  shape: 'bar',     color: '#9fb2ee', accent: '#f0f4ff' },
     alloy:        { name: 'Alliage de titane', price: 30,  shape: 'plate',   color: '#38a3a5', accent: '#c8fff4' },
     battery:      { name: 'Batterie',          price: 30,  shape: 'battery', color: '#6fcf5a', accent: '#f0ff9a' },
     processor:    { name: 'Processeur',        price: 90,  shape: 'chip',    color: '#3a5fc8', accent: '#ffd24a' },
@@ -100,6 +100,11 @@
                        desc: 'Fait ressortir les objets d’une entrée souterraine alignée.' },
     chest:           { name: 'Coffre tampon',        cat: 'Transport',  kind: 'chest',       w: 1, h: 1, cost: 30,  tech: 'storage', capacity: 300,
                        desc: 'Stocke jusqu’à 300 objets pour lisser la production. Sort par la flèche.' },
+    // Mass driver: point-to-point long range link. range in tiles (centre to centre), volleys of `volley`
+    // items every `reload` s = 4 items/s (= 8 drills = 2 heavy drills), whatever the research.
+    driver:          { name: 'Catapulte magnétique', cat: 'Transport',  kind: 'driver',      w: 2, h: 2, cost: 300, tech: 'mass_driver',
+                       range: 48, volley: 8, reload: 2, capacity: 32,
+                       desc: 'Lance les objets reçus vers une autre catapulte, jusqu’à 48 cases (4 objets/s, en salves de 8). Sans cible, elle reçoit et sort par la flèche. Infos → « Choisir la cible ».' },
     drill:           { name: 'Foreuse',              cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 40,  tech: null, rate: 0.5,
                        desc: 'À poser sur un gisement : 0,5 minerai/s à pleine couverture (0,125 par case). Équivaut à 2 fonderies. Sort par la flèche.' },
     drill_heavy:     { name: 'Foreuse lourde',       cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 180, tech: 'heavy_drill', rate: 2,
@@ -115,7 +120,7 @@
     spaceyard:       { name: 'Chantier spatial',     cat: 'Production', kind: 'machine',     w: 4, h: 4, cost: 900, tech: 'spaceyard',
                        desc: 'Géant 4×4 : cœurs de réacteur et sondes profondes, les pièces les plus complexes.' },
     lab:             { name: 'Laboratoire',          cat: 'Autres',     kind: 'lab',         w: 2, h: 2, cost: 80,  tech: null,
-                       desc: 'Consomme les objets de la recherche en cours (onglet Recherche).' },
+                       desc: 'Consomme les objets de la recherche en cours (onglet Recherche) et met en réserve ceux qui serviront à une recherche future.' },
     seller:          { name: 'Comptoir de vente',    cat: 'Autres',     kind: 'seller',      w: 2, h: 2, cost: 25,  tech: null,
                        desc: 'Achète tout ce qu’on lui apporte, à prix fixe.' },
     port:            { name: 'Port de la station',   cat: 'Autres',     kind: 'port',        w: 4, h: 4, cost: 0,   tech: null, fixed: true, hidden: true,
@@ -132,6 +137,7 @@
     storage:       { name: 'Stockage tampon',       desc: 'Coffres pour lisser la production.',         cost: { brick: 15, plate: 10 }, req: ['logistics1'] },
     tunnels:       { name: 'Convoyeurs souterrains', desc: 'Passer sous les autres lignes.',            cost: { gear: 10, ingot_copper: 20 }, req: ['logistics1'] },
     fast_belt:     { name: 'Convoyeurs rapides',    desc: 'Des lignes deux fois plus rapides.',         cost: { gear: 25, wire: 20 }, req: ['logistics1'] },
+    mass_driver:   { name: 'Catapultes magnétiques', desc: 'Envoyer les objets par salves jusqu’à 48 cases, par-dessus tout le reste.', cost: { circuit: 30, steel: 20, gear: 20 }, req: ['tunnels', 'metallurgy', 'electronics'] },
     automation1:   { name: 'Automatisation I',      desc: 'Machines 25 % plus rapides.',                cost: { gear: 20, plate: 20 }, req: [], effect: { machineSpeed: 0.25 } },
     drilling1:     { name: 'Forage renforcé',       desc: 'Foreuses 25 % plus rapides (même gain que l’Automatisation I).', cost: { plate: 20, gear: 10, ingot_iron: 20 }, req: [], effect: { drillSpeed: 0.25 } },
     electronics:   { name: 'Électronique',          desc: 'Recette du circuit.',                        cost: { wire: 30, plate: 15 }, req: [] },
@@ -144,7 +150,7 @@
     automation2:   { name: 'Automatisation II',     desc: 'Machines 25 % plus rapides de plus.',        cost: { steel: 40, circuit: 40, gear: 20 }, req: ['advanced', 'automation1'], effect: { machineSpeed: 0.25 } },
     drilling2:     { name: 'Forage profond',        desc: 'Foreuses 25 % plus rapides de plus.',        cost: { steel: 30, circuit: 30 }, req: ['drilling1', 'metallurgy', 'electronics'], effect: { drillSpeed: 0.25 } },
     // ---- titanium chain
-    titanium:      { name: 'Prospection du titane', desc: 'Fondre le minerai de titane (gisements turquoise aux confins de la carte).', cost: { plate: 60, circuit: 30, steel: 20 }, req: ['advanced'] },
+    titanium:      { name: 'Prospection du titane', desc: 'Fondre le minerai de titane (gisements bleu clair aux confins de la carte).', cost: { plate: 60, circuit: 30, steel: 20 }, req: ['advanced'] },
     alloys:        { name: 'Alliages de titane',    desc: 'Recette de l’alliage (haut-fourneau : titane + charbon).', cost: { ingot_titanium: 40, steel: 30 }, req: ['titanium'] },
     batteries:     { name: 'Batteries',             desc: 'Recette de la batterie (atelier).',          cost: { ingot_copper: 60, plate: 40, circuit: 20 }, req: ['electronics', 'metallurgy'] },
     processors:    { name: 'Microprocesseurs',      desc: 'Recette du processeur (fabrique orbitale).', cost: { circuit: 60, silicon: 40, battery: 20 }, req: ['advanced', 'batteries'] },

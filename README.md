@@ -3,7 +3,7 @@
 Jeu d'automatisation 2D en vue du dessus, jouable dans le navigateur. Tu extrais des ressources, tu les transformes dans une usine que tu construis case par case, puis tu livres les pièces au **Port** pour assembler une **station spatiale**. Pas de chronomètre, pas d'échec : on optimise, on regarde la station grandir.
 
 - Une seule partie continue, sans remise à zéro entre les étapes (16 étapes, soit bien plus d'une heure de jeu (estimation), puis des extensions sans fin).
-- Pixel art généré par code (aucune image à télécharger), sauvegarde automatique, fonctionne à la souris, au clavier et au tactile (tablette).
+- Pixel art généré par code dans l'esprit de Mindustry (métal biseauté, contour sombre, accent jaune), aucune image à télécharger, sauvegarde automatique, fonctionne à la souris, au clavier et au tactile (tablette).
 
 ## Technologie choisie
 
@@ -48,15 +48,17 @@ Aucune étape de build : le site est statique. Les chemins sont relatifs, donc i
 | Construire par-dessus des convoyeurs | Poser le bâtiment dessus : convoyeurs, séparateurs et souterrains sont remplacés et remboursés (annulable) |
 | Désélectionner le bâtiment en cours de pose | Clic droit |
 | Supprimer (remboursement intégral) | Clic droit (glisser) ou outil Supprimer (`X`) : un rectangle rouge supprime tout ce qu'il touche |
-| Tourner / tourner à l'envers | `R` / `Maj+R` |
+| Tourner / tourner à l'envers | `R` / `Maj+R` (la pièce à poser, le collage ou le bâtiment inspecté) |
 | Supprimer la sélection ou le bâtiment visé | `Suppr` |
 | Ressources et recettes (popup) | `I`, bouton « Recettes » de la barre d'outils, ou menu ☰ |
 | Outils | `V` Inspecter · `E` Sélection · `X` Supprimer · `1`…`9`, `0` bâtiments |
 | Copier / couper / coller une disposition | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` (`R` tourne le collage) |
 | Annuler / rétablir | `Ctrl+Z` / `Ctrl+Y` |
 | Déplacer la caméra | Flèches, WASD, ZQSD, ou Espace + glisser (ou glisser en mode Inspecter) |
-| Nom d'une ressource | Survoler son icône (menus, recherche, infos, popup des recettes) ou un gisement sur la carte |
+| Bulles d'infos | Survoler une ressource, un bâtiment de la palette, un bouton ou un gisement : nom, prix, et toutes les cadences (objets/s des convoyeurs, recettes des machines, extraction des foreuses) avec les recherches en cours |
 | Sélection rapide | Clic molette + glisser : rectangle de sélection, puis retour automatique à l'outil Inspecter |
+| Relier deux catapultes magnétiques | Inspecter la catapulte de départ → **Choisir la cible** → clic sur la catapulte d'arrivée (`Échap` ou clic droit pour annuler) |
+| Enchaîner les recherches | Onglet Recherche : **+ File d'attente** ; la suivante démarre seule à la fin de la recherche en cours |
 | Zoom | Molette, `+` / `-` |
 | Tablette | Un doigt = outil actif · deux doigts = déplacer et pincer pour zoomer |
 
@@ -64,10 +66,17 @@ Boucle de jeu :
 
 1. **Foreuse** sur un gisement → **convoyeurs** → **Fonderie** (lingots, briques, verre) → **Atelier** (plaques, engrenages, fils, circuits…).
 2. Vends le surplus au **Comptoir de vente** (prix fixes) pour acheter des machines. Le Port revend aussi tout ce dont la station n'a pas besoin.
-3. Amène des objets à un **Laboratoire** pour terminer des recherches (nouvelles machines, recettes, bonus de vitesse).
+3. Amène des objets à un **Laboratoire** pour terminer des recherches (nouvelles machines, recettes, bonus de vitesse). Les recherches se mettent en **file d'attente**, et les laboratoires gardent en **réserve** tout ce qui servira à une recherche future : un convoyeur mélangé ne bloque plus un laboratoire, et annuler une recherche ne perd rien (ses objets retournent dans la réserve).
 4. Livre les pièces demandées au **Port** : chaque étape termine une partie visible de la station.
 
-Voyants des machines : vert = en production, orange = attend des matières, rouge = sortie bloquée. La flèche jaune indique la sortie. Le panneau **Production** donne la cadence de la dernière minute pour repérer les goulots.
+Voyants des machines : vert = en production, orange = attend des matières, rouge = sortie bloquée. La flèche jaune indique la sortie.
+
+Le panneau **Production** sert à trouver les goulots :
+
+- pour chaque objet, ce qui a été **produit**, **utilisé** (machines, laboratoires, station) et **vendu** pendant la dernière minute ; un objet plus utilisé que produit s'affiche en rouge (ses stocks fondent) ;
+- **Machines par recette** : combien de machines de chaque recette produisent, attendent ou sont bloquées, et quelles matières **manquent** à celles qui attendent.
+
+La **Catapulte magnétique** (recherche *Catapultes magnétiques*) relie deux points éloignés de la carte : une catapulte reliée charge depuis n'importe quel côté et tire des salves par-dessus tout le reste vers une autre catapulte (48 cases au plus) ; une catapulte sans cible reçoit et sort les objets par sa flèche. On peut les chaîner pour traverser la carte (les boucles sont refusées). Copier-coller une paire garde la liaison.
 
 ## Cadences (équilibrage)
 
@@ -78,13 +87,14 @@ Toutes les cadences de base sont **deux fois plus lentes** qu'à la première ve
 - **Haut-fourneau** : acier, silicium ou alliage 0,125/s (1 fonderie + 0,125 charbon/s).
 - **Fabrique orbitale** : coque et processeur 0,125/s ; panneau, kit, propulseur et réservoir 0,0625/s. **Chantier spatial** (4×4) : cœur 0,0625/s, sonde 0,031/s.
 - **Convoyeur de base** : environ 4,8 objets/s, **rapide** : environ 9,7/s (ils ne sont jamais le goulot).
+- **Catapulte magnétique** : 4 objets/s (salves de 8 toutes les 2 s, quelle que soit la recherche), soit 8 foreuses ou 2 foreuses lourdes ; portée 48 cases, stock 32 objets.
 - Les améliorations *Automatisation I à IV* (+25 % chacune sur les machines) et *Forage I à IV* (+25 % chacune sur les foreuses) rendent progressivement les cadences d'origine. Elles vont par paires, donc le ratio foreuse / machines ne change pas. *Entrepôts* porte les coffres à 900 objets.
 
 ## Progression
 
 - 16 étapes de station (armature, cabine, réseau, coque, quai, ailes, module scientifique, anneau, antenne, radiateurs, propulseurs, soute, réacteur, bouclier, serre, mise en orbite), puis des extensions sans fin.
 - Une carte de 240×160 cases (6 fois plus grande qu'avant) : le Port est au centre, les gisements proches suffisent pour démarrer, les autres sont éparpillés sur toute la carte (le titane le plus loin). Les anciennes parties sont recentrées automatiquement.
-- 27 recherches, dont une chaîne **titane** (minerai turquoise, loin du Port) : lingot de titane, alliage, batterie, processeur, réservoir, puis le **Chantier spatial** pour les cœurs de réacteur et les sondes profondes.
+- 28 recherches (dont les *Catapultes magnétiques* pour les gisements lointains), avec une chaîne **titane** (minerai bleu clair, loin du Port) : lingot de titane, alliage, batterie, processeur, réservoir, puis le **Chantier spatial** pour les cœurs de réacteur et les sondes profondes.
 - Les parties enregistrées avec l'ancienne station à 8 étapes sont converties automatiquement au chargement.
 
 Pour ne jamais déborder : un coffre tampon lisse les pics, un Comptoir de vente absorbe tout, et le Port revend le surplus. Le panneau **Infos** d'une machine affiche sa cadence exacte et le ratio « alimente N fonderies » pour les foreuses.
@@ -93,6 +103,7 @@ Pour ne jamais déborder : un coffre tampon lisse les pics, un Comptoir de vente
 
 - **Automatique** dans le navigateur (`localStorage`) toutes les 15 secondes, au changement d'onglet et à la fermeture.
 - **Exporter / importer** une partie sous forme de fichier `.json` depuis le menu ☰.
+- Format versionné (`rev`, actuellement 4 : réserve des laboratoires et file de recherche) : les parties plus anciennes se chargent toujours, avec une réserve et une file vides.
 
 ## Structure du projet
 

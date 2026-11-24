@@ -7,6 +7,7 @@
   'use strict';
   const T = CO.TILE, DX = CO.DX, DY = CO.DY, world = CO.world, sprites = CO.sprites, ITEMS = CO.ITEMS;
   const Rn = CO.render = {};
+  const ACC = '#ffd37f', OUT = '#1f1f25';            // Mindustry-like team accent and outline
   let canvas, ctx, cw = 0, ch = 0, dpr = 1, ts = 32, ox = 0, oy = 0;
   let terrain = null, terrainKey = '', starPat = null;
 
@@ -77,8 +78,8 @@
     ctx.lineTo(cx - dx * s * 0.5 + nx * s * 0.8, cy - dy * s * 0.5 + ny * s * 0.8);
     ctx.lineTo(cx - dx * s * 0.5 - nx * s * 0.8, cy - dy * s * 0.5 - ny * s * 0.8);
     ctx.closePath();
-    ctx.fillStyle = '#ffd24a'; ctx.fill();
-    ctx.lineWidth = Math.max(1, ts / 16); ctx.strokeStyle = '#3a2c00'; ctx.stroke();
+    ctx.fillStyle = ACC; ctx.fill();
+    ctx.lineWidth = Math.max(1, ts / 14); ctx.strokeStyle = OUT; ctx.stroke();
   }
 
   function ensureTerrain() {
@@ -90,9 +91,9 @@
     if (!starPat) {
       const c = document.createElement('canvas'); c.width = c.height = 200;
       const g = c.getContext('2d'), rnd = CO.rng(7);
-      g.fillStyle = '#080b16'; g.fillRect(0, 0, 200, 200);
-      for (let i = 0; i < 60; i++) {
-        const b = rnd(); g.fillStyle = b > 0.8 ? '#cfd8f0' : b > 0.4 ? '#5a6890' : '#2f3a58';
+      g.fillStyle = '#0a0a0d'; g.fillRect(0, 0, 200, 200);
+      for (let i = 0; i < 50; i++) {
+        const b = rnd(); g.fillStyle = b > 0.85 ? '#9a9aa6' : b > 0.4 ? '#45454f' : '#26262c';
         g.fillRect(Math.floor(rnd() * 200), Math.floor(rnd() * 200), 2, 2);
       }
       starPat = ctx.createPattern(c, 'repeat');
@@ -117,9 +118,9 @@
       ctx.beginPath();
       for (let x = x0; x <= x1 + 1; x++) { ctx.moveTo(ox + x * ts + 0.5, oy + y0 * ts); ctx.lineTo(ox + x * ts + 0.5, oy + (y1 + 1) * ts); }
       for (let y = y0; y <= y1 + 1; y++) { ctx.moveTo(ox + x0 * ts, oy + y * ts + 0.5); ctx.lineTo(ox + (x1 + 1) * ts, oy + y * ts + 0.5); }
-      ctx.strokeStyle = 'rgba(160,190,255,0.06)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 1; ctx.stroke();
     }
-    ctx.strokeStyle = 'rgba(93,224,230,0.35)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,211,127,0.35)'; ctx.lineWidth = 2;
     ctx.strokeRect(ox, oy, W * ts, H * ts);
 
     const ov = CO.input ? CO.input.getOverlay() : null;
@@ -130,6 +131,16 @@
       vis.push(b);
     }
 
+    // 0. soft drop shadows (offset down-right), under everything but belts
+    const so = Math.max(1, Math.round(ts * 0.14));
+    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    for (let i = 0; i < vis.length; i++) {
+      const b = vis[i];
+      if (b.kind === 'belt') continue;
+      const inset = b.w === 1 ? ts * 0.06 : 0;
+      ctx.fillRect(ox + b.x * ts + so + inset, oy + b.y * ts + so + inset, b.w * ts - inset * 2, b.h * ts - inset * 2);
+    }
+
     // 1. bodies
     for (let i = 0; i < vis.length; i++) {
       const b = vis[i], px = ox + b.x * ts, py = oy + b.y * ts;
@@ -137,16 +148,19 @@
       if (b.kind === 'belt') {
         const tier = b.type === 'belt_fast' ? 1 : 0;
         spr = sprites.belt(tier, b.dir, beltShape(b), Math.floor(time * b.def.speed * 16) % 16);
+      } else if (b.kind === 'driver') {
+        spr = sprites.building(b.type, b.dir, 1);         // base only: the barrel is drawn aimed at the target
       } else {
         const nf = sprites.frames[b.type] || 1;
-        const f = (b.status === 'work' || b.kind === 'port') ? Math.floor(time * (b.kind === 'port' ? 1.5 : 7)) % nf : 0;
+        const busy = b.status === 'work' || b.kind === 'port' || (b.kind === 'lab' && CO.state.research);
+        const f = busy ? Math.floor(time * (b.kind === 'port' ? 1.5 : 7)) % nf : 0;
         spr = sprites.building(b.type, b.dir, f);
       }
       ctx.drawImage(spr, 0, 0, spr.width, spr.height, px, py, b.w * ts, b.h * ts);
     }
 
     // tunnel links
-    ctx.save(); ctx.setLineDash([ts * 0.12, ts * 0.12]); ctx.strokeStyle = 'rgba(255,210,74,0.55)'; ctx.lineWidth = Math.max(1, ts / 14);
+    ctx.save(); ctx.setLineDash([ts * 0.12, ts * 0.12]); ctx.strokeStyle = 'rgba(255,211,127,0.6)'; ctx.lineWidth = Math.max(1, ts / 14);
     for (let i = 0; i < vis.length; i++) {
       const b = vis[i];
       if (b.kind !== 'tunnel_in') continue;
@@ -155,6 +169,7 @@
       ctx.beginPath(); ctx.moveTo(ox + (b.x + 0.5) * ts, oy + (b.y + 0.5) * ts); ctx.lineTo(ox + (ex.x + 0.5) * ts, oy + (ex.y + 0.5) * ts); ctx.stroke();
     }
     ctx.restore();
+    drawDriverLinks(ov);
 
     // 2. items carried on belts / held by routers / chest fill
     const isz = ts * 0.42;
@@ -179,35 +194,58 @@
       if (k === 'machine' || k === 'drill') {
         drawArrowOut(b);
         const id = k === 'drill' ? b.ore : b.recipe;
-        if (id) drawIcon(id, cx, cy, Math.min(b.w, b.h) * ts * 0.34);
+        if (id) {                                    // recipe / ore badge in the top-right corner (keeps the machine art visible)
+          const bs = Math.max(6, Math.round(ts * 0.5)), bx = px + b.w * ts - bs - ts * 0.1, by = py + ts * 0.1;
+          ctx.fillStyle = OUT; ctx.fillRect(bx - 2, by - 2, bs + 4, bs + 4);
+          ctx.fillStyle = '#2b2c33'; ctx.fillRect(bx - 1, by - 1, bs + 2, bs + 2);
+          drawIcon(id, bx + bs / 2, by + bs / 2, bs);
+        }
         else if (k === 'machine') {
-          ctx.fillStyle = '#ffd24a'; ctx.font = 'bold ' + Math.round(ts * 0.8) + 'px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = ACC; ctx.font = 'bold ' + Math.round(ts * 0.8) + 'px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('?', cx, cy);
         }
-        const led = b.status === 'work' ? '#5df08a' : b.status === 'blocked' ? '#ff5a5a' : '#ffb347';
+        const led = b.status === 'work' ? '#84f491' : b.status === 'blocked' ? '#e55454' : '#ffb347';
         const s = Math.max(3, Math.round(ts * 0.16));
-        ctx.fillStyle = '#10131d'; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
+        ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
         ctx.fillStyle = led; ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
       } else if (k === 'lab') {
         const s = Math.max(3, Math.round(ts * 0.16));
-        ctx.fillStyle = CO.state.research ? '#5df08a' : '#ffb347';
+        ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
+        ctx.fillStyle = CO.state.research ? '#84f491' : '#ffb347';
         ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
         if (CO.state.research) {                                  // show what the lab is waiting for
           const need = CO.TECHS[CO.state.research].cost; let n = 0;
           for (const id in need) if ((CO.state.researchProg[id] || 0) < need[id]) drawIcon(id, px + ts * (0.5 + n++ * 0.45), py + b.h * ts - ts * 0.4, ts * 0.38);
         }
+      } else if (k === 'driver') {
+        const tg = CO.sim.driverTarget(b);
+        if (!tg) drawArrowOut(b);                    // receivers unload through their front
+        const ang = b.aim != null ? b.aim : b.dir * Math.PI / 2;
+        const recoil = b.cd > b.def.reload - 0.3 ? (b.cd - (b.def.reload - 0.3)) / 0.3 * ts * 0.18 : 0;
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang);
+        ctx.drawImage(sprites.barrel(), 0, 0, 16, 8, Math.round(-ts * 0.12 - recoil), Math.round(-ts * 0.25), Math.round(ts), Math.round(ts * 0.5));
+        ctx.restore();
+        const f = b.q.length / b.def.capacity;          // stock gauge along the bottom edge
+        ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, b.w * ts - ts * 0.6, Math.max(2, ts * 0.09));
+        ctx.fillStyle = f > 0.9 ? '#e55454' : ACC; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, (b.w * ts - ts * 0.6) * f, Math.max(2, ts * 0.09));
+        const led = b.status === 'work' ? '#84f491' : b.status === 'blocked' ? '#e55454' : '#ffb347';
+        const s = Math.max(3, Math.round(ts * 0.16));
+        ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
+        ctx.fillStyle = led; ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
       } else if (k === 'router' && b.filter) {
         drawIcon(b.filter, cx, cy, ts * 0.36);
       } else if (k === 'chest') {
         const f = b.q.length / CO.chestCap(b.def);
-        ctx.fillStyle = '#10131d'; ctx.fillRect(px + ts * 0.15, py + ts * 0.84, ts * 0.7, Math.max(2, ts * 0.09));
-        ctx.fillStyle = f > 0.9 ? '#ff5a5a' : '#5de0e6'; ctx.fillRect(px + ts * 0.15, py + ts * 0.84, ts * 0.7 * f, Math.max(2, ts * 0.09));
+        ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.15, py + ts * 0.84, ts * 0.7, Math.max(2, ts * 0.09));
+        ctx.fillStyle = f > 0.9 ? '#e55454' : ACC; ctx.fillRect(px + ts * 0.15, py + ts * 0.84, ts * 0.7 * f, Math.max(2, ts * 0.09));
       } else if (k === 'port') {
         const pulse = 0.5 + 0.5 * Math.sin(time * 2);
-        ctx.strokeStyle = 'rgba(93,224,230,' + (0.25 + 0.4 * pulse) + ')'; ctx.lineWidth = Math.max(2, ts * 0.1);
+        ctx.strokeStyle = 'rgba(255,211,127,' + (0.2 + 0.4 * pulse) + ')'; ctx.lineWidth = Math.max(2, ts * 0.1);
         ctx.strokeRect(px + ts * 0.1, py + ts * 0.1, b.w * ts - ts * 0.2, b.h * ts - ts * 0.2);
       }
     }
+
+    drawShots(time);
 
     // 4. floating texts
     const fx = CO.fx;
@@ -217,13 +255,59 @@
       ctx.globalAlpha = Math.min(1, 1.6 - f.age);
       ctx.font = 'bold ' + Math.round(ts * 0.42) + 'px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const tx = ox + f.x * ts, ty = oy + (f.y - f.age * 0.7) * ts;
-      ctx.fillStyle = '#10131d'; ctx.fillText(f.text, tx + 1, ty + 1);
-      ctx.fillStyle = '#ffd24a'; ctx.fillText(f.text, tx, ty);
+      ctx.fillStyle = OUT; ctx.fillText(f.text, tx + 1, ty + 1);
+      ctx.fillStyle = ACC; ctx.fillText(f.text, tx, ty);
       ctx.globalAlpha = 1;
     }
 
     if (ov) drawOverlay(ov, time);
   };
+
+  // ------------------------------------------------------ mass drivers
+  function centre(b) { return [ox + (b.x + b.w / 2) * ts, oy + (b.y + b.h / 2) * ts]; }
+  /** Dashed link from every launcher to its target; brighter when one end is selected or hovered. */
+  function drawDriverLinks(ov) {
+    const list = world.list;
+    ctx.save(); ctx.lineWidth = Math.max(1, ts / 14); ctx.setLineDash([ts * 0.3, ts * 0.25]);
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (b.kind !== 'driver' || !b.target) continue;
+      const tg = CO.sim.driverTarget(b);
+      if (!tg) continue;
+      const hot = ov && (ov.hover === b || ov.hover === tg || ov.selected.indexOf(b) >= 0 || ov.selected.indexOf(tg) >= 0);
+      const a = centre(b), c = centre(tg);
+      ctx.strokeStyle = hot ? 'rgba(255,211,127,0.75)' : 'rgba(255,211,127,0.22)';
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(c[0], c[1]); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  /** Volleys in flight: a glowing slug with a short trail, carrying the icon of its first item. */
+  function drawShots(time) {
+    const shots = CO.sim.shots;
+    for (let i = 0; i < shots.length; i++) {
+      const s = shots[i], a = centre(s.from), c = centre(s.to), k = Math.min(1, s.t / s.dur);
+      const arc = Math.sin(k * Math.PI) * ts * 0.6;                 // slight ballistic lift
+      for (let j = 3; j >= 0; j--) {
+        const kk = Math.max(0, k - j * 0.035), x = a[0] + (c[0] - a[0]) * kk, y = a[1] + (c[1] - a[1]) * kk - Math.sin(kk * Math.PI) * ts * 0.6;
+        const r = Math.max(2, ts * (0.22 - j * 0.04));
+        ctx.globalAlpha = j ? 0.35 - j * 0.08 : 1;
+        ctx.fillStyle = j ? '#ff9d5c' : OUT; ctx.fillRect(Math.round(x - r), Math.round(y - r), Math.round(r * 2), Math.round(r * 2));
+      }
+      ctx.globalAlpha = 1;
+      const x = a[0] + (c[0] - a[0]) * k, y = a[1] + (c[1] - a[1]) * k - arc, r = Math.max(2, ts * 0.18);
+      ctx.fillStyle = (Math.floor(time * 12) % 2) ? ACC : '#fff0c8'; ctx.fillRect(Math.round(x - r), Math.round(y - r), Math.round(r * 2), Math.round(r * 2));
+      drawIcon(s.items[0], x, y, ts * 0.3);
+    }
+  }
+  function rangeCircle(b, valid) {
+    const c = centre(b);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(c[0], c[1], b.def.range * ts, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,211,127,0.05)'; ctx.fill();
+    ctx.setLineDash([ts * 0.4, ts * 0.3]); ctx.lineWidth = Math.max(2, ts / 10);
+    ctx.strokeStyle = valid === false ? 'rgba(229,84,84,0.7)' : 'rgba(255,211,127,0.6)'; ctx.stroke();
+    ctx.restore();
+  }
 
   function outline(b, color, width) {
     ctx.strokeStyle = color; ctx.lineWidth = width;
@@ -233,33 +317,44 @@
   function drawOverlay(ov, time) {
     const lw = Math.max(2, Math.round(ts / 12));
     if (ov.hover) outline(ov.hover, 'rgba(255,255,255,0.7)', lw);
-    for (let i = 0; i < ov.selected.length; i++) outline(ov.selected[i], '#5de0e6', lw);
+    for (let i = 0; i < ov.selected.length; i++) outline(ov.selected[i], ACC, lw);
     for (let i = 0; i < ov.deleting.length; i++) {
       const b = ov.deleting[i];
-      ctx.fillStyle = 'rgba(255,70,70,0.45)'; ctx.fillRect(ox + b.x * ts, oy + b.y * ts, b.w * ts, b.h * ts);
-      outline(b, '#ff5a5a', lw);
+      ctx.fillStyle = 'rgba(229,84,84,0.42)'; ctx.fillRect(ox + b.x * ts, oy + b.y * ts, b.w * ts, b.h * ts);
+      outline(b, '#e55454', lw);
     }
     if (ov.cursorCell) {                                 // plain cell cursor (inspect / delete tools)
       ctx.strokeStyle = ov.cursorColor; ctx.lineWidth = lw;
       ctx.strokeRect(ox + ov.cursorCell.x * ts + lw / 2, oy + ov.cursorCell.y * ts + lw / 2, ts - lw, ts - lw);
     }
+    if (ov.link) {                                       // choosing a mass driver target
+      const L = ov.link, a = centre(L.src);
+      rangeCircle(L.src, true);
+      const end = L.target ? centre(L.target) : [ox + L.cur.x * ts, oy + L.cur.y * ts];
+      ctx.save(); ctx.setLineDash([ts * 0.3, ts * 0.2]); ctx.lineDashOffset = -time * ts;
+      ctx.strokeStyle = L.valid ? ACC : '#e55454'; ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(end[0], end[1]); ctx.stroke(); ctx.restore();
+      if (L.target) outline(L.target, L.valid ? ACC : '#e55454', lw * 1.5);
+      outline(L.src, ACC, lw);
+    }
     // placement ghosts
     for (let i = 0; i < ov.ghosts.length; i++) {
       const g = ov.ghosts[i], def = CO.BUILDINGS[g.type], px = ox + g.x * ts, py = oy + g.y * ts;
+      if (def.kind === 'driver' && ov.ghosts.length === 1) rangeCircle({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
       const spr = sprites.building(g.type, g.dir, 0);
       ctx.globalAlpha = 0.72;
       ctx.drawImage(spr, 0, 0, spr.width, spr.height, px, py, def.w * ts, def.h * ts);
       ctx.globalAlpha = 1;
       if (def.w * def.h > 1 && def.kind !== 'lab' && def.kind !== 'seller' && def.kind !== 'port') drawArrowOut({ x: g.x, y: g.y, w: def.w, h: def.h, dir: g.dir });
-      ctx.fillStyle = g.valid ? 'rgba(93,240,138,0.18)' : 'rgba(255,70,70,0.45)';
+      ctx.fillStyle = g.valid ? 'rgba(255,211,127,0.12)' : 'rgba(229,84,84,0.45)';
       ctx.fillRect(px, py, def.w * ts, def.h * ts);
-      ctx.strokeStyle = g.valid ? 'rgba(93,240,138,0.9)' : 'rgba(255,90,90,0.95)'; ctx.lineWidth = lw;
+      ctx.strokeStyle = g.valid ? 'rgba(255,211,127,0.95)' : 'rgba(229,84,84,0.95)'; ctx.lineWidth = lw;
       ctx.strokeRect(px + lw / 2, py + lw / 2, def.w * ts - lw, def.h * ts - lw);
     }
     if (ov.selRect) {
       const r = ov.selRect, x = ox + r.x0 * ts, y = oy + r.y0 * ts, w = (r.x1 - r.x0 + 1) * ts, h = (r.y1 - r.y0 + 1) * ts;
-      const col = ov.selDelete ? '#ff5a5a' : '#5de0e6';
-      ctx.fillStyle = ov.selDelete ? 'rgba(255,90,90,0.14)' : 'rgba(93,224,230,0.14)'; ctx.fillRect(x, y, w, h);
+      const col = ov.selDelete ? '#e55454' : ACC;
+      ctx.fillStyle = ov.selDelete ? 'rgba(229,84,84,0.14)' : 'rgba(255,211,127,0.12)'; ctx.fillRect(x, y, w, h);
       ctx.save(); ctx.setLineDash([ts * 0.25, ts * 0.2]); ctx.lineDashOffset = -time * ts * 0.5;
       ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.strokeRect(x, y, w, h); ctx.restore();
     }

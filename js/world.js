@@ -128,7 +128,7 @@
       return { ok: true, replace: replace, replaces: replaces };
     },
 
-    /** Create a building and register it in the grid. `cfg` = {recipe, filter} (optional). */
+    /** Create a building and register it in the grid. `cfg` = {recipe, filter, target} (optional). */
     create: function (type, x, y, dir, cfg) {
       const def = BUILDINGS[type];
       const b = { id: this.nextId++, type: type, def: def, kind: def.kind, x: x, y: y, w: def.w, h: def.h, dir: dir, fc: null };
@@ -139,6 +139,9 @@
           b.slot = null; b.timer = 0; b.rr = 0; b.lastIn = -1; b.filter = (cfg && cfg.filter) || null; break;
         case 'chest':
           b.q = []; b.outT = 0; break;
+        case 'driver':
+          b.q = []; b.incoming = 0; b.cd = 0; b.status = 'idle'; b.rr = 0; b.aim = null;
+          this.setTarget(b, cfg && cfg.target); break;
         case 'drill': {
           const oc = this.countOre(x, y, def.w, def.h);
           b.ore = CO.ORE_IDS[oc.id] || null; b.n = oc.n; b.acc = 0; b.out = []; b.status = 'idle'; b.rr = 0; break;
@@ -168,6 +171,13 @@
 
     setDir: function (b, dir) { b.dir = dir; this.refreshGeometry(b); this.version++; },
 
+    /** Mass driver target: "x,y" = top-left cell of the receiving driver (positions survive undo/redo). */
+    setTarget: function (b, key) {
+      const m = typeof key === 'string' ? /^(-?\d+),(-?\d+)$/.exec(key) : null;
+      b.target = m ? key : null;
+      b.tx = m ? +m[1] : 0; b.ty = m ? +m[2] : 0;
+    },
+
     /** Cache the cells just in front of a building (where it outputs). Flat [x,y,x,y...]. */
     refreshGeometry: function (b) {
       const d = b.dir, out = [];
@@ -186,8 +196,13 @@
       const o = { t: b.type, x: b.x, y: b.y, d: b.dir };
       if (b.recipe) o.r = b.recipe;
       if (b.filter) o.f = b.filter;
+      if (b.target) o.k = b.target;
       if (b.items && b.items.length) o.i = b.items.map(function (it) { return [it.t, Math.round(it.p * 100) / 100, it.f]; });
       if (b.q && b.q.length) o.q = b.q.slice();
+      if (b.kind === 'driver') {                       // items still flying are saved back into their launcher
+        const fly = CO.sim ? CO.sim.inFlightFrom(b) : [];
+        if (fly.length) o.q = (o.q || []).concat(fly);
+      }
       if (b.kind === 'machine') {
         if (Object.keys(b.inBuf).length) o.ib = b.inBuf;
         if (b.outBuf.length) o.ob = b.outBuf.slice();
@@ -206,7 +221,7 @@
         const o = arr[i], def = BUILDINGS[o.t];
         if (!def || def.fixed || !(o.d >= 0 && o.d < 4)) continue;
         if (!this.check(o.t, o.x, o.y, o.d).ok) continue;
-        const b = this.create(o.t, o.x, o.y, o.d, { recipe: o.r, filter: o.f });
+        const b = this.create(o.t, o.x, o.y, o.d, { recipe: o.r, filter: o.f, target: o.k });
         if (o.i && b.items) b.items = o.i.filter(function (a) { return CO.ITEMS[a[0]]; }).map(function (a) { return { t: a[0], p: a[1], f: a[2] }; });
         if (o.q && b.q) b.q = o.q.filter(function (t) { return CO.ITEMS[t]; });
         if (o.ib && b.inBuf) b.inBuf = o.ib;

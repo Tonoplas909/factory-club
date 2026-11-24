@@ -2,7 +2,8 @@
  * input.js — mouse, touch and keyboard.
  *
  * Tools:  inspect (drag = pan, click = inspect a building), select (rectangle),
- *         delete (drag over buildings), build (a building type), paste (clipboard blueprint).
+ *         delete (drag over buildings), build (a building type), paste (clipboard blueprint),
+ *         link (pick the target of a mass driver: click another driver in range).
  * Mouse:  left = tool action, right-drag = delete, middle-drag = one-shot selection rectangle
  *         (back to inspect afterwards), Space+drag = pan, wheel = zoom.
  * Touch:  one finger = tool action, two fingers = pan + pinch zoom.
@@ -20,16 +21,18 @@
   let gesture = null, drag = null, space = false;
   let selection = { rect: null, blds: [] };
   let inspected = null;
-  let clipboard = null;                 // {w,h,items:[{type,rx,ry,dir,cfg}]}
+  let clipboard = null;                 // {w,h,items:[{type,rx,ry,dir,cfg,tr}]} (tr: relative driver target)
+  let linkSrc = null;                   // mass driver whose target is being chosen (tool 'link')
   const held = {};                      // keyboard pan keys currently down
   let lastCost = 0;
 
-  I.get = function () { return { tool: tool, buildType: buildType, rot: rot, inspected: inspected, selection: selection.blds, clipboard: clipboard }; };
+  I.get = function () { return { tool: tool, buildType: buildType, rot: rot, inspected: inspected, selection: selection.blds, clipboard: clipboard, linkSrc: linkSrc }; };
   I.getCost = function () { return lastCost; };
 
   // ------------------------------------------------------------ tool state
   function setTool(t) {
     tool = t; drag = null;
+    if (t !== 'link') linkSrc = null;
     if (t !== 'inspect') inspected = null;
     if (t !== 'select') { selection = { rect: null, blds: [] }; }
     CO.emit('tool'); CO.emit('inspect'); CO.emit('selection');
@@ -41,12 +44,48 @@
     buildType = type; setTool('build');
   };
 
-  I.rotate = function () {
-    if (tool === 'paste' && clipboard) rotateBlueprint(clipboard);
-    else if (tool === 'build') rot = (rot + 1) & 3;
-    else if (inspected && !inspected.dead) H.rotate(inspected);
+  /** Rotate the piece being placed, the paste, or the inspected building (`ccw` = counter-clockwise). */
+  I.rotate = function (ccw) {
+    if (tool === 'paste' && clipboard) { for (let k = ccw ? 3 : 1; k > 0; k--) rotateBlueprint(clipboard); }
+    else if (tool === 'build') rot = (rot + (ccw ? 3 : 1)) & 3;
+    else if (inspected && !inspected.dead) H.rotate(inspected, ccw);
     CO.emit('tool');
   };
+
+  // ------------------------------------------------------- mass driver link
+  /** Start choosing the target of mass driver `b` (next click on another driver in range). */
+  I.startLink = function (b) {
+    if (!b || b.dead || b.kind !== 'driver') return;
+    tool = 'link'; drag = null; linkSrc = b; inspected = b; selection = { rect: null, blds: [] };
+    CO.emit('tool'); CO.emit('selection');
+  };
+  /** Back to the inspect tool with the launcher still shown in the Infos panel. */
+  function endLink() {
+    const src = linkSrc;
+    setTool('inspect');
+    if (src && !src.dead) { inspected = src; CO.emit('inspect'); }
+  }
+  /** Would `b` → `t` be a valid link? Returns '' when fine, else the reason (French). */
+  function linkProblem(b, t) {
+    if (!t || t.kind !== 'driver') return 'Clique sur une autre catapulte magnétique.';
+    if (t === b) return 'Une catapulte ne peut pas se viser elle-même.';
+    if (CO.sim.driverDist(b, t) > b.def.range) return 'Hors de portée (' + b.def.range + ' cases au maximum).';
+    for (let n = t, k = 0; n && k < 256; k++) {          // following the chain must never come back here
+      if (n === b) return 'Boucle : cette catapulte renvoie déjà ses objets vers celle-ci.';
+      n = CO.sim.driverTarget(n);
+    }
+    return '';
+  }
+  function finishLink(cell) {
+    const t = world.at(cell.x, cell.y), b = linkSrc;
+    if (!b || b.dead) { setTool('inspect'); return; }
+    if (!t) { endLink(); return; }                       // click on empty ground = cancel
+    const why = linkProblem(b, t);
+    if (why) { CO.emit('toast', why, 'warn'); return; }
+    H.configure(b, t.x + ',' + t.y);
+    CO.emit('toast', 'Liaison établie : ' + Math.round(CO.sim.driverDist(b, t)) + ' cases.', 'good');
+    endLink();
+  }
 
   I.inspect = function (b) { inspected = b; CO.emit('inspect'); };
 
@@ -107,7 +146,10 @@
   function pastePlacements() {
     if (!cur || !clipboard) return [];
     const bx = Math.round(cur.x - clipboard.w / 2), by = Math.round(cur.y - clipboard.h / 2);
-    return clipboard.items.map(function (it) { return { type: it.type, x: bx + it.rx, y: by + it.ry, dir: it.dir, cfg: it.cfg }; });
+    return clipboard.items.map(function (it) {
+      const cfg = { recipe: it.cfg.recipe, filter: it.cfg.filter, target: it.tr ? (bx + it.tr.rx) + ',' + (by + it.tr.ry) : null };
+      return { type: it.type, x: bx + it.rx, y: by + it.ry, dir: it.dir, cfg: cfg };
+    });
   }
 
   /** Validate placements for the ghost preview (money is accumulated across the batch). */
@@ -144,7 +186,12 @@
     list.forEach(function (b) { x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y); x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h); });
     return {
       w: x1 - x0, h: y1 - y0,
-      items: list.map(function (b) { return { type: b.type, rx: b.x - x0, ry: b.y - y0, dir: b.dir, cfg: { recipe: b.recipe || null, filter: b.filter || null } }; })
+      items: list.map(function (b) {
+        // A driver keeps its link only when its target is copied too (stored relative to the blueprint).
+        const t = b.kind === 'driver' ? CO.sim.driverTarget(b) : null;
+        const tr = t && list.indexOf(t) >= 0 ? { rx: t.x - x0, ry: t.y - y0, w: t.w, h: t.h } : null;
+        return { type: b.type, rx: b.x - x0, ry: b.y - y0, dir: b.dir, cfg: { recipe: b.recipe || null, filter: b.filter || null }, tr: tr };
+      })
     };
   }
   function rotateBlueprint(bp) {
@@ -152,6 +199,7 @@
     bp.items.forEach(function (it) {
       const d = BUILDINGS[it.type], nx = oh - (it.ry + d.h), ny = it.rx;
       it.rx = nx; it.ry = ny; it.dir = (it.dir + 1) & 3;
+      if (it.tr) it.tr = { rx: oh - (it.tr.ry + it.tr.h), ry: it.tr.rx, w: it.tr.h, h: it.tr.w };
     });
     bp.h = bp.w; bp.w = oh;
   }
@@ -190,17 +238,22 @@
   const overlay = { hover: null, selected: [], deleting: [], ghosts: [], selRect: null, cursorCell: null, cursorColor: '#fff' };
   I.getOverlay = function () {
     const o = overlay;
-    o.hover = null; o.deleting = []; o.ghosts = []; o.cursorCell = null; o.selRect = null;
+    o.hover = null; o.deleting = []; o.ghosts = []; o.cursorCell = null; o.selRect = null; o.link = null;
     o.selected = selection.blds.slice();
     if (inspected && !inspected.dead && o.selected.indexOf(inspected) < 0) o.selected.push(inspected);
     if (cur) {
       const c = cellOf(cur), hb = world.at(c.x, c.y);
       if (tool === 'inspect') o.hover = hb;
       if (tool === 'delete' && !drag && hb && !hb.def.fixed) o.deleting = [hb];
-      if (tool === 'delete' && !hb) { o.cursorCell = c; o.cursorColor = 'rgba(255,90,90,0.8)'; }
-      if (tool === 'select' && !drag) { o.cursorCell = c; o.cursorColor = 'rgba(93,224,230,0.8)'; }
+      if (tool === 'delete' && !hb) { o.cursorCell = c; o.cursorColor = 'rgba(229,84,84,0.85)'; }
+      if (tool === 'select' && !drag) { o.cursorCell = c; o.cursorColor = 'rgba(255,211,127,0.85)'; }
       if (tool === 'build') o.ghosts = validate(buildPlacements());
       if (tool === 'paste') o.ghosts = validate(pastePlacements());
+      if (tool === 'link' && linkSrc && !linkSrc.dead) {
+        const t = hb && hb !== linkSrc && hb.kind === 'driver' ? hb : null;
+        const inRange = CO.sim.driverDist(linkSrc, { x: cur.x, y: cur.y, w: 0, h: 0 }) <= linkSrc.def.range;
+        o.link = { src: linkSrc, cur: cur, target: t, valid: t ? !linkProblem(linkSrc, t) : inRange };
+      }
       for (let i = 0; i < o.ghosts.length; i++) if (o.ghosts[i].replaces) o.deleting = o.deleting.concat(o.ghosts[i].replaces);
     }
     o.selDelete = false;
@@ -272,7 +325,7 @@
       startDelete(cell);
       // With a building (or a paste) selected for placing, a plain right-click just deselects it;
       // a right-drag still deletes, as in every other tool.
-      drag.cancelTool = (tool === 'build' || tool === 'paste');
+      drag.cancelTool = (tool === 'build' || tool === 'paste' || tool === 'link');
       return;
     }
     if (e.button !== 0) return;
@@ -286,6 +339,7 @@
         break;
       }
       case 'paste': drag = { kind: 'paste' }; break;
+      case 'link': finishLink(cell); break;
     }
   }
   /** Start a deletion marquee: everything touched by the dragged rectangle is removed on release. */
@@ -344,7 +398,11 @@
         break;
       }
       case 'delete': {
-        if (d.cancelTool && !d.moved) { drag = null; setTool('inspect'); return; }   // right-click = deselect
+        if (d.cancelTool && !d.moved) {                 // right-click = deselect (or cancel the link)
+          drag = null;
+          if (tool === 'link') endLink(); else setTool('inspect');
+          return;
+        }
         const arr = buildingsInRect(rectOf(d.start, d.end));
         if (arr.length) H.remove(arr);
         break;
@@ -403,12 +461,16 @@
     if (PAN_KEYS[k]) { held[PAN_KEYS[k]] = true; e.preventDefault(); return; }
     switch (k) {
       case ' ': space = true; e.preventDefault(); break;
-      case 'r': if (e.shiftKey) { rot = (rot + 3) & 3; CO.emit('tool'); } else I.rotate(); break;
+      case 'r': I.rotate(e.shiftKey); break;
       case 'v': setTool('inspect'); break;
       case 'e': setTool('select'); break;
       case 'x': setTool('delete'); break;
       case 'i': CO.ui.showGuide(); break;
-      case 'escape': if (tool !== 'inspect') setTool('inspect'); else { inspected = null; selection = { rect: null, blds: [] }; CO.emit('inspect'); CO.emit('selection'); } break;
+      case 'escape':
+        if (tool === 'link') endLink();
+        else if (tool !== 'inspect') setTool('inspect');
+        else { inspected = null; selection = { rect: null, blds: [] }; CO.emit('inspect'); CO.emit('selection'); }
+        break;
       case 'delete': case 'backspace': {
         e.preventDefault();
         if (currentTargets().length) I.deleteSelected();

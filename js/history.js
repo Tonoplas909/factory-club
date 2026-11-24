@@ -1,10 +1,10 @@
 /*
  * history.js — every change made by the player goes through here so it can be
  * undone / redone. A "batch" is a list of small operations:
- *   {k:'add', t, x, y, d, c}      a building was placed      (c = {r: recipe, f: filter})
+ *   {k:'add', t, x, y, d, c}      a building was placed      (c = {r: recipe, f: filter, k: driver target})
  *   {k:'del', t, x, y, d, c}      a building was removed
  *   {k:'rot', x, y, a, b}         rotated from direction a to b
- *   {k:'cfg', x, y, a, b}         recipe/filter changed      (a/b = {r, f})
+ *   {k:'cfg', x, y, a, b}         recipe/filter/target changed (a/b = {r, f, k})
  * Operations reference buildings by position (not id) because undo re-creates buildings.
  * Placing costs credits; removing refunds 100 % (no punishment, in the spirit of the game).
  */
@@ -16,7 +16,7 @@
 
   const H = CO.history = {};
 
-  function cfgOf(b) { return { r: b.recipe || null, f: b.filter || null }; }
+  function cfgOf(b) { return { r: b.recipe || null, f: b.filter || null, k: b.target || null }; }
   function snap(b, k) { return { k: k, t: b.type, x: b.x, y: b.y, d: b.dir, c: cfgOf(b) }; }
 
   function flip(k, inv) {
@@ -30,7 +30,7 @@
     if (k === 'add') {
       if (!world.check(op.t, op.x, op.y, op.d).ok) return;
       st.money -= BUILDINGS[op.t].cost;
-      world.create(op.t, op.x, op.y, op.d, { recipe: op.c.r, filter: op.c.f });
+      world.create(op.t, op.x, op.y, op.d, { recipe: op.c.r, filter: op.c.f, target: op.c.k });
     } else if (k === 'del') {
       const b = world.at(op.x, op.y);
       if (b && b.type === op.t && !b.def.fixed) { st.money += BUILDINGS[op.t].cost; world.remove(b); }
@@ -47,6 +47,7 @@
     if (b.kind === 'machine') {
       if (b.recipe !== c.r) { b.recipe = c.r; b.inBuf = {}; b.crafting = false; b.prog = 0; }
     } else if (b.kind === 'router') b.filter = c.f;
+    else if (b.kind === 'driver') world.setTarget(b, c.k || null);
   }
 
   function netCost(ops, inv) {
@@ -105,7 +106,7 @@
       if (st.money < price) { skippedMoney = true; break; }
       for (let r = 0; r < chk.replaces.length; r++) { const o = snap(chk.replaces[r], 'del'); ops.push(o); applyOp(o, false); }
       const cfg = p.cfg || {};
-      const add = { k: 'add', t: p.type, x: p.x, y: p.y, d: p.dir, c: { r: cfg.recipe || null, f: cfg.filter || null } };
+      const add = { k: 'add', t: p.type, x: p.x, y: p.y, d: p.dir, c: { r: cfg.recipe || null, f: cfg.filter || null, k: cfg.target || null } };
       ops.push(add); applyOp(add, false); placed++;
     }
     if (skippedMoney) CO.emit('toast', 'Pas assez de crédits.', 'warn');
@@ -125,17 +126,18 @@
     return ops.length;
   };
 
-  H.rotate = function (b) {
+  /** Rotate clockwise (or counter-clockwise when `ccw`). */
+  H.rotate = function (b, ccw) {
     if (b.def.fixed) return;
-    const op = { k: 'rot', x: b.x, y: b.y, a: b.dir, b: (b.dir + 1) & 3 };
+    const op = { k: 'rot', x: b.x, y: b.y, a: b.dir, b: (b.dir + (ccw ? 3 : 1)) & 3 };
     applyOp(op, false); push([op]);
   };
 
-  /** Change recipe (machines) or filter (splitters). `value` = item/recipe id or null. */
+  /** Change recipe (machines), filter (splitters) or target ("x,y", mass drivers). `value` = id/key or null. */
   H.configure = function (b, value) {
-    const a = cfgOf(b), c = { r: a.r, f: a.f };
-    if (b.kind === 'machine') c.r = value; else if (b.kind === 'router') c.f = value; else return;
-    if (c.r === a.r && c.f === a.f) return;
+    const a = cfgOf(b), c = { r: a.r, f: a.f, k: a.k };
+    if (b.kind === 'machine') c.r = value; else if (b.kind === 'router') c.f = value; else if (b.kind === 'driver') c.k = value; else return;
+    if (c.r === a.r && c.f === a.f && c.k === a.k) return;
     const op = { k: 'cfg', x: b.x, y: b.y, a: a, b: c };
     applyOp(op, false); push([op]);
     if (b.kind === 'machine' && value) CO.state.lastRecipe[b.type] = value;

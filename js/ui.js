@@ -96,7 +96,7 @@
       row('Poser sur des convoyeurs', 'Un bâtiment posé sur des convoyeurs, séparateurs ou souterrains les remplace (remboursés)'),
       row('Clic droit', 'Désélectionner le bâtiment en cours de pose'),
       row('Clic droit (glisser)', 'Rectangle rouge : supprime tout ce qu’il touche — remboursement intégral'),
-      row('R / Maj+R', 'Tourner / tourner à l’envers'),
+      row('R / Maj+R', 'Tourner / tourner à l’envers (la pièce à poser, le collage ou le bâtiment inspecté)'),
       row('Suppr', 'Supprimer la sélection ou le bâtiment sous le curseur'),
       row('V · E · X', 'Outils : Inspecter, Sélection (rectangle), Supprimer'),
       row('I', 'Ressources et recettes (cycles de transformation)'),
@@ -106,10 +106,12 @@
       row('Molette', 'Zoom'),
       row('Flèches, WASD, ZQSD', 'Déplacer la caméra (ou Espace + glisser)'),
       row('Clic molette + glisser', 'Sélection rectangulaire (puis retour à l’outil Inspecter)'),
+      row('Catapulte magnétique', 'Inspecte la catapulte de départ, « Choisir la cible », puis clique sur celle d’arrivée (48 cases max)'),
+      row('Recherche', '« + File d’attente » enchaîne les recherches ; les laboratoires mettent en réserve ce qui servira plus tard'),
       row('Tablette', 'Un doigt : outil actif · deux doigts : déplacer et zoomer'));
     openModal('Commandes', h('div', null,
       h('p', { text: 'Objectif : extraire, transformer, puis livrer les pièces au Port pour assembler la station. Pas de chronomètre : prends ton temps.' }), tbl,
-      h('p', { class: 'small', text: 'Astuces : la flèche jaune d’une machine indique sa sortie. Les voyants : vert = en production, orange = attend des matières, rouge = sortie bloquée. Le Port revend automatiquement le surplus.' })));
+      h('p', { class: 'small', text: 'Astuces : la flèche jaune d’une machine indique sa sortie. Les voyants : vert = en production, orange = attend des matières, rouge = sortie bloquée. Le Port revend automatiquement le surplus. L’onglet Production montre ce qui manque à chaque groupe de machines.' })));
   }
 
   // ------------------------------------------------ guide: all resources and recipes
@@ -134,7 +136,7 @@
       if (rec) {
         const line = h('div', { class: 'gline' });
         Object.keys(rec.in).forEach(function (k, i) { if (i) line.appendChild(plus()); line.appendChild(chip(k, rec.in[k])); });
-        line.appendChild(h('span', { class: 'garrow' }, thumb(rec.machine, 30), h('small', { text: mach.name })));
+        line.appendChild(h('span', { class: 'garrow', 'data-bld': rec.machine }, thumb(rec.machine, 30), h('small', { text: mach.name })));
         Object.keys(rec.out).forEach(function (k, i) { if (i) line.appendChild(plus()); line.appendChild(chip(k, rec.out[k])); });
         right.appendChild(line);
         const t = CO.craftTime(rec), per = rec.out[id] / t;
@@ -142,7 +144,7 @@
         if (!recOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
         else if (!machOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Machine à débloquer : ' + TECHS[mach.tech].name }));
       } else {
-        right.appendChild(h('div', { class: 'gline' }, h('span', { class: 'garrow' }, thumb('drill', 30), h('small', { text: 'Foreuse' })), h('span', { class: 'gop', text: '➜' }), chip(id, 1)));
+        right.appendChild(h('div', { class: 'gline' }, h('span', { class: 'garrow', 'data-bld': 'drill' }, thumb('drill', 30), h('small', { text: 'Foreuse' })), h('span', { class: 'gop', text: '➜' }), chip(id, 1)));
         right.appendChild(h('div', { class: 'small', text: 'Se récolte sur un gisement de ce minerai : ' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill / 4) + ' par case couverte (' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill) + ' pour une foreuse 2×2 entière).' }));
       }
       if (used[id]) {
@@ -178,7 +180,7 @@
       const unlocked = CO.isBuildingUnlocked(type), idx = hot.indexOf(type);
       const btn = h('button', {
         class: 'pal-item' + (unlocked ? '' : ' locked'), 'data-type': type,
-        title: def.name + ' — ' + def.cost + ' ¢ — ' + def.w + '×' + def.h + '\n' + def.desc + (unlocked ? '' : '\nRecherche requise : ' + TECHS[def.tech].name),
+        'data-bld': type,
         onclick: function () { CO.input.selectBuild(type); }
       }, thumb(type),
       h('span', { class: 'pal-name', text: def.name }),
@@ -201,7 +203,7 @@
   function buildToolbar() {
     const tb = $('toolbar');
     const mk = function (id, label, title, fn) {
-      const b = h('button', { class: 'tbtn', title: title, onclick: fn }, h('span', { class: 'tico', text: label[0] }), h('span', { class: 'tlab', text: label[1] }));
+      const b = h('button', { class: 'tbtn', 'data-tip': label[1] + '|' + title, onclick: fn }, h('span', { class: 'tico', text: label[0] }), h('span', { class: 'tlab', text: label[1] }));
       toolBtns[id] = b; tb.appendChild(b); return b;
     };
     mk('inspect', ['✋', 'Inspecter'], 'Inspecter / déplacer la carte (V)', function () { CO.input.setTool('inspect'); });
@@ -252,6 +254,9 @@
   // -------------------------------------------------------- hint + status line
   function currentHint() {
     const st = CO.state;
+    // The tutorial ends with the first delivery to the Port (or on any save already past step 1):
+    // deleting every drill later on must not bring the beginner hints back.
+    if (st.phase > 0 || st.stats.delivered > 0) return '';
     let drills = 0, belts = 0, smelters = 0, labs = 0;
     for (let i = 0; i < CO.world.list.length; i++) {
       const k = CO.world.list[i].kind;
@@ -279,6 +284,7 @@
     } else if (st.tool === 'paste') txt = 'Coller : clique pour poser la disposition · R pour tourner · Échap pour annuler · coût ' + CO.input.getCost() + ' ¢';
     else if (st.tool === 'select') txt = 'Sélection : tire un rectangle, puis Ctrl+C (copier), Suppr (supprimer)' + (st.selection.length ? ' · ' + st.selection.length + ' sélectionné(s)' : '');
     else if (st.tool === 'delete') txt = 'Suppression : tire un rectangle sur les bâtiments à détruire (remboursement intégral)';
+    else if (st.tool === 'link') txt = 'Catapulte : clique sur la catapulte qui recevra les objets (cercle = portée de ' + BUILDINGS.driver.range + ' cases) · Échap ou clic droit pour annuler';
     else if (hv) {
       txt = hv.x + ', ' + hv.y;
       if (hv.b) txt += ' · ' + hv.b.def.name; else if (hv.ore) txt += ' · Gisement : ' + itemName(CO.ORE_IDS[hv.ore]);
@@ -341,42 +347,129 @@
     for (const r in RECIPES) if (RECIPES[r].tech === id) out.push('recette : ' + itemName(r));
     return out.join(', ');
   }
+  /** Lab reserve chips (items delivered ahead for research not started yet). */
+  function bankBlock() {
+    const bank = CO.state.researchBank;
+    if (!Object.keys(bank).length) return null;
+    return h('div', { class: 'icard flat bank' },
+      h('div', { class: 'small', text: 'Réserve des laboratoires : objets livrés d’avance, utilisés dès qu’une recherche qui les demande démarre.' }),
+      stockChips(bank));
+  }
+  function queueBlock() {
+    const st = CO.state;
+    if (!st.researchQueue.length) return null;
+    const box = h('div', { class: 'icard flat queue' }, h('div', { class: 'small', text: 'File d’attente : la suivante démarre seule quand la recherche en cours se termine.' }));
+    if (st.research) {
+      const cost = TECHS[st.research].cost;
+      let have = 0, need = 0;
+      for (const k in cost) { need += cost[k]; have += Math.min(cost[k], st.researchProg[k] || 0); }
+      box.appendChild(h('div', { class: 'qrow cur' }, h('span', { class: 'qn', text: '▶' }), h('span', { class: 'qname', text: TECHS[st.research].name }),
+        h('b', { text: Math.floor(have / need * 100) + ' %' })));
+    }
+    st.researchQueue.forEach(function (id, i) {
+      box.appendChild(h('div', { class: 'qrow' }, h('span', { class: 'qn', text: String(i + 1) }), h('span', { class: 'qname', text: TECHS[id].name }),
+        h('button', { class: 'btn small', 'data-tip': 'Retirer de la file', text: '✖', onclick: function () { CO.unqueueResearch(id); } })));
+    });
+    return box;
+  }
   function renderResearch(body) {
     const st = CO.state, memo = {};
     let labs = 0; CO.world.list.forEach(function (b) { if (b.kind === 'lab') labs++; });
     if (!labs) body.appendChild(h('p', { class: 'note', text: 'Construis un Laboratoire (palette, « Autres ») et amène-lui, par convoyeur, les objets demandés par la recherche active.' }));
-    else if (!st.research) body.appendChild(h('p', { class: 'note', text: 'Choisis une recherche : tes laboratoires consommeront les objets demandés.' }));
+    else if (!st.research) body.appendChild(h('p', { class: 'note', text: 'Choisis une recherche : tes laboratoires consommeront les objets demandés. Ce qui servira plus tard est mis en réserve.' }));
+    const qb = queueBlock(), bb = bankBlock();
+    if (qb) body.appendChild(qb);
+    if (bb) body.appendChild(bb);
     const ids = Object.keys(TECHS).sort(function (a, b) { return depthOf(a, memo) - depthOf(b, memo); });
     let lastDepth = -1;
     ids.forEach(function (id) {
       const t = TECHS[id], d = memo[id];
       if (d !== lastDepth) { lastDepth = d; body.appendChild(h('div', { class: 'tier', text: 'Niveau ' + (d + 1) })); }
       const done = !!st.tech[id], active = st.research === id, avail = CO.isTechAvailable(id);
-      const card = h('div', { class: 'tech' + (done ? ' done' : active ? ' active' : !avail ? ' locked' : '') });
-      card.appendChild(h('div', { class: 'tech-top' }, h('b', { text: t.name }), done ? h('span', { class: 'badge', text: '✔ Terminée' }) : null));
+      const qi = st.researchQueue.indexOf(id), queued = qi >= 0;
+      const card = h('div', { class: 'tech' + (done ? ' done' : active ? ' active' : queued ? ' queued' : !avail ? ' locked' : '') });
+      card.appendChild(h('div', { class: 'tech-top' }, h('b', { text: t.name }),
+        done ? h('span', { class: 'badge', text: '✔ Terminée' }) : active ? h('span', { class: 'badge gold', text: 'En cours' }) : queued ? h('span', { class: 'badge gold', text: 'File n° ' + (qi + 1) }) : null));
       card.appendChild(h('div', { class: 'small', text: t.desc }));
       const u = unlocksText(id);
       if (u) card.appendChild(h('div', { class: 'small unl', text: 'Débloque : ' + u }));
-      if (!done) card.appendChild(costRow(t.cost, active ? st.researchProg : null));
+      if (!done) card.appendChild(costRow(t.cost, active ? st.researchProg : st.researchBank));
       if (!done && !avail) card.appendChild(h('div', { class: 'lock', text: 'Requiert : ' + t.req.filter(function (r) { return !st.tech[r]; }).map(function (r) { return TECHS[r].name; }).join(', ') }));
-      if (!done && avail) card.appendChild(h('button', { class: 'btn small' + (active ? '' : ' primary'), text: active ? 'Annuler la recherche' : 'Rechercher', onclick: function () { CO.setResearch(active ? null : id); } }));
+      if (!done) {
+        let btn = null;
+        if (active) btn = h('button', { class: 'btn small', text: 'Annuler la recherche', 'data-tip': 'Annuler la recherche|Les objets déjà livrés retournent dans la réserve.', onclick: function () { CO.setResearch(null); CO.startNextResearch(); } });
+        else if (queued) btn = h('button', { class: 'btn small', text: 'Retirer de la file', onclick: function () { CO.unqueueResearch(id); } });
+        else if (avail && !st.research) btn = h('button', { class: 'btn small primary', text: 'Rechercher', onclick: function () { CO.setResearch(id); } });
+        else if (CO.canQueue(id)) btn = h('button', { class: 'btn small primary', text: '+ File d’attente', 'data-tip': 'File d’attente|Démarrera automatiquement après les recherches qui la précèdent.', onclick: function () { CO.queueResearch(id); } });
+        if (btn) card.appendChild(btn);
+        if (avail && st.research && !queued && !active) card.appendChild(h('button', { class: 'btn small', text: 'Commencer maintenant', 'data-tip': 'Commencer maintenant|Met en pause la recherche en cours (ses objets vont dans la réserve).', onclick: function () { CO.setResearch(id); } }));
+      }
       body.appendChild(card);
     });
   }
 
+  function fmtRpm(x) { return x >= 10 ? String(Math.round(x)) : x.toFixed(1).replace('.', ','); }
+  /** Machines grouped by recipe (drills by ore): how many work, wait or are blocked, and what they lack. */
+  function machineGroups() {
+    const groups = {}, order = [];
+    CO.world.list.forEach(function (b) {
+      let key, item;
+      if (b.kind === 'drill') { if (!b.ore) return; key = 'd:' + b.ore; item = b.ore; }
+      else if (b.kind === 'machine') { if (!b.recipe) { key = 'none'; item = null; } else { key = 'm:' + b.recipe; item = Object.keys(RECIPES[b.recipe].out)[0]; } }
+      else return;
+      let g = groups[key];
+      if (!g) { g = groups[key] = { item: item, drill: b.kind === 'drill', n: 0, work: 0, idle: 0, blocked: 0, miss: {} }; order.push(key); }
+      g.n++;
+      if (key === 'none') return;
+      if (b.status === 'work') g.work++; else if (b.status === 'blocked') g.blocked++;
+      else {
+        g.idle++;
+        const rec = RECIPES[b.recipe];
+        for (const k in rec.in) if ((b.inBuf[k] || 0) < rec.in[k]) g.miss[k] = (g.miss[k] || 0) + 1;
+      }
+    });
+    return order.map(function (k) { return groups[k]; });
+  }
   function renderStats(body) {
     const st = CO.state;
-    body.appendChild(h('p', { class: 'small', text: 'Cadence mesurée sur la dernière minute : repère les goulots et optimise !' }));
+    body.appendChild(h('p', { class: 'small', text: 'Cadences mesurées sur la dernière minute. Si un objet est plus utilisé que produit (en rouge), ses machines clientes vont manquer : ajoute des producteurs.' }));
     body.appendChild(h('div', { class: 'stat-money' }, h('span', { text: 'Revenus' }), h('b', { text: '+' + CO.fmt(CO.sim.moneyPerMin()) + ' ¢/min' })));
     let any = false;
-    const tbl = h('table', { class: 'stats' }, h('tr', null, h('th', { text: '' }), h('th', { text: 'Objet' }), h('th', { text: '/min' }), h('th', { text: 'Total' })));
+    const tbl = h('table', { class: 'stats' }, h('tr', null, h('th', { text: '' }), h('th', { text: 'Objet /min' }),
+      h('th', { text: 'Produit', 'data-tip': 'Produit|Sorti des foreuses et des machines, par minute' }), h('th', { text: 'Utilisé', 'data-tip': 'Utilisé|Consommé par les machines, les laboratoires et la station, par minute' }), h('th', { text: 'Vendu', 'data-tip': 'Vendu|Comptoirs de vente et surplus revendu par le Port, par minute' })));
     CO.ITEM_ORDER.forEach(function (id) {
-      const tot = st.stats.produced[id] || 0;
-      if (!tot) return;
+      const tot = st.stats.produced[id] || 0, p = CO.sim.ratePerMin(id), u = CO.sim.usePerMin(id), s = CO.sim.soldPerMin(id);
+      if (!tot && !u && !s) return;
       any = true;
-      tbl.appendChild(h('tr', null, h('td', null, itemIcon(id, 2)), h('td', { text: itemName(id) }), h('td', { text: CO.sim.ratePerMin(id).toFixed(1) }), h('td', { text: CO.fmt(tot) })));
+      const short = u > p * 1.05 + 0.5;                  // used faster than made: buffers are draining
+      tbl.appendChild(h('tr', { 'data-tip': itemName(id) + '|' + CO.fmt(tot) + ' produits au total' }, h('td', null, itemIcon(id, 2)), h('td', { class: 'sname', text: itemName(id) }),
+        h('td', { text: fmtRpm(p) }), h('td', { class: short ? 'neg' : u > 0 ? 'pos' : '', text: fmtRpm(u) }), h('td', { class: 'muted', text: fmtRpm(s) })));
     });
     body.appendChild(any ? tbl : h('p', { class: 'note', text: 'Rien produit pour l’instant. Pose une Foreuse sur un gisement !' }));
+
+    const groups = machineGroups();
+    if (!groups.length) return;
+    body.appendChild(h('div', { class: 'tier', text: 'Machines par recette' }));
+    const list = h('div', { class: 'mgroups' });
+    groups.forEach(function (g) {
+      const head = g.item ? h('span', { class: 'mg-name' }, itemIcon(g.item, 2), h('span', { text: (g.drill ? 'Foreuses · ' : '') + itemName(g.item) }))
+        : h('span', { class: 'mg-name' }, h('span', { class: 'qmark', text: '?' }), h('span', { text: 'Sans recette' }));
+      const counts = h('span', { class: 'mg-counts', 'data-tip': 'État des machines|En production · en attente de matières · sortie bloquée' },
+        h('b', { text: '×' + g.n }),
+        g.item ? h('span', { class: 'c good' }, h('i', { class: 'dot good' }), String(g.work)) : null,
+        g.item ? h('span', { class: 'c warn' }, h('i', { class: 'dot warn' }), String(g.idle)) : null,
+        g.item ? h('span', { class: 'c bad' }, h('i', { class: 'dot bad' }), String(g.blocked)) : null);
+      const row = h('div', { class: 'mgroup' }, head, counts);
+      const miss = Object.keys(g.miss);
+      if (miss.length) {
+        const m = h('div', { class: 'mg-miss' }, h('span', { text: 'Manque :' }));
+        miss.forEach(function (k) { m.appendChild(h('span', { class: 'chip2', 'data-item': k }, itemIcon(k, 2), h('b', { text: '×' + g.miss[k] }))); });
+        row.appendChild(m);
+      }
+      if (g.blocked) row.appendChild(h('div', { class: 'mg-miss bad', text: g.blocked + ' bloquée(s) : leur production ne sort pas (sortie non reliée ou ligne saturée).' }));
+      list.appendChild(row);
+    });
+    body.appendChild(list);
   }
 
   // ------------------------------------------------------------ info panel
@@ -396,7 +489,13 @@
       case 'drill':
         if (!b.ore) return pill('bad', 'Hors gisement');
         return b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('good', 'Extraction');
-      case 'lab': return CO.state.research ? pill('good', 'Recherche en cours') : pill('warn', 'Aucune recherche');
+      case 'lab': return CO.state.research ? pill('good', 'Recherche en cours') : pill('warn', 'Aucune recherche (mise en réserve)');
+      case 'driver': {
+        const tg = CO.sim.driverTarget(b);
+        if (b.target && !tg) return pill('bad', 'Cible introuvable');
+        if (tg) return b.status === 'blocked' ? pill('bad', 'Cible pleine') : b.status === 'work' ? pill('good', 'Envoi') : pill('warn', 'Attend des objets');
+        return b.q.length ? (b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('good', 'Réception')) : pill('info', 'Réceptrice');
+      }
       case 'seller': case 'port': return pill('good', 'Actif');
       case 'chest': return pill('info', b.q.length + ' / ' + CO.chestCap(b.def));
       case 'router': return pill('info', b.type === 'splitter' ? (b.filter ? 'Filtré' : 'Équitable') : 'Fusion');
@@ -407,7 +506,13 @@
     if ((b.kind === 'machine' || b.kind === 'drill') && b.status === 'blocked') return 'Relie la flèche jaune à un convoyeur (ou à un bâtiment qui accepte la production).';
     if (b.kind === 'machine' && b.recipe && b.status === 'idle') return 'Amène les matières par convoyeur sur n’importe quel côté, sauf la sortie.';
     if (b.kind === 'drill' && !b.ore) return 'Déplace la foreuse sur un gisement coloré.';
-    if (b.kind === 'lab' && !CO.state.research) return 'Choisis une recherche dans l’onglet Recherche.';
+    if (b.kind === 'lab' && !CO.state.research) return 'Choisis une recherche dans l’onglet Recherche. En attendant, ce qui servira à une recherche future est mis en réserve.';
+    if (b.kind === 'driver') {
+      const tg = CO.sim.driverTarget(b);
+      if (b.target && !tg) return 'La catapulte visée a disparu ou est hors de portée : choisis une nouvelle cible.';
+      if (tg && b.status === 'blocked') return 'La catapulte d’arrivée est pleine : relie sa flèche jaune à un convoyeur.';
+      if (!tg && b.status === 'blocked') return 'Relie la flèche jaune à un convoyeur pour vider la catapulte.';
+    }
     return '';
   }
 
@@ -447,7 +552,7 @@
         const counts = {};
         sel.selection.forEach(function (x) { counts[x.type] = (counts[x.type] || 0) + 1; });
         const grid = h('div', { class: 'sel-grid' });
-        for (const t in counts) grid.appendChild(h('div', { class: 'sel-item', title: BUILDINGS[t].name }, thumb(t), h('b', { text: '×' + counts[t] })));
+        for (const t in counts) grid.appendChild(h('div', { class: 'sel-item', 'data-bld': t }, thumb(t), h('b', { text: '×' + counts[t] })));
         body.appendChild(h('div', { class: 'icard' },
           h('div', { class: 'ititle', text: sel.selection.length + ' élément(s) sélectionné(s)' }), grid,
           h('div', { class: 'actions' },
@@ -469,12 +574,12 @@
     }
 
     // ---- hero
-    body.appendChild(h('div', { class: 'hero' }, thumb(b.type, 60),
+    body.appendChild(h('div', { class: 'hero' }, h('span', { 'data-bld': b.type }, thumb(b.type, 60)),
       h('div', { class: 'hero-txt' },
         h('div', { class: 'ititle', text: b.def.name }),
         h('div', { class: 'hero-meta' },
           h('span', { class: 'tag', text: b.w + '×' + b.h }),
-          b.def.fixed ? null : h('span', { class: 'tag', text: 'Sortie ' + CO.DIR_ARROWS[b.dir] }),
+          b.def.fixed || b.kind === 'lab' || b.kind === 'seller' ? null : h('span', { class: 'tag', text: b.kind === 'driver' && b.target ? 'Lanceur' : 'Sortie ' + CO.DIR_ARROWS[b.dir] }),
           b.def.fixed ? null : h('span', { class: 'tag gold', text: b.def.cost + ' ¢' })))));
     const help = statusHelp(b);
     body.appendChild(h('div', { class: 'icard' }, statusPill(b), help ? h('div', { class: 'help', text: help }) : null,
@@ -487,7 +592,7 @@
         const ok = CO.isRecipeUnlocked(r.id), out = Object.keys(r.out)[0];
         grid.appendChild(h('button', {
           class: 'rec' + (b.recipe === r.id ? ' active' : '') + (ok ? '' : ' locked'), disabled: !ok,
-          'data-item': ok ? out : null, title: ok ? null : 'Recherche requise : ' + TECHS[r.tech].name,
+          'data-item': out,
           onclick: function () { CO.history.configure(b, r.id); renderSide(true); }
         }, itemIcon(out, 3), h('span', { text: itemName(out) }), ok ? null : h('em', { text: '🔒' })));
       });
@@ -515,6 +620,24 @@
         const t = TECHS[st.research];
         body.appendChild(section('Recherche : ' + t.name, costRow(t.cost, st.researchProg)));
       }
+      const qb = queueBlock(), bb = bankBlock();
+      if (qb) body.appendChild(section('File d’attente', qb));
+      if (bb) body.appendChild(section('Réserve', bb));
+    } else if (b.kind === 'driver') {
+      const tg = CO.sim.driverTarget(b), def = b.def;
+      const linkTxt = tg ? 'Envoie vers la catapulte en ' + tg.x + ', ' + tg.y + ' (' + Math.round(CO.sim.driverDist(b, tg)) + ' cases).'
+        : b.target ? 'Cible en ' + b.tx + ', ' + b.ty + ' introuvable ou hors de portée.'
+        : 'Aucune cible : cette catapulte reçoit les salves et sort les objets par sa flèche jaune.';
+      body.appendChild(section('Liaison', h('div', { class: 'icard flat' },
+        h('div', { class: 'small', text: linkTxt }),
+        kv('Cadence max', fmtRate(def.volley / def.reload) + ' (salves de ' + def.volley + ')'),
+        kv('Portée', def.range + ' cases'),
+        h('div', { class: 'actions' },
+          h('button', { class: 'btn primary', text: '⌖ Choisir la cible', onclick: function () { CO.input.startLink(b); } }),
+          b.target ? h('button', { class: 'btn', text: 'Couper la liaison', onclick: function () { CO.history.configure(b, null); renderSide(true); } }) : null))));
+      const f = b.q.length / def.capacity;
+      body.appendChild(section('Stock (' + b.q.length + ' / ' + def.capacity + ')', h('div', null,
+        h('div', { class: 'bar' }, h('i', { style: 'width:' + (f * 100) + '%' })), stockChips(countBy(b.q)))));
     } else if (b.kind === 'port') {
       const p = CO.getPhase(CO.state.phase);
       body.appendChild(section('Étape en cours', h('div', { class: 'icard flat' }, h('b', { text: p.name }), costRow(p.need, CO.state.phaseHave))));
@@ -540,13 +663,15 @@
     const st = CO.state;
     switch (tab) {
       case 'station': return st.phase + ':' + JSON.stringify(st.phaseHave) + ':' + JSON.stringify(st.tech);
-      case 'research': return st.research + JSON.stringify(st.researchProg) + JSON.stringify(st.tech) + CO.world.list.length;
+      case 'research': return st.research + JSON.stringify(st.researchProg) + JSON.stringify(st.tech) + JSON.stringify(st.researchBank) + st.researchQueue.join() + CO.world.list.length;
       case 'stats': return Math.floor(simTime) + ':' + st.phase;
       case 'info': {
         const b = CO.input.get().inspected;
         const sel = CO.input.get().selection.length;
         if (!b || b.dead) return 'none' + sel;
-        return b.id + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest;
+        const labSig = b.kind === 'lab' ? JSON.stringify(st.researchProg) + JSON.stringify(st.researchBank) + st.researchQueue.join() : '';
+        const drvSig = b.kind === 'driver' ? (b.target || '') + ':' + !!CO.sim.driverTarget(b) : '';
+        return b.id + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest + labSig + drvSig;
       }
     }
     return '';
@@ -584,7 +709,7 @@
   // ----------------------------------------------------------------- per frame
   UI.update = function (dt) {
     simTime = CO.state.time;
-    if (itemTipSrc && (!itemTipSrc.isConnected || !itemTipSrc.getClientRects().length)) { itemTip.hidden = true; itemTipId = null; itemTipSrc = null; }   // hovered element was re-rendered or its dialog closed
+    if (itemTipSrc && (!itemTipSrc.isConnected || !itemTipSrc.getClientRects().length)) { itemTip.hidden = true; itemTipKey = null; itemTipSrc = null; }   // hovered element was re-rendered or its dialog closed
     updateTopbar(); updatePalette(); updateToolbar(); updateHint(); updateStatus(); updateOreTip();
     renderSide(false);
     if (live && tab === 'info' && !live.b.dead) live.bar.style.width = (CO.clamp(live.pct(), 0, 1) * 100) + '%';
@@ -603,7 +728,7 @@
       const id = CO.ORE_IDS[hv.ore];
       tipEl.innerHTML = '';
       tipEl.appendChild(itemIcon(id, 3));
-      tipEl.appendChild(h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · pose une Foreuse dessus' })));
+      tipEl.appendChild(h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · Foreuse : ' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill) + ', Foreuse lourde : ' + fmtRate(BUILDINGS.drill_heavy.rate * CO.mods.drill) + ' (pleine couverture)' })));
     }
     tipEl.hidden = false;
     const w = tipEl.offsetWidth, hh = tipEl.offsetHeight;
@@ -611,8 +736,82 @@
     tipEl.style.top = Math.min(hv.sy + 18, window.innerHeight - hh - 8) + 'px';
   }
 
-  // ------------------------------------------- item tooltip (any element carrying data-item)
-  let itemTip = null, itemTipId = null, itemTipSrc = null;
+  // --------------------------------------------- custom tooltips (no native `title` anywhere)
+  // Any element can carry one of:
+  //   data-item="id"     an item: name, price, where it comes from and at what rate
+  //   data-bld="type"    a building: cost, size, every throughput / cadence, description
+  //   data-tip="Title|line|line"   a plain tooltip (first part in bold)
+  let itemTip = null, itemTipKey = null, itemTipSrc = null;
+  const TIP_SEL = '[data-item], [data-bld], [data-tip]';
+
+  function approx(x, unit) {                                          // "4,85 objets/s", prefixed by ≈ when rounded
+    const exact = Math.abs(x * 100 - Math.round(x * 100)) < 1e-9;
+    return (exact ? '' : '≈ ') + fmtNum(x, 2) + ' ' + unit;
+  }
+  function tipBody(head, title, lines) {
+    const span = h('span', null, h('b', { text: title }));
+    lines.forEach(function (l) { if (l) span.appendChild(typeof l === 'string' ? h('small', { text: l }) : l); });
+    return [head, span];
+  }
+  function itemTipContent(id) {
+    const rec = RECIPES[id], it = ITEMS[id], lines = [it.price + ' ¢ l’unité'];
+    if (rec) {
+      const t = CO.craftTime(rec);
+      lines.push('Fabriqué : ' + BUILDINGS[rec.machine].name + ' · ' + fmtRate(rec.out[id] / t) + ' par machine (cycle ' + fmtTime(t) + ')');
+      if (!CO.isRecipeUnlocked(id)) lines.push(h('small', { class: 'tip-lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
+    } else {
+      const r = BUILDINGS.drill.rate * CO.mods.drill;
+      lines.push('Matière première · Foreuse : ' + fmtRate(r) + ' (Foreuse lourde : ' + fmtRate(BUILDINGS.drill_heavy.rate * CO.mods.drill) + ')');
+    }
+    return tipBody(itemIcon(id, 3), it.name, lines);
+  }
+  /** Every throughput a building type offers, with the current research bonuses. */
+  function rateLines(type) {
+    const def = BUILDINGS[type], K = CO.sim.K, out = [];
+    switch (def.kind) {
+      case 'belt':
+        out.push('Débit : ' + approx(def.speed / K.gap, 'objets/s') + ' · vitesse ' + fmtNum(def.speed, 2) + ' cases/s'); break;
+      case 'tunnel_in': case 'tunnel_out':
+        out.push('Débit : ' + approx(K.tunnelSpeed / K.gap, 'objets/s') + ' · jusqu’à ' + K.tunnelRange + ' cases sous terre'); break;
+      case 'router':
+        out.push('Débit : ' + approx(1 / K.routerDelay, 'objets/s') + (type === 'splitter' ? ' répartis sur 3 sorties' : ' fusionnés vers la sortie')); break;
+      case 'chest':
+        out.push('Capacité : ' + CO.chestCap(def) + ' objets · sortie ' + approx(1 / K.chestDelay, 'objets/s')); break;
+      case 'driver':
+        out.push('Débit : ' + fmtRate(def.volley / def.reload) + ' (salves de ' + def.volley + ' toutes les ' + fmtTime(def.reload) + ')');
+        out.push('Portée : ' + def.range + ' cases · réserve ' + def.capacity + ' objets'); break;
+      case 'drill': {
+        const r = def.rate * CO.mods.drill;
+        out.push('Extraction : ' + fmtRate(r) + ' à pleine couverture (' + fmtRate(r / (def.w * def.h)) + ' par case)');
+        out.push('Alimente ' + fmtNum(r * CO.craftTime(RECIPES.ingot_iron), 2) + ' fonderie(s) à pleine couverture');
+        break;
+      }
+      case 'machine':
+        CO.recipesFor(type).forEach(function (rec) {
+          const t = CO.craftTime(rec), ok = CO.isRecipeUnlocked(rec.id);
+          const ins = Object.keys(rec.in).map(function (k) { return rec.in[k] + ' ' + itemName(k); }).join(' + ');
+          out.push(h('small', { class: 'tip-rec' + (ok ? '' : ' locked') }, itemIcon(rec.id, 2),
+            h('span', { text: (ok ? '' : '🔒 ') + itemName(rec.id) + ' : ' + fmtRate(rec.out[rec.id] / t) + ' · cycle ' + fmtTime(t) + ' · ' + ins })));
+        });
+        break;
+      case 'lab': out.push('Consomme sans limite les objets de la recherche active (le surplus utile part en réserve)'); break;
+      case 'seller': out.push('Achète tout ce qui arrive, sans limite de débit'); break;
+      case 'port': out.push('Accepte tout, sans limite de débit (le surplus est revendu)'); break;
+    }
+    return out;
+  }
+  function buildingTipContent(type) {
+    const def = BUILDINGS[type], lines = [def.cost + ' ¢ · ' + def.w + '×' + def.h];
+    rateLines(type).forEach(function (l) { lines.push(l); });
+    lines.push(h('small', { class: 'tip-desc', text: def.desc }));
+    if (!CO.isBuildingUnlocked(type)) lines.push(h('small', { class: 'tip-lock', text: '🔒 Recherche requise : ' + TECHS[def.tech].name }));
+    return tipBody(thumb(type, 36), def.name, lines);
+  }
+  function textTipContent(txt) {
+    const parts = txt.split('|');
+    return tipBody(null, parts[0], parts.slice(1));
+  }
+
   function initItemTip() {
     itemTip = h('div', { id: 'itemtip', hidden: true }); $('app').appendChild(itemTip);
     function place(e) {
@@ -620,21 +819,25 @@
       itemTip.style.left = Math.max(4, Math.min(e.clientX + 16, window.innerWidth - w - 8)) + 'px';
       itemTip.style.top = Math.max(4, Math.min(e.clientY + 18, window.innerHeight - hh - 8)) + 'px';
     }
+    function hide() { itemTip.hidden = true; itemTipKey = null; itemTipSrc = null; }
     document.addEventListener('mouseover', function (e) {
-      const el = e.target.closest ? e.target.closest('[data-item]') : null, id = el && el.getAttribute('data-item');
-      if (!id || !ITEMS[id]) { itemTip.hidden = true; itemTipId = null; itemTipSrc = null; return; }
+      const el = e.target.closest ? e.target.closest(TIP_SEL) : null;
+      if (!el) { hide(); return; }
+      const id = el.getAttribute('data-item'), bt = el.getAttribute('data-bld'), tx = el.getAttribute('data-tip');
+      let key = null, build = null;
+      if (id && ITEMS[id]) { key = 'i' + id; build = function () { return itemTipContent(id); }; }
+      else if (bt && BUILDINGS[bt]) { key = 'b' + bt; build = function () { return buildingTipContent(bt); }; }
+      else if (tx) { key = 't' + tx; build = function () { return textTipContent(tx); }; }
+      if (!key) { hide(); return; }
       itemTipSrc = el;
-      if (id !== itemTipId) {
-        itemTipId = id; itemTip.innerHTML = '';
-        const rec = RECIPES[id];
-        itemTip.appendChild(itemIcon(id, 3));
-        itemTip.appendChild(h('span', null, h('b', { text: itemName(id) }),
-          h('small', { text: ITEMS[id].price + ' ¢ · ' + (rec ? 'fabriqué : ' + BUILDINGS[rec.machine].name : 'matière première') })));
+      if (key !== itemTipKey) {
+        itemTipKey = key; itemTip.innerHTML = '';
+        build().forEach(function (n) { if (n) itemTip.appendChild(n); });
       }
       itemTip.hidden = false; place(e);
     });
     document.addEventListener('mousemove', function (e) { if (!itemTip.hidden) place(e); });
-    document.addEventListener('mouseout', function (e) { if (!e.relatedTarget) { itemTip.hidden = true; itemTipId = null; } });
+    document.addEventListener('mouseout', function (e) { if (!e.relatedTarget) hide(); });
   }
 
   UI.showHelp = function () { showHelp(); };
