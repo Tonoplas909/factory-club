@@ -15,7 +15,7 @@
   const OUT_CAP = 8;           // output buffer size of machines
   const DRIVER_SPEED = 24;     // mass driver shots, tiles per second
   const sim = CO.sim = {};
-  const ROUTER_DELAY = 0.1, CHEST_DELAY = 0.18;   // seconds between two items passed by a splitter/merger, a chest
+  const ROUTER_DELAY = 0.1, CHEST_DELAY = 0.1;   // seconds between two items passed by a splitter/merger, a chest
   /** Logistics constants, exposed so the UI can show exact throughputs. */
   sim.K = { gap: GAP, tunnelSpeed: TUNNEL_SPEED, routerDelay: ROUTER_DELAY, chestDelay: CHEST_DELAY, tunnelRange: 4 };
   CO.fx = [];                  // floating "+12" texts, drawn by render.js

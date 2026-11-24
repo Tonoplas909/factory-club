@@ -97,6 +97,8 @@ Toutes les cadences de base sont **deux fois plus lentes** qu'à la première ve
 - 28 recherches (dont les *Catapultes magnétiques* pour les gisements lointains), avec une chaîne **titane** (minerai bleu clair, loin du Port) : lingot de titane, alliage, batterie, processeur, réservoir, puis le **Chantier spatial** pour les cœurs de réacteur et les sondes profondes.
 - Les parties enregistrées avec l'ancienne station à 8 étapes sont converties automatiquement au chargement.
 
+Changer la recette d'une machine ne perd rien : ce que la nouvelle recette utilise reste en stock, le reste (et les ingrédients d'une fabrication en cours) ressort par la sortie. Un coffre tampon débite 10 objets/s, plus qu'un convoyeur rapide (9,7/s), donc il ne freine jamais une ligne.
+
 Pour ne jamais déborder : un coffre tampon lisse les pics, un Comptoir de vente absorbe tout, et le Port revend le surplus. Le panneau **Infos** d'une machine affiche sa cadence exacte et le ratio « alimente N fonderies » pour les foreuses.
 
 ## Sauvegarde

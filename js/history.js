@@ -45,7 +45,20 @@
 
   function setCfg(b, c) {
     if (b.kind === 'machine') {
-      if (b.recipe !== c.r) { b.recipe = c.r; b.inBuf = {}; b.crafting = false; b.prog = 0; }
+      if (b.recipe !== c.r) {
+        // Nothing is lost on a recipe change: a craft in progress gives its ingredients back, what the
+        // new recipe uses stays in stock (up to the usual limit), the rest leaves through the output.
+        const old = b.recipe ? CO.RECIPES[b.recipe] : null, nr = c.r ? CO.RECIPES[c.r] : null;
+        const stock = Object.assign({}, b.inBuf);
+        if (b.crafting && old) for (const k in old.in) stock[k] = (stock[k] || 0) + old.in[k];
+        b.inBuf = {};
+        for (const k in stock) {
+          const n = stock[k] || 0, keep = nr && nr.in[k] ? Math.min(n, nr.in[k] * 2) : 0;
+          if (keep > 0) b.inBuf[k] = keep;
+          for (let i = keep; i < n; i++) b.outBuf.push(k);
+        }
+        b.recipe = c.r; b.crafting = false; b.prog = 0;
+      }
     } else if (b.kind === 'router') b.filter = c.f;
     else if (b.kind === 'driver') world.setTarget(b, c.k || null);
   }
