@@ -181,6 +181,38 @@
   }
 
   /** Validate placements for the ghost preview (money is accumulated across the batch). */
+  /**
+   * Where would each underground entrance / exit being placed connect? Looks along its direction (up to
+   * 5 cells, as the simulation does) through the existing pieces and the other ghosts of the batch.
+   * Returns [{a: {x, y}, b: {x, y} | null, dir, cells: [{x, y}] (the reach, when nothing is found)}].
+   */
+  function tunnelHints(ghosts) {
+    const out = [];
+    const at = function (x, y) {                 // a ghost of the batch wins over what is on the map
+      for (let i = 0; i < ghosts.length; i++) {
+        const g = ghosts[i];
+        if (g.x === x && g.y === y && (g.type === 'underground_in' || g.type === 'underground_out'))
+          return { kind: g.type === 'underground_in' ? 'tunnel_in' : 'tunnel_out', dir: g.dir };
+      }
+      return world.at(x, y);
+    };
+    for (let i = 0; i < ghosts.length; i++) {
+      const g = ghosts[i];
+      if (g.type !== 'underground_in' && g.type !== 'underground_out') continue;
+      const entry = g.type === 'underground_in', s = entry ? 1 : -1, d = g.dir, cells = [];
+      let b = null;
+      for (let k = 1; k <= 5; k++) {
+        const x = g.x + DX[d] * k * s, y = g.y + DY[d] * k * s, n = at(x, y);
+        cells.push({ x: x, y: y });
+        if (!n || n.dir !== d) continue;
+        if (n.kind === (entry ? 'tunnel_out' : 'tunnel_in')) { b = { x: x, y: y }; break; }
+        if (n.kind === (entry ? 'tunnel_in' : 'tunnel_out')) break;   // another piece of the same kind blocks the way
+      }
+      out.push({ a: { x: g.x, y: g.y }, b: b, dir: d, cells: b ? [] : cells });
+    }
+    return out;
+  }
+
   function validate(pl) {
     let money = CO.state.money, total = 0;
     const taken = {};
@@ -266,7 +298,7 @@
   const overlay = { hover: null, selected: [], deleting: [], ghosts: [], selRect: null, cursorCell: null, cursorColor: '#fff' };
   I.getOverlay = function () {
     const o = overlay;
-    o.hover = null; o.deleting = []; o.ghosts = []; o.cursorCell = null; o.selRect = null; o.link = null; o.plot = -1;
+    o.hover = null; o.tunnels = []; o.deleting = []; o.ghosts = []; o.cursorCell = null; o.selRect = null; o.link = null; o.plot = -1;
     o.selected = selection.blds.slice();
     if (inspected && !inspected.dead && o.selected.indexOf(inspected) < 0) o.selected.push(inspected);
     if (cur) {
@@ -278,6 +310,7 @@
       if (tool === 'select' && !drag) { o.cursorCell = c; o.cursorColor = 'rgba(255,211,127,0.85)'; }
       if (tool === 'build') o.ghosts = validate(buildPlacements());
       if (tool === 'paste') o.ghosts = validate(pastePlacements());
+      o.tunnels = tunnelHints(o.ghosts);
       if (tool === 'link' && linkSrc && !linkSrc.dead) {
         const t = hb && hb !== linkSrc && hb.kind === 'driver' ? hb : null;
         const inRange = CO.sim.driverDist(linkSrc, { x: cur.x, y: cur.y, w: 0, h: 0 }) <= linkSrc.def.range;
@@ -315,7 +348,7 @@
 
   // ---------------------------------------------------------------- camera
   function zoomAt(sx, sy, z) {
-    z = CO.clamp(z, 8, 72);
+    z = CO.clamp(z, 4, 72);                  // 4: the whole 480×320 map fits on a large screen
     const before = CO.render.screenToWorld(sx, sy);
     CO.cam.zoom = z;
     const after = CO.render.screenToWorld(sx, sy);
@@ -442,6 +475,7 @@
           if (b && !b.def.fixed) { if (i >= 0) blds.splice(i, 1); else blds.push(b); }
           selection = { rect: null, blds: blds };
         } else selection = { rect: d.auto ? null : r, blds: buildingsInRect(r) };   // Ctrl-drag: the rectangle vanishes
+        if (selection.blds.length && inspected) { inspected = null; CO.emit('inspect'); }   // the panel shows the selection
         CO.emit('tool'); CO.emit('selection');
         break;
       }

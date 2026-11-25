@@ -15,9 +15,12 @@
   const OUT_CAP = 8;           // output buffer size of machines
   const DRIVER_SPEED = 24;     // mass driver shots, tiles per second
   const sim = CO.sim = {};
-  const ROUTER_DELAY = 0.1, CHEST_DELAY = 0.1;   // seconds between two items passed by a splitter/merger, a chest
+  // Splitters, mergers, gates, junctions and chests pass 15 items/s: more than an armored belt (14.5/s).
+  const ROUTER_DELAY = 1 / 15, CHEST_DELAY = 1 / 15, UNLOAD_DELAY = 0.1;
+  const EPS = 1e-6;            // delays are whole numbers of 1/60 s ticks: do not lose one to rounding
+  const TICK = 1 / 60;         // fixed simulation step (see main.js)
   /** Logistics constants, exposed so the UI can show exact throughputs. */
-  sim.K = { gap: GAP, tunnelSpeed: TUNNEL_SPEED, routerDelay: ROUTER_DELAY, chestDelay: CHEST_DELAY, tunnelRange: 4 };
+  sim.K = { gap: GAP, tunnelSpeed: TUNNEL_SPEED, routerDelay: ROUTER_DELAY, chestDelay: CHEST_DELAY, unloadDelay: UNLOAD_DELAY, tunnelRange: 4 };
   CO.fx = [];                  // floating "+12" texts, drawn by render.js
   sim.shots = [];              // mass driver volleys in flight: {from, to, items, t, dur}
 
@@ -59,8 +62,18 @@
     switch (n.kind) {
       case 'belt': case 'tunnel_out':
         return (n.x + DX[n.dir] === x && n.y + DY[n.dir] === y) ? n.dir : -1;
+      case 'unloader':
+        return (n.x + DX[n.dir] === x && n.y + DY[n.dir] === y) ? n.dir : -1;
+      case 'junction': {                                 // straight through, when something feeds the opposite side
+        for (let d = 0; d < 4; d++) {
+          if (n.x + DX[d] !== x || n.y + DY[d] !== y) continue;
+          const back = world.at(n.x - DX[d], n.y - DY[d]);
+          return back && back.kind !== 'junction' && outputsTo(back, n.x, n.y) === d ? d : -1;
+        }
+        return -1;
+      }
       case 'router': {
-        if (n.type === 'splitter') {
+        if (n.type !== 'merger') {
           for (let k = 0; k < 3; k++) {
             const d = (n.dir + 3 + k) & 3;
             if (n.x + DX[d] === x && n.y + DY[d] === y) return d;
@@ -84,7 +97,8 @@
   function waiting(n) {
     switch (n.kind) {
       case 'belt': case 'tunnel_out': return n.items.length > 0 && n.items[0].p >= 0.95;
-      case 'router': return n.slot !== null;
+      case 'router': case 'unloader': return n.slot !== null;
+      case 'junction': return n.slots[0] !== null || n.slots[1] !== null || n.slots[2] !== null || n.slots[3] !== null;
       case 'chest': return n.q.length > 0;
       case 'machine': return n.outBuf.length > 0;
       case 'drill': return n.out.length > 0;
@@ -125,6 +139,9 @@
     switch (t.kind) {
       case 'belt': case 'tunnel_in': return beltIn(t, item, dir, carry);
       case 'router': return routerIn(t, item, dir);
+      case 'junction':
+        if (t.slots[dir] !== null) return false;
+        t.slots[dir] = item; t.timers[dir] = 0; return true;
       case 'chest':
         if (dir === ((t.dir + 2) & 3) || t.q.length >= CO.chestCap(t.def)) return false;
         t.q.push(item); return true;
@@ -142,9 +159,12 @@
   function beltIn(b, item, dir, carry) {
     if (dir === ((b.dir + 2) & 3)) return false;            // head-on
     const its = b.items, n = its.length;
-    if (n && its[n - 1].p < carry + GAP) return false;       // no room at the entrance
+    // No room at the entrance? An item handed over with no carry (chest, splitter…) may start up to one
+    // tick behind the edge, so the spacing stays exactly GAP instead of being rounded up to whole ticks.
+    const slack = carry === 0 ? (b.def.speed || TUNNEL_SPEED) * TICK : 0;
+    if (n && its[n - 1].p < carry + GAP - slack) return false;
     if (b.lastIn === dir && contested(b, dir)) return false; // let the other input go first
-    its.push({ t: item, p: carry, f: (dir + 2) & 3 });
+    its.push({ t: item, p: n ? Math.min(carry, its[n - 1].p - GAP) : carry, f: (dir + 2) & 3 });
     b.lastIn = dir;
     return true;
   }
@@ -159,7 +179,7 @@
 
   function routerIn(b, item, dir) {
     if (b.slot !== null) return false;
-    if (b.type === 'splitter') { if (dir !== b.dir) return false; }
+    if (b.type !== 'merger') { if (dir !== b.dir) return false; }   // splitter, gates, inverted sorter: from the back
     else {
       if (dir === ((b.dir + 2) & 3)) return false;
       if (b.lastIn === dir && contested(b, dir)) return false;
@@ -247,23 +267,76 @@
   function updateRouter(b, dt) {
     if (b.slot === null) return;
     b.timer += dt;
-    if (b.timer < ROUTER_DELAY) return;
-    const item = b.slot;
-    let c;
-    if (b.type === 'merger') c = [b.dir];
-    else if (b.filter) c = item === b.filter ? [b.dir] : [(b.dir + 3) & 3, (b.dir + 1) & 3];
-    else c = [b.dir, (b.dir + 3) & 3, (b.dir + 1) & 3];
-    const n = c.length;
-    for (let k = 0; k < n; k++) {
-      const d = c[(b.rr + k) % n];
-      const t = world.at(b.x + DX[d], b.y + DY[d]);
-      if (t && insert(t, item, d, 0, b)) { b.slot = null; b.rr = (b.rr + k + 1) % n; return; }
+    if (b.timer < ROUTER_DELAY - EPS) return;
+    const item = b.slot, F = b.dir, L = (b.dir + 3) & 3, R = (b.dir + 1) & 3;
+    // groups of outputs tried in order of priority; inside a group, round robin
+    let groups;
+    switch (b.type) {
+      case 'merger': groups = [[F]]; break;
+      case 'overflow': groups = [[F], [L, R]]; break;          // front first, the overflow to the sides
+      case 'underflow': groups = [[L, R], [F]]; break;         // sides first, the front only when they are full
+      case 'sorter_inv': groups = b.filter && item === b.filter ? [[L, R]] : [[F]]; break;
+      default: groups = b.filter ? (item === b.filter ? [[F]] : [[L, R]]) : [[F, L, R]];   // splitter
     }
+    for (let g = 0; g < groups.length; g++) {
+      const c = groups[g], n = c.length;
+      for (let k = 0; k < n; k++) {
+        const d = c[(b.rr + k) % n];
+        const t = world.at(b.x + DX[d], b.y + DY[d]);
+        if (t && insert(t, item, d, 0, b)) { b.slot = null; b.rr = (b.rr + k + 1) % n; return; }
+      }
+    }
+  }
+
+  /** Junction: every item keeps going in its travel direction. */
+  function updateJunction(b, dt) {
+    for (let d = 0; d < 4; d++) {
+      if (b.slots[d] === null) continue;
+      b.timers[d] += dt;
+      if (b.timers[d] < ROUTER_DELAY - EPS) continue;
+      const t = world.at(b.x + DX[d], b.y + DY[d]);
+      if (t && insert(t, b.slots[d], d, 0, b)) b.slots[d] = null;
+    }
+  }
+
+  /**
+   * Unloader: pulls items (the filtered one only, if set) out of the chests, machines, drills and
+   * receiving mass drivers touching its three other sides, and pushes them out of its front.
+   */
+  function takeFrom(n, filter) {
+    let arr = null;
+    switch (n.kind) {
+      case 'chest': arr = n.q; break;
+      case 'machine': arr = n.outBuf; break;
+      case 'drill': arr = n.out; break;
+      case 'driver': if (!n.target) arr = n.q; break;
+    }
+    if (!arr || !arr.length) return null;
+    if (!filter) return arr.shift();
+    const i = arr.indexOf(filter);
+    return i < 0 ? null : arr.splice(i, 1)[0];
+  }
+  function updateUnloader(b, dt) {
+    b.timer += dt;
+    if (b.slot === null && b.timer >= UNLOAD_DELAY - EPS) {
+      const sides = [(b.dir + 2) & 3, (b.dir + 3) & 3, (b.dir + 1) & 3];   // back, left, right — in turn
+      for (let k = 0; k < 3; k++) {
+        const side = sides[(b.rr + k) % 3], n = world.at(b.x + DX[side], b.y + DY[side]);
+        if (!n || n === b || n.site) continue;
+        const it = takeFrom(n, b.filter);
+        if (it) { b.slot = it; b.timer = 0; b.rr = (b.rr + k + 1) % 3; break; }
+      }
+    }
+    if (b.slot !== null) {
+      const t = world.at(b.x + DX[b.dir], b.y + DY[b.dir]);
+      if (t && insert(t, b.slot, b.dir, 0, b)) b.slot = null;
+    }
+    b.status = b.slot !== null ? 'blocked' : b.timer < UNLOAD_DELAY * 2 ? 'work' : 'idle';
   }
 
   function updateChest(b, dt) {
     b.outT += dt;
-    if (b.q.length && b.outT >= CHEST_DELAY) {
+    if (b.q.length && b.outT >= CHEST_DELAY - EPS) {
       const t = world.at(b.x + DX[b.dir], b.y + DY[b.dir]);
       if (t && insert(t, b.q[0], b.dir, 0, b)) { b.q.shift(); b.outT = 0; }
     }
@@ -431,7 +504,7 @@
 
   const UPDATERS = {
     belt: updateBelt, tunnel_in: updateBelt, tunnel_out: updateBelt,
-    router: updateRouter, chest: updateChest, drill: updateDrill, machine: updateMachine,
+    router: updateRouter, junction: updateJunction, unloader: updateUnloader, chest: updateChest, drill: updateDrill, machine: updateMachine,
     driver: updateDriver, seller: updateSink, port: updateSink
   };
 

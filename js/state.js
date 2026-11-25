@@ -10,11 +10,11 @@
 
   // --------------------------------------------------------------- land
   /** Plot index of cell (x, y). */
-  CO.plotOf = function (x, y) { return Math.floor((y + CO.PLOT_OY) / CO.PLOT) * CO.PLOTS_W + Math.floor(x / CO.PLOT); };
+  CO.plotOf = function (x, y) { return Math.floor((y + CO.PLOT_OY) / CO.PLOT) * CO.PLOTS_W + Math.floor((x + CO.PLOT_OX) / CO.PLOT); };
   /** Cells covered by plot `p` (inclusive bounds, clipped to the map). */
   CO.plotRect = function (p) {
     const px = p % CO.PLOTS_W, py = Math.floor(p / CO.PLOTS_W);
-    const x0 = px * CO.PLOT, y0 = py * CO.PLOT - CO.PLOT_OY;
+    const x0 = px * CO.PLOT - CO.PLOT_OX, y0 = py * CO.PLOT - CO.PLOT_OY;
     return { x0: Math.max(0, x0), y0: Math.max(0, y0), x1: Math.min(CO.MAP_W - 1, x0 + CO.PLOT - 1), y1: Math.min(CO.MAP_H - 1, y0 + CO.PLOT - 1) };
   };
   /** The 3×3 plots around the Port, owned from the start. */
@@ -255,6 +255,7 @@
   };
 
   // --------------------------------------------------------- persistence
+  const SAVE_REV = 6;          // 6: 480×320 map (older saves are moved to its centre)
   let warned = false;
   function snapshot() {
     const st = CO.state;
@@ -265,7 +266,7 @@
         researchBank: st.researchBank, researchQueue: st.researchQueue,
         phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe,
         land: st.land.reduce(function (a, v, i) { if (v) a.push(i); return a; }, []), landBought: st.landBought,
-        startTitanium: st.startTitanium || undefined, workers: st.workers, rev: 5
+        startTitanium: st.startTitanium || undefined, workers: st.workers, rev: SAVE_REV
       },
       cam: { x: CO.cam.x, y: CO.cam.y, zoom: CO.cam.zoom },
       buildings: CO.world.serialize()
@@ -301,13 +302,23 @@
     CO.recalcMods();
     CO.sanitizeQueue();
     CO.world.reset(st.seed);
-    const ox = legacyMap ? CO.LEGACY_OX : 0, oy = legacyMap ? CO.LEGACY_OY : 0;
+    // Older maps are centred in this one: the 96×64 map (rev < 3), then the 240×160 map (rev 3 to 5).
+    const prevMap = !legacyMap && !(s.rev >= 6);
+    const ox = legacyMap ? CO.LEGACY_OX : prevMap ? CO.PREV_OX : 0, oy = legacyMap ? CO.LEGACY_OY : prevMap ? CO.PREV_OY : 0;
     if (ox || oy) data.buildings.forEach(function (o) { o.x += ox; o.y += oy; });
     // rev 5: land plots (set before the buildings come back: placement checks ownership). Older saves keep
     // the start plots plus, for free, every plot that already holds a building, and the titanium that the
     // start area used to have (new games have none there: titanium is a reason to buy land).
     if (Array.isArray(s.land)) {
-      s.land.forEach(function (p) { if (p >= 0 && p < st.land.length) st.land[p | 0] = 1; });
+      // a rev 5 save numbered its plots on the 240×160 map (15 columns, grid shifted 8 rows): same plots,
+      // moved with the map
+      const PW = prevMap ? 15 : CO.PLOTS_W, n = prevMap ? 15 * 11 : st.land.length;
+      s.land.forEach(function (p) {
+        p = p | 0;
+        if (p < 0 || p >= n) return;
+        if (prevMap) p = CO.plotOf((p % PW) * 16 + 8 + ox, Math.floor(p / PW) * 16 - 8 + 8 + oy);
+        if (p >= 0 && p < st.land.length) st.land[p] = 1;
+      });
       st.landBought = Math.max(0, Math.floor(s.landBought) || 0);
       st.startTitanium = !!s.startTitanium;
     } else {
@@ -324,7 +335,7 @@
     if (!st.startTitanium) CO.world.clearStartTitanium();
     st.workers = CO.clamp(Math.floor(s.workers) || CO.WORKERS.start, CO.WORKERS.start, CO.WORKERS.max);
     CO.world.restore(data.buildings);
-    if (data.cam) { CO.cam.x = data.cam.x + ox; CO.cam.y = data.cam.y + oy; CO.cam.zoom = CO.clamp(data.cam.zoom, 8, 72); }
+    if (data.cam) { CO.cam.x = data.cam.x + ox; CO.cam.y = data.cam.y + oy; CO.cam.zoom = CO.clamp(data.cam.zoom, 4, 72); }
     CO.history.clear();
     CO.emit('loaded');
   }
@@ -342,7 +353,11 @@
       try {
         const raw = localStorage.getItem(CO.SAVE_KEY);
         if (!raw) return false;
-        applySnapshot(JSON.parse(raw));
+        const data = JSON.parse(raw);
+        // before migrating an older save, keep an untouched copy of it (one per format revision)
+        const rev = data && data.state && data.state.rev || 0;
+        if (rev < SAVE_REV) { try { localStorage.setItem(CO.SAVE_KEY + '-backup-rev' + rev, raw); } catch (e) { /* storage full: go on */ } }
+        applySnapshot(data);
         return true;
       } catch (e) { console.warn('Autosave unreadable', e); return false; }
     },

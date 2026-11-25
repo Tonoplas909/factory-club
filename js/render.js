@@ -9,7 +9,7 @@
   const Rn = CO.render = {};
   const ACC = '#ffd37f', OUT = '#1f1f25';            // Mindustry-like team accent and outline
   let canvas, ctx, cw = 0, ch = 0, dpr = 1, ts = 32, ox = 0, oy = 0;
-  let terrain = null, terrainKey = '', starPat = null;
+  let terrainKey = '', starPat = null;
 
   Rn.init = function (c) {
     canvas = c; ctx = c.getContext('2d');
@@ -101,10 +101,38 @@
     ctx.lineWidth = Math.max(1, ts / 14); ctx.strokeStyle = OUT; ctx.stroke();
   }
 
+  // Ground: chunks of 32×32 tiles baked on demand at full, half or quarter resolution (by zoom), kept
+  // in small LRU caches; at most a few new chunks are baked per frame so zooming out never stalls.
+  const TCH = 32, TLODS = [{ f: 1, cap: 48 }, { f: 0.5, cap: 120 }, { f: 0.25, cap: 170 }];
+  const tcache = TLODS.map(function () { return new Map(); });
+  let bakeBudget = 0;
   function ensureTerrain() {
     const key = world.seed + ':' + world.oreRev;
-    if (terrain && terrainKey === key) return;
-    terrain = sprites.terrain(); terrainKey = key;
+    if (terrainKey === key) return;
+    terrainKey = key; tcache.forEach(function (m) { m.clear(); });
+  }
+  function terrainChunk(cx, cy, li) {
+    const m = tcache[li], k = cx + ',' + cy;
+    let c = m.get(k);
+    if (c) { m.delete(k); m.set(k, c); return c; }
+    if (bakeBudget-- <= 0) return null;
+    const full = sprites.terrainChunk(cx * TCH, cy * TCH, TCH), f = TLODS[li].f;
+    if (f === 1) c = full;
+    else {
+      c = document.createElement('canvas'); c.width = c.height = Math.ceil(TCH * T * f);
+      const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(full, 0, 0, c.width, c.height);
+    }
+    m.set(k, c);
+    if (m.size > TLODS[li].cap) m.delete(m.keys().next().value);
+    return c;
+  }
+  function drawTerrain(x0, y0, x1, y1) {
+    bakeBudget = 4;
+    const s = ts / T, li = s >= 0.75 ? 0 : s >= 0.375 ? 1 : 2;
+    for (let cy = Math.floor(y0 / TCH); cy <= Math.floor(y1 / TCH); cy++) for (let cx = Math.floor(x0 / TCH); cx <= Math.floor(x1 / TCH); cx++) {
+      const c = terrainChunk(cx, cy, li);
+      if (c) ctx.drawImage(c, 0, 0, c.width, c.height, ox + cx * TCH * ts, oy + cy * TCH * ts, TCH * ts, TCH * ts);
+    }
   }
 
   Rn.drawStars = function () { drawStars(); };
@@ -133,8 +161,7 @@
     const x0 = Math.max(0, Math.floor(-ox / ts)), y0 = Math.max(0, Math.floor(-oy / ts));
     const x1 = Math.min(W - 1, Math.floor((cw - ox) / ts)), y1 = Math.min(H - 1, Math.floor((ch - oy) / ts));
     if (x1 < x0 || y1 < y0) return;
-    ctx.drawImage(terrain, x0 * T, y0 * T, (x1 - x0 + 1) * T, (y1 - y0 + 1) * T,
-      ox + x0 * ts, oy + y0 * ts, (x1 - x0 + 1) * ts, (y1 - y0 + 1) * ts);
+    drawTerrain(x0, y0, x1, y1);
 
     if (ts >= 20) {                                   // strict grid, faint
       ctx.beginPath();
@@ -169,7 +196,7 @@
       const b = vis[i], px = ox + b.x * ts, py = oy + b.y * ts;
       let spr;
       if (b.kind === 'belt') {
-        const tier = b.type === 'belt_fast' ? 1 : 0;
+        const tier = b.def.tier || 0;
         spr = sprites.belt(tier, b.dir, beltShape(b), Math.floor(time * b.def.speed * 16) % 16);
       } else if (b.kind === 'driver') {
         spr = sprites.building(b.type, b.dir, 1);         // base only: the barrel is drawn aimed at the target
@@ -212,8 +239,11 @@
           const pos = itemTile(b, it);
           drawIcon(it.t, ox + pos[0] * ts, oy + pos[1] * ts, isz);
         }
-      } else if (b.kind === 'router' && b.slot !== null) {
+      } else if ((b.kind === 'router' || b.kind === 'unloader') && b.slot !== null) {
         drawIcon(b.slot, ox + (b.x + 0.5) * ts, oy + (b.y + 0.5) * ts, isz);
+      } else if (b.kind === 'junction') {
+        for (let d = 0; d < 4; d++) if (b.slots[d] !== null)
+          drawIcon(b.slots[d], ox + (b.x + 0.5 + CO.DX[d] * 0.22) * ts, oy + (b.y + 0.5 + CO.DY[d] * 0.22) * ts, isz * 0.8);
       }
     }
 
@@ -263,7 +293,7 @@
         const s = Math.max(3, Math.round(ts * 0.16));
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
         ctx.fillStyle = led; ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
-      } else if (k === 'router' && b.filter) {
+      } else if ((k === 'router' || k === 'unloader') && b.filter) {
         drawIcon(b.filter, cx, cy, ts * 0.36);
       } else if (k === 'chest') {
         const f = b.q.length / CO.chestCap(b.def);
@@ -480,6 +510,21 @@
       ctx.fillRect(px, py, def.w * ts, def.h * ts);
       ctx.strokeStyle = g.valid ? 'rgba(255,211,127,0.95)' : 'rgba(229,84,84,0.95)'; ctx.lineWidth = lw;
       ctx.strokeRect(px + lw / 2, py + lw / 2, def.w * ts - lw, def.h * ts - lw);
+    }
+    // underground pieces being placed: the link they will make, or their reach when they find nothing
+    for (let i = 0; i < ov.tunnels.length; i++) {
+      const t = ov.tunnels[i];
+      ctx.save();
+      if (t.b) {
+        ctx.setLineDash([ts * 0.2, ts * 0.15]); ctx.lineDashOffset = -time * ts;
+        ctx.strokeStyle = ACC; ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.moveTo(ox + (t.a.x + 0.5) * ts, oy + (t.a.y + 0.5) * ts); ctx.lineTo(ox + (t.b.x + 0.5) * ts, oy + (t.b.y + 0.5) * ts); ctx.stroke();
+        ctx.setLineDash([]); ctx.strokeRect(ox + t.b.x * ts + lw / 2, oy + t.b.y * ts + lw / 2, ts - lw, ts - lw);
+      } else {
+        ctx.setLineDash([ts * 0.12, ts * 0.12]); ctx.strokeStyle = 'rgba(229,84,84,0.6)'; ctx.lineWidth = Math.max(1, lw / 2);
+        for (let k = 0; k < t.cells.length; k++) ctx.strokeRect(ox + t.cells[k].x * ts + ts * 0.15, oy + t.cells[k].y * ts + ts * 0.15, ts * 0.7, ts * 0.7);
+      }
+      ctx.restore();
     }
     if (ov.selRect) {
       const r = ov.selRect, x = ox + r.x0 * ts, y = oy + r.y0 * ts, w = (r.x1 - r.x0 + 1) * ts, h = (r.y1 - r.y0 + 1) * ts;

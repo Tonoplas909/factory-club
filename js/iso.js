@@ -52,13 +52,15 @@
   // ------------------------------------------------------------ ground
   // Chunks of 16×16 tiles are baked once into canvases, at full or reduced resolution depending on the
   // zoom, and kept in small LRU caches.
-  const LODS = [{ f: 1, cap: 90 }, { f: 0.5, cap: 170 }, { f: 0.25, cap: 170 }];
+  const LODS = [{ f: 1, cap: 90 }, { f: 0.5, cap: 260 }, { f: 0.25, cap: 640 }];
+  let bakeBudget = 0;                                    // new chunks baked per frame (zooming out never stalls)
   const chunkCache = LODS.map(function () { return new Map(); });
   let groundKey = '';
   function chunk(cx, cy, li) {
     const lod = LODS[li], m = chunkCache[li], k = cx + ',' + cy;
     let c = m.get(k);
     if (c) { m.delete(k); m.set(k, c); return c; }
+    if (bakeBudget-- <= 0) return null;
     const full = V.chunk(cx * CH, cy * CH, CH);
     if (lod.f === 1) c = full;
     else {
@@ -76,6 +78,7 @@
     const gk = world.seed + ':' + world.oreRev;
     if (gk !== groundKey) { groundKey = gk; chunkCache.forEach(function (m) { m.clear(); }); }
     const li = sc >= 0.7 ? 0 : sc >= 0.35 ? 1 : 2, f = LODS[li].f;
+    bakeBudget = 6;
     const NX = Math.ceil(world.W / CH), NY = Math.ceil(world.H / CH);
     for (let s = 0; s <= NX + NY - 2; s++) {
       for (let cx = Math.max(0, s - NY + 1); cx <= Math.min(NX - 1, s); cx++) {
@@ -83,6 +86,7 @@
         const left = P(x0, y0 + CH)[0], right = P(x0 + CH, y0)[0], top = P(x0, y0, 0.4)[1], bot = P(x0 + CH, y0 + CH)[1] + hh;
         if (right < 0 || left > cw || bot < 0 || top > ch) continue;
         const c = chunk(cx, cy, li), p = P(x0, y0, 0), k = sc / f;
+        if (!c) continue;
         ctx.drawImage(c.c, Math.round(p[0] - c.ox * k), Math.round(p[1] - c.oy * k), Math.round(c.w * k), Math.round(c.h * k));
       }
     }
@@ -207,7 +211,7 @@
     for (let i = 0; i < flat.length; i++) {
       const b = flat[i];
       const spr = b.kind === 'belt'
-        ? V.belt(b.type === 'belt_fast' ? 1 : 0, b.dir, beltShape(b), Math.floor(time * b.def.speed * V.VT) % 4)
+        ? V.belt(b.def.tier || 0, b.dir, beltShape(b), Math.floor(time * b.def.speed * V.VT) % 4)
         : V.building(b.type, b.dir, 0);
       drawBody(b, spr, time);
       if (b.items && !b.site) {
@@ -326,9 +330,12 @@
       ctx.fillStyle = ACC; ctx.fillRect(Math.round(e[0] - ts * 0.07), Math.round(e[1] - ts * 0.07), Math.round(ts * 0.14), Math.round(ts * 0.14));
       gauge(b, b.q.length / b.def.capacity);
       led(b.status === 'work' ? '#84f491' : b.status === 'blocked' ? RED : '#ffb347', Math.round(c[0] - s / 2), Math.round(c[1] - ts * 0.55));
-    } else if (k === 'router') {
+    } else if (k === 'router' || k === 'unloader') {
       if (b.slot !== null) drawItem(b.slot, b.x + 0.5, b.y + 0.5, top);
       else if (b.filter) drawIcon(b.filter, c[0], c[1] - ts * 0.2, ts * 0.36);
+      if (k === 'unloader') arrowOut(b);
+    } else if (k === 'junction') {
+      for (let d = 0; d < 4; d++) if (b.slots[d] !== null) drawItem(b.slots[d], b.x + 0.5 + DX[d] * 0.2, b.y + 0.5 + DY[d] * 0.2, top);
     } else if (k === 'chest') gauge(b, b.q.length / CO.chestCap(b.def));
     else if (k === 'port') {
       const pulse = 0.5 + 0.5 * Math.sin(time * 2);
@@ -443,11 +450,27 @@
       const g = gh[i], def = CO.BUILDINGS[g.type], box = { x: g.x, y: g.y, w: def.w, h: def.h, dir: g.dir };
       if (def.kind === 'driver' && gh.length === 1) rangeEllipse({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
       foot(box, g.valid ? 'rgba(255,211,127,0.14)' : 'rgba(229,84,84,0.45)', g.valid ? 'rgba(255,211,127,0.95)' : 'rgba(229,84,84,0.95)', lw);
-      const spr = def.kind === 'belt' ? V.belt(g.type === 'belt_fast' ? 1 : 0, g.dir, 0, 0) : V.building(g.type, g.dir, 0);
+      const spr = def.kind === 'belt' ? V.belt(def.tier || 0, g.dir, 0, 0) : V.building(g.type, g.dir, 0);
       ctx.globalAlpha = g.valid ? 0.75 : 0.5;
       blit(spr, g.x, g.y, 0, 0, 0, 0);
       ctx.globalAlpha = 1;
       if (def.w * def.h > 1 && def.kind !== 'lab' && def.kind !== 'seller' && def.kind !== 'port') arrowOut(box);
+    }
+    // underground pieces being placed: the link they will make, or their reach when they find nothing
+    for (let i = 0; i < ov.tunnels.length; i++) {
+      const t = ov.tunnels[i];
+      ctx.save();
+      if (t.b) {
+        const a = P(t.a.x + 0.5, t.a.y + 0.5, 0.15), e = P(t.b.x + 0.5, t.b.y + 0.5, 0.15);
+        ctx.setLineDash([ts * 0.2, ts * 0.15]); ctx.lineDashOffset = -time * ts;
+        ctx.strokeStyle = ACC; ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(e[0], e[1]); ctx.stroke();
+        ctx.setLineDash([]); foot({ x: t.b.x, y: t.b.y, w: 1, h: 1 }, 'rgba(255,211,127,0.18)', ACC, lw);
+      } else {
+        for (let k = 0; k < t.cells.length; k++)
+          foot({ x: t.cells[k].x + 0.15, y: t.cells[k].y + 0.15, w: 0.7, h: 0.7 }, null, 'rgba(229,84,84,0.6)', Math.max(1, lw / 2), [ts * 0.12, ts * 0.12]);
+      }
+      ctx.restore();
     }
     if (ov.selRect) {
       const r = ov.selRect, col = ov.selDelete ? RED : ACC;

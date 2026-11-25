@@ -10,7 +10,7 @@
   const W = CO.MAP_W, H = CO.MAP_H, DX = CO.DX, DY = CO.DY, BUILDINGS = CO.BUILDINGS;
 
   // Logistics pieces that a bigger building may simply be built over.
-  const REPLACEABLE = { belt: true, tunnel_in: true, tunnel_out: true, router: true };
+  const REPLACEABLE = { belt: true, tunnel_in: true, tunnel_out: true, router: true, junction: true };
 
   const world = CO.world = {
     W: W, H: H,
@@ -68,6 +68,9 @@
       }
       // The extra, far-away patches that fill the big map: random but seeded, never touching each other
       // nor crowding the Port. [ore id, how many, min radius, max radius, min distance to the Port]
+      // The 240×160 map's patches, drawn exactly as they were (same random sequence, same noise) and moved
+      // to the centre of this map, so the ore under old saves does not move.
+      const PX = CO.PREV_OX, PY = CO.PREV_OY;
       const rnd2 = CO.rng(seed * 104729 + 31);
       const extra = [[1, 16, 3.4, 6.4, 18], [2, 16, 3.4, 6.4, 18], [3, 12, 3.2, 5.6, 18], [4, 14, 3.2, 5.6, 22], [5, 12, 3.2, 5.6, 22], [6, 14, 3.4, 5.2, 50]];
       for (let k = 0; k < extra.length; k++) {
@@ -75,13 +78,32 @@
         for (let n = 0; n < e[1]; n++) {
           for (let tries = 0; tries < 300; tries++) {
             const r = e[2] + rnd2() * (e[3] - e[2]);
-            const cx = 8 + rnd2() * (W - 16), cy = 8 + rnd2() * (H - 16);
+            const cx = 8 + rnd2() * (CO.PREV_W - 16) + PX, cy = 8 + rnd2() * (CO.PREV_H - 16) + PY;
             if (Math.hypot(cx - CO.MAP_CX, cy - CO.MAP_CY) < e[4]) continue;
             let ok = true;
             for (let q = 0; q < placed.length && ok; q++) if (Math.hypot(cx - placed[q][0], cy - placed[q][1]) < r + placed[q][2] + 4) ok = false;
             if (!ok) continue;
             placed.push([cx, cy, r]);
-            this.stamp(e[0], cx, cy, r, Math.floor(rnd2() * 1000), 0, 0);
+            this.stamp(e[0], cx, cy, r, Math.floor(rnd2() * 1000), PX, PY);
+            break;
+          }
+        }
+      }
+      // The outer ring added with the 480×320 map: three times as many patches, bigger, titanium-rich.
+      const rnd3 = CO.rng(seed * 7307 + 11);
+      const outer = [[1, 48, 4, 7.5], [2, 48, 4, 7.5], [3, 36, 3.6, 6.5], [4, 40, 3.6, 6.5], [5, 34, 3.6, 6.5], [6, 52, 3.8, 6.5]];
+      for (let k = 0; k < outer.length; k++) {
+        const e = outer[k];
+        for (let n = 0; n < e[1]; n++) {
+          for (let tries = 0; tries < 300; tries++) {
+            const r = e[2] + rnd3() * (e[3] - e[2]);
+            const cx = 8 + rnd3() * (W - 16), cy = 8 + rnd3() * (H - 16);
+            if (cx > PX - r - 2 && cx < PX + CO.PREV_W + r + 2 && cy > PY - r - 2 && cy < PY + CO.PREV_H + r + 2) continue;
+            let ok = true;
+            for (let q = 0; q < placed.length && ok; q++) if (Math.hypot(cx - placed[q][0], cy - placed[q][1]) < r + placed[q][2] + 4) ok = false;
+            if (!ok) continue;
+            placed.push([cx, cy, r]);
+            this.stamp(e[0], cx, cy, r, Math.floor(rnd3() * 1000), 0, 0);
             break;
           }
         }
@@ -149,6 +171,10 @@
           b.items = []; b.lastIn = -1; b.link = null; b.linkVer = -1; break;
         case 'router':
           b.slot = null; b.timer = 0; b.rr = 0; b.lastIn = -1; b.filter = (cfg && cfg.filter) || null; break;
+        case 'junction':                               // one slot per travel direction (E, S, W, N)
+          b.slots = [null, null, null, null]; b.timers = [0, 0, 0, 0]; break;
+        case 'unloader':
+          b.slot = null; b.timer = 0; b.rr = 0; b.filter = (cfg && cfg.filter) || null; b.status = 'idle'; break;
         case 'chest':
           b.q = []; b.outT = 0; break;
         case 'driver':

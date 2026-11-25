@@ -9,7 +9,7 @@
  *   CO.sprites.item(id)                  8×8 icon of an item
  *   CO.sprites.belt(tier, dir, shape, f) animated belt tile (shape 0 straight, 1/2 corners)
  *   CO.sprites.building(type, dir, f)    body of a building (frame f for animations)
- *   CO.sprites.terrain()                 the whole ground + ore layer as one big canvas
+ *   CO.sprites.terrainChunk(tx, ty, n)   ground + ore layer of an n×n-tile chunk
  */
 (function (CO) {
   'use strict';
@@ -82,7 +82,8 @@
   // tier 0: grey conveyor; tier 1: "titanium" conveyor with light blue rails.
   const BELT = [
     { out: OUT, rail: '#7a7c88', railHi: '#9fa1ad', railLo: '#55565f', bed: '#34353c', rung: '#4a4b55', chev: '#6b6d7a' },
-    { out: OUT, rail: '#7f93cf', railHi: '#a9bcf0', railLo: '#55639a', bed: '#33353f', rung: '#474b5c', chev: '#8da1e3' }
+    { out: OUT, rail: '#7f93cf', railHi: '#a9bcf0', railLo: '#55639a', bed: '#33353f', rung: '#474b5c', chev: '#8da1e3' },
+    { out: OUT, rail: '#c9a24a', railHi: '#ffd37f', railLo: '#8a6a2a', bed: '#2e2c2a', rung: '#4a443a', chev: '#e8c070' }
   ];
   function chevH(g, c, u) {
     for (let j = 0; j < 3; j++) { R(g, c, u + j, 5 + j, 2, 1); R(g, c, u + j, 10 - j, 2, 1); }
@@ -92,7 +93,7 @@
   }
   /** Canonical belt moving East. shape 1 = corner entering from the North side. */
   function drawBeltCanon(g, tier, shape, f) {
-    const p = BELT[tier ? 1 : 0];
+    const p = BELT[tier || 0];
     if (shape === 0) {
       R(g, p.out, 0, 1, 16, 14);
       R(g, p.rail, 0, 2, 16, 2); R(g, p.railHi, 0, 2, 16, 1);
@@ -298,6 +299,36 @@
     arrow(g, ACC, 12, 8, 0);
     arrow(g, M3, 3, 8, 0); arrow(g, M3, 8, 2, Math.PI / 2); arrow(g, M3, 8, 13, -Math.PI / 2);
   }
+  function drawOverflow(g) {                                          // front first, then the sides
+    small(g, M1);
+    R(g, OUT, 4, 5, 8, 6); R(g, '#2b2c33', 5, 6, 6, 4);
+    arrow(g, ACC, 12, 8, 0); arrow(g, M3, 8, 3, -Math.PI / 2); arrow(g, M3, 8, 12, Math.PI / 2);
+    R(g, ACC, 6, 7, 4, 2);
+  }
+  function drawUnderflow(g) {                                         // the sides first, then the front
+    small(g, M1);
+    R(g, OUT, 5, 4, 6, 8); R(g, '#2b2c33', 6, 5, 4, 6);
+    arrow(g, M3, 12, 8, 0); arrow(g, ACC, 8, 3, -Math.PI / 2); arrow(g, ACC, 8, 12, Math.PI / 2);
+    R(g, ACC, 7, 6, 2, 4);
+  }
+  function drawJunction(g) {                                          // a cross of two tracks
+    small(g, M0);
+    R(g, OUT, 2, 6, 12, 4); R(g, OUT, 6, 2, 4, 12);
+    R(g, '#34353c', 3, 7, 10, 2); R(g, '#34353c', 7, 3, 2, 10);
+    R(g, M3, 6, 6, 4, 4); R(g, ACC, 7, 7, 2, 2);
+  }
+  function drawSorterInv(g) {                                         // filtered item to the sides
+    small(g, '#5a5c68');
+    R(g, OUT, 5, 5, 6, 6); R(g, M3, 6, 6, 4, 4); R(g, '#e55454', 6, 6, 2, 1);
+    arrow(g, M3, 12, 8, 0); arrow(g, ACC, 8, 3, -Math.PI / 2); arrow(g, ACC, 8, 12, Math.PI / 2);
+    R(g, OUT, 2, 6, 2, 4);
+  }
+  function drawUnloader(g) {                                          // a pump: claws on three sides, outlet in front
+    small(g, '#6a6d78');
+    R(g, OUT, 4, 4, 8, 8); R(g, M0, 5, 5, 6, 6); R(g, ACC_D, 6, 6, 4, 4);
+    R(g, M3, 2, 3, 2, 2); R(g, M3, 2, 11, 2, 2); R(g, M3, 7, 2, 2, 2); R(g, M3, 7, 12, 2, 2);
+    arrow(g, ACC, 13, 8, 0);
+  }
   function drawChest(g) {                                             // "container"
     small(g, '#6a6d78');
     R(g, OUT, 4, 4, 8, 8); R(g, M0, 5, 5, 6, 6); R(g, PANEL, 6, 6, 4, 4);
@@ -319,11 +350,12 @@
 
   const BIG = { drill: [2, drawDrill], drill_heavy: [3, drawDrill], smelter: [2, drawSmelter], assembler: [2, drawAssembler],
     steelmill: [3, drawSteelmill], fabricator: [3, drawFabricator], spaceyard: [4, drawSpaceyard], lab: [2, drawLab], seller: [2, drawSeller], port: [4, drawPort], driver: [2, drawDriver] };
-  const SMALL = { splitter: drawSplitter, merger: drawMerger, chest: drawChest, underground_in: drawTunnelIn, underground_out: drawTunnelOut };
+  const SMALL = { splitter: drawSplitter, merger: drawMerger, chest: drawChest, underground_in: drawTunnelIn, underground_out: drawTunnelOut,
+    overflow: drawOverflow, underflow: drawUnderflow, junction: drawJunction, sorter_inv: drawSorterInv, unloader: drawUnloader };
 
   function buildingSprite(type, dir, f) {
     const def = BUILDINGS[type];
-    if (def.kind === 'belt') return beltSprite(type === 'belt_fast' ? 1 : 0, dir, 0, f | 0);
+    if (def.kind === 'belt') return beltSprite(def.tier || 0, dir, 0, f | 0);
     if (SMALL[type]) {
       const key = 's' + type + dir;
       return cache[key] || (cache[key] = orient(SMALL[type], dir, false));
@@ -367,20 +399,20 @@
       R(g, shade(col, 0.45), bx, by, Math.max(1, w - 2), 1);
     }
   }
-  function terrain() {
+  /** Ground + ore of an n×n-tile chunk whose top-left tile is (tx, ty) (the map is too big for one canvas). */
+  function terrainChunk(tx, ty, n) {
     const W = CO.MAP_W, H = CO.MAP_H, world = CO.world, seed = world.seed;
-    const c = mk(W * T, H * T), g = c.getContext('2d');
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const px = x * T, py = y * T;
-        floorTile(g, px, py, x, y, seed);
-        const ore = world.ore[y * W + x];
-        if (ore) oreTile(g, px, py, ore, x, y, seed);
-      }
+    const c = mk(n * T, n * T), g = c.getContext('2d');
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const x = tx + i, y = ty + j;
+      if (x >= W || y >= H) continue;
+      floorTile(g, i * T, j * T, x, y, seed);
+      const ore = world.ore[y * W + x];
+      if (ore) oreTile(g, i * T, j * T, ore, x, y, seed);
     }
     return c;
   }
 
-  CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrain: terrain, barrel: barrelSprite,
+  CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrainChunk: terrainChunk, barrel: barrelSprite,
     frames: { drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
 })(window.CO = window.CO || {});

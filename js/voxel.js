@@ -268,6 +268,39 @@
       m.box(0, 2, 1, 2, 4, 2, DARK).box(7, 1, 1, 1, 6, 1, ACC);
       return m;
     },
+    overflow: function () {                               // front first: big yellow nose, grey side vents
+      const m = new Model(8);
+      m.box(0, 0, 0, 8, 8, 1, M0).box(1, 1, 1, 6, 6, 3, M1).box(2, 2, 4, 4, 4, 1, M2);
+      m.box(5, 2, 4, 2, 4, 1, ACC).box(3, 1, 4, 2, 1, 1, M3).box(3, 6, 4, 2, 1, 1, M3);
+      return m;
+    },
+    underflow: function () {                              // the sides first: yellow side vents, grey nose
+      const m = new Model(8);
+      m.box(0, 0, 0, 8, 8, 1, M0).box(1, 1, 1, 6, 6, 3, M1).box(2, 2, 4, 4, 4, 1, M2);
+      m.box(5, 3, 4, 2, 2, 1, M3).box(2, 1, 4, 4, 1, 1, ACC).box(2, 6, 4, 4, 1, 1, ACC);
+      return m;
+    },
+    junction: function () {                               // a low cross of two tracks
+      const m = new Model(8);
+      m.box(0, 0, 0, 8, 8, 1, M0);
+      m.box(0, 2, 1, 8, 4, 1, DARK).box(2, 0, 1, 4, 8, 1, DARK);
+      m.box(0, 1, 1, 2, 1, 2, M2).box(6, 1, 1, 2, 1, 2, M2).box(0, 6, 1, 2, 1, 2, M2).box(6, 6, 1, 2, 1, 2, M2);
+      m.box(3, 3, 1, 2, 2, 1, ACC);
+      return m;
+    },
+    sorter_inv: function () {
+      const m = new Model(8);
+      m.box(0, 0, 0, 8, 8, 1, M0).box(1, 1, 1, 6, 6, 3, '#5a5c68').box(2, 2, 4, 4, 4, 1, M3);
+      m.box(3, 1, 4, 2, 1, 1, ACC).box(3, 6, 4, 2, 1, 1, ACC).box(5, 3, 4, 2, 2, 1, M2).set(3, 3, 5, '#e55454');
+      return m;
+    },
+    unloader: function () {                               // squat pump with claws on three sides and a front spout
+      const m = new Model(8);
+      m.box(0, 0, 0, 8, 8, 1, M0).box(1, 1, 1, 6, 6, 4, '#6a6d78').box(2, 2, 5, 4, 4, 1, ACC_D);
+      m.box(0, 1, 1, 1, 2, 2, M3).box(0, 5, 1, 1, 2, 2, M3).box(3, 0, 1, 2, 1, 2, M3).box(3, 7, 1, 2, 1, 2, M3);
+      m.box(7, 3, 1, 1, 2, 3, ACC);
+      return m;
+    },
     chest: function () {
       const m = new Model(8);
       m.box(0, 0, 0, 8, 8, 1, M0).box(1, 1, 1, 6, 6, 5, '#7a6a52').box(1, 1, 6, 6, 6, 1, '#8c7b60');
@@ -301,7 +334,7 @@
     const k = 'L' + tier + dir + shape + ':' + frame;
     let s = cache.get(k);
     if (!s) {
-      const m = new Model(8), rail = tier ? '#7d8fb3' : M2, chev = tier ? '#9fb2ee' : '#7a7c88';
+      const m = new Model(8), rail = ['#868895', '#7d8fb3', '#c9a24a'][tier], chev = ['#7a7c88', '#9fb2ee', '#e8c070'][tier];
       m.box(0, 0, 0, 8, 8, 1, DARK);
       for (let y = 1; y < 7; y++) for (let x = 0; x < 8; x++) {          // chevrons ">" sliding one voxel per frame
         if (((x + Math.floor(Math.abs(y - 3.5)) - frame) % 4 + 4) % 4 === 0) m.set(x, y, 0, chev);

@@ -93,6 +93,7 @@
     const tbl = h('table', { class: 'keys' },
       row('Clic gauche', 'Utiliser l’outil actif (poser, inspecter…)'),
       row('Glisser', 'Poser plusieurs éléments d’un coup, en ligne droite (convoyeurs : sur un seul axe)'),
+      row('Logistique', 'Porte de débordement (devant d’abord), de sous-débit (côtés d’abord), croisement, trieur inversé et extracteur : Infos pour leur filtre'),
       row('Ctrl + glisser', 'Convoyeurs en L jusqu’au curseur, sans toucher aux bâtiments sur le chemin'),
       row('Alt + glisser', 'Convoyeurs à main levée : ils suivent ton tracé'),
       row('Poser sur des convoyeurs', 'Un bâtiment posé sur des convoyeurs, séparateurs ou souterrains les remplace (remboursés)'),
@@ -109,6 +110,7 @@
       row('Flèches, WASD, ZQSD', 'Déplacer la caméra (ou Espace + glisser)'),
       row('Clic molette + glisser', 'Déplacer la caméra (avec n’importe quel outil)'),
       row('Ctrl + clic gauche', 'Sélectionner : glisser = rectangle, clic = ajouter / retirer un bâtiment. Un clic simple ailleurs désélectionne tout'),
+      row('Sélection → Infos', 'Une recette (ou un filtre) par type de bâtiment sélectionné, appliquée à tous d’un coup (une seule annulation)'),
       row('Catapulte magnétique', 'Inspecte la catapulte de départ, « Choisir la cible », puis clique sur celle d’arrivée (48 cases max)'),
       row('Recherche', '« + File d’attente » enchaîne les recherches ; les laboratoires mettent en réserve ce qui servira plus tard'),
       row('Tab', 'Changer de vue : isométrique (voxels) ou vue de dessus — un bâtiment haut devient transparent quand la souris passe derrière'),
@@ -545,7 +547,18 @@
       }
       case 'seller': case 'port': return pill('good', 'Actif');
       case 'chest': return pill('info', b.q.length + ' / ' + CO.chestCap(b.def));
-      case 'router': return pill('info', b.type === 'splitter' ? (b.filter ? 'Filtré' : 'Équitable') : 'Fusion');
+      case 'router':
+        switch (b.type) {
+          case 'splitter': return pill('info', b.filter ? 'Filtré' : 'Équitable');
+          case 'overflow': return pill('info', 'Devant d’abord');
+          case 'underflow': return pill('info', 'Côtés d’abord');
+          case 'sorter_inv': return b.filter ? pill('info', 'Trie : ' + itemName(b.filter)) : pill('warn', 'Aucun filtre : tout va tout droit');
+          default: return pill('info', 'Fusion');
+        }
+      case 'junction': return pill('info', 'Croisement');
+      case 'unloader':
+        return b.status === 'work' ? pill('good', 'Extrait' + (b.filter ? ' : ' + itemName(b.filter) : ''))
+          : b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('warn', 'Rien à extraire');
       default: return pill('info', b.items.length + ' objet(s)');
     }
   }
@@ -554,6 +567,8 @@
     if ((b.kind === 'machine' || b.kind === 'drill') && b.status === 'blocked') return 'Relie la flèche jaune à un convoyeur (ou à un bâtiment qui accepte la production).';
     if (b.kind === 'machine' && b.recipe && b.status === 'idle') return 'Amène les matières par convoyeur sur n’importe quel côté, sauf la sortie.';
     if (b.kind === 'drill' && !b.ore) return 'Déplace la foreuse sur un gisement coloré.';
+    if (b.kind === 'unloader' && b.status === 'idle') return 'Colle son dos ou ses côtés à un coffre, une machine ou une foreuse' + (b.filter ? ' qui contient ' + itemName(b.filter) : '') + ' ; sa flèche doit mener à un convoyeur.';
+    if (b.kind === 'unloader' && b.status === 'blocked') return 'Relie sa flèche jaune à un convoyeur.';
     if (b.kind === 'lab' && !CO.state.research) return 'Choisis une recherche dans l’onglet Recherche. En attendant, ce qui servira à une recherche future est mis en réserve.';
     if (b.kind === 'driver') {
       const tg = CO.sim.driverTarget(b);
@@ -592,6 +607,40 @@
     return h('div', { class: 'bar live' }, bar);
   }
 
+  /**
+   * Selection panel: one recipe (or filter) picker per type of machine (or sorter) selected, applied to
+   * all the buildings of that type at once.
+   */
+  function batchSettings(body, selection) {
+    const byType = {};
+    selection.forEach(function (b) { if (!b.dead) (byType[b.type] = byType[b.type] || []).push(b); });
+    Object.keys(byType).forEach(function (t) {
+      const list = byType[t], def = BUILDINGS[t], n = list.length;
+      const same = function (key) { const v = list[0][key] || null; return list.every(function (b) { return (b[key] || null) === v; }) ? v : undefined; };
+      const set = function (v) {
+        const k = CO.history.configureMany(list, v);
+        if (k) CO.emit('toast', def.name + ' : ' + k + ' réglé(s) d’un coup.', 'good');
+        renderSide(true);
+      };
+      if (def.kind === 'machine') {
+        const cur = same('recipe'), grid = h('div', { class: 'grid' });
+        CO.recipesFor(t).forEach(function (r) {
+          const ok = CO.isRecipeUnlocked(r.id), out = Object.keys(r.out)[0];
+          grid.appendChild(h('button', { class: 'rec' + (cur === r.id ? ' active' : '') + (ok ? '' : ' locked'), disabled: !ok, 'data-item': out,
+            onclick: function () { set(r.id); } }, itemIcon(out, 3), h('span', { text: itemName(out) }), ok ? null : h('em', { text: '🔒' })));
+        });
+        body.appendChild(section('Recette des ' + n + ' « ' + def.name + ' »' + (cur === undefined ? ' (mélangées)' : ''), grid));
+      } else if (t === 'splitter' || t === 'sorter_inv' || t === 'unloader') {
+        const cur = same('filter'), grid = h('div', { class: 'grid' });
+        grid.appendChild(h('button', { class: 'rec' + (cur === null ? ' active' : ''), onclick: function () { set(null); } }, h('span', { class: 'none', text: '∅' }), h('span', { text: 'Aucun' })));
+        CO.ITEM_ORDER.forEach(function (id) {
+          grid.appendChild(h('button', { class: 'rec' + (cur === id ? ' active' : ''), 'data-item': id, onclick: function () { set(id); } }, itemIcon(id, 3)));
+        });
+        body.appendChild(section('Filtre des ' + n + ' « ' + def.name + ' »' + (cur === undefined ? ' (mélangés)' : ''), grid));
+      }
+    });
+  }
+
   function renderInfo(body) {
     live = null;
     const sel = CO.input.get(), b = sel.inspected;
@@ -606,6 +655,7 @@
           h('div', { class: 'actions' },
             h('button', { class: 'btn', text: '⧉ Copier', onclick: function () { CO.input.copy(); } }),
             h('button', { class: 'btn danger', text: '✖ Supprimer', onclick: function () { CO.input.deleteSelected(); } }))));
+        batchSettings(body, sel.selection);
       } else {
         body.appendChild(h('div', { class: 'empty' },
           h('div', { class: 'empty-ico', text: '✋' }),
@@ -694,13 +744,13 @@
     } else if (b.kind === 'port') {
       const p = CO.getPhase(CO.state.phase);
       body.appendChild(section('Étape en cours', h('div', { class: 'icard flat' }, h('b', { text: p.name }), costRow(p.need, CO.state.phaseHave))));
-    } else if (b.type === 'splitter') {
+    } else if (b.type === 'splitter' || b.type === 'sorter_inv' || b.kind === 'unloader') {
       const grid = h('div', { class: 'grid' });
       grid.appendChild(h('button', { class: 'rec' + (!b.filter ? ' active' : ''), onclick: function () { CO.history.configure(b, null); renderSide(true); } }, h('span', { class: 'none', text: '∅' }), h('span', { text: 'Aucun' })));
       CO.ITEM_ORDER.forEach(function (id) {
         grid.appendChild(h('button', { class: 'rec' + (b.filter === id ? ' active' : ''), 'data-item': id, onclick: function () { CO.history.configure(b, id); renderSide(true); } }, itemIcon(id, 3)));
       });
-      body.appendChild(section('Filtre (l’objet choisi sort tout droit)', grid));
+      body.appendChild(section(b.type === 'splitter' ? 'Filtre (l’objet choisi sort tout droit)' : b.type === 'sorter_inv' ? 'Filtre (l’objet choisi sort sur les côtés)' : 'Filtre (n’extraire que cet objet)', grid));
     } else if (b.items && b.items.length) {
       body.appendChild(section('Sur la case', stockChips(countBy(b.items.map(function (i) { return i.t; })))));
     }
@@ -759,7 +809,10 @@
   CO.on('land', function () { lastSig = ''; });
   CO.on('workers', function () { lastSig = ''; });
   CO.on('inspect', function () { if (CO.input.get().inspected) { if (tab !== 'info') setTab('info'); else renderSide(true); } else if (tab === 'info') renderSide(true); });
-  CO.on('selection', function () { if (tab === 'info') renderSide(true); });
+  CO.on('selection', function () {
+    if (CO.input.get().selection.length && tab !== 'info') setTab('info');   // show the batch settings
+    else if (tab === 'info') renderSide(true);
+  });
 
   // ----------------------------------------------------------------- per frame
   UI.update = function (dt) {
@@ -848,8 +901,13 @@
         out.push('Débit : ' + approx(def.speed / K.gap, 'objets/s') + ' · vitesse ' + fmtNum(def.speed, 2) + ' cases/s'); break;
       case 'tunnel_in': case 'tunnel_out':
         out.push('Débit : ' + approx(K.tunnelSpeed / K.gap, 'objets/s') + ' · jusqu’à ' + K.tunnelRange + ' cases sous terre'); break;
-      case 'router':
-        out.push('Débit : ' + approx(1 / K.routerDelay, 'objets/s') + (type === 'splitter' ? ' répartis sur 3 sorties' : ' fusionnés vers la sortie')); break;
+      case 'router': {
+        const how = { splitter: ' répartis sur 3 sorties', merger: ' fusionnés vers la sortie', overflow: ' : devant, le surplus sur les côtés',
+          underflow: ' : sur les côtés, devant quand ils sont pleins', sorter_inv: ' : l’objet filtré sur les côtés, le reste tout droit' };
+        out.push('Débit : ' + approx(1 / K.routerDelay, 'objets/s') + (how[type] || '')); break;
+      }
+      case 'junction': out.push('Débit : ' + approx(1 / K.routerDelay, 'objets/s') + ' dans chaque sens, sans mélange'); break;
+      case 'unloader': out.push('Extraction : ' + approx(1 / K.unloadDelay, 'objets/s') + ' depuis un coffre, une machine ou une foreuse voisins'); break;
       case 'chest':
         out.push('Capacité : ' + CO.chestCap(def) + ' objets · sortie ' + approx(1 / K.chestDelay, 'objets/s')); break;
       case 'driver':

@@ -60,7 +60,7 @@
         }
         b.recipe = c.r; b.crafting = false; b.prog = 0;
       }
-    } else if (b.kind === 'router') b.filter = c.f;
+    } else if (b.kind === 'router' || b.kind === 'unloader') b.filter = c.f;
     else if (b.kind === 'driver') world.setTarget(b, c.k || null);
   }
 
@@ -150,10 +150,25 @@
   /** Change recipe (machines), filter (splitters) or target ("x,y", mass drivers). `value` = id/key or null. */
   H.configure = function (b, value) {
     const a = cfgOf(b), c = { r: a.r, f: a.f, k: a.k };
-    if (b.kind === 'machine') c.r = value; else if (b.kind === 'router') c.f = value; else if (b.kind === 'driver') c.k = value; else return;
+    if (b.kind === 'machine') c.r = value; else if (b.kind === 'router' || b.kind === 'unloader') c.f = value; else if (b.kind === 'driver') c.k = value; else return;
     if (c.r === a.r && c.f === a.f && c.k === a.k) return;
     const op = { k: 'cfg', x: b.x, y: b.y, a: a, b: c };
     applyOp(op, false); push([op]);
     if (b.kind === 'machine' && value) CO.state.lastRecipe[b.type] = value;
+  };
+  /** Same recipe / filter for many buildings at once (one undo step). */
+  H.configureMany = function (list, value) {
+    const ops = [];
+    list.forEach(function (b) {
+      if (b.dead) return;
+      const a = cfgOf(b), c = { r: a.r, f: a.f, k: a.k };
+      if (b.kind === 'machine') c.r = value; else if (b.kind === 'router' || b.kind === 'unloader') c.f = value; else return;
+      if (c.r === a.r && c.f === a.f) return;
+      const op = { k: 'cfg', x: b.x, y: b.y, a: a, b: c };
+      applyOp(op, false); ops.push(op);
+      if (b.kind === 'machine' && value) CO.state.lastRecipe[b.type] = value;
+    });
+    if (ops.length) push(ops);
+    return ops.length;
   };
 })(window.CO = window.CO || {});

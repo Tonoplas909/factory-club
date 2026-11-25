@@ -7,19 +7,25 @@
   'use strict';
 
   CO.TILE = 16;            // sprite size of one tile (pixels)
-  CO.MAP_W = 240;
-  CO.MAP_H = 160;
-  // The very first 96×64 map sits in the middle of the big one: old saves are shifted by this offset.
+  CO.MAP_W = 480;
+  CO.MAP_H = 320;
+  // Older maps sit in the middle of this one, so old saves are shifted by these offsets:
+  // the very first 96×64 map (saves before rev 3) and the 240×160 one (saves before rev 6).
   CO.LEGACY_OX = (CO.MAP_W - 96) / 2;
   CO.LEGACY_OY = (CO.MAP_H - 64) / 2;
+  CO.PREV_W = 240; CO.PREV_H = 160;
+  CO.PREV_OX = (CO.MAP_W - CO.PREV_W) / 2;
+  CO.PREV_OY = (CO.MAP_H - CO.PREV_H) / 2;
   CO.MAP_CX = CO.MAP_W / 2;          // map centre = where the Port stands
   CO.MAP_CY = CO.MAP_H / 2;
   // Land: the map is cut into 16×16 plots. The game starts with the 3×3 plots around the Port; every
   // other plot is bought (it must touch owned land), each purchase LAND_GROWTH times dearer than the last.
   CO.PLOT = 16;
-  CO.PLOT_OY = 8;                                                   // rows shifted so the Port sits mid-plot
-  CO.PLOTS_W = Math.ceil(CO.MAP_W / CO.PLOT);                       // 15 columns
-  CO.PLOTS_H = Math.ceil((CO.MAP_H + CO.PLOT_OY) / CO.PLOT);        // 11 rows (first and last are half plots)
+  // the grid is shifted so the Port (map centre) sits in the middle of a plot
+  CO.PLOT_OX = ((CO.PLOT / 2 - CO.MAP_CX % CO.PLOT) % CO.PLOT + CO.PLOT) % CO.PLOT;   // 8
+  CO.PLOT_OY = ((CO.PLOT / 2 - CO.MAP_CY % CO.PLOT) % CO.PLOT + CO.PLOT) % CO.PLOT;   // 8
+  CO.PLOTS_W = Math.ceil((CO.MAP_W + CO.PLOT_OX) / CO.PLOT);        // 31 columns (first and last are half plots)
+  CO.PLOTS_H = Math.ceil((CO.MAP_H + CO.PLOT_OY) / CO.PLOT);        // 21 rows
   CO.LAND_BASE = 400;
   CO.LAND_GROWTH = 1.25;
   CO.SAVE_KEY = 'chantier-orbital-save-v1';
@@ -94,20 +100,32 @@
   // ----------------------------------------------------------- buildings
   // kind: behaviour (see sim.js). cat: palette category. tech: research needed (null = from the start).
   CO.BUILDINGS = {
-    belt:            { name: 'Convoyeur',            cat: 'Transport',  kind: 'belt',        w: 1, h: 1, cost: 1,   speed: 1.6, tech: null,
+    belt:            { name: 'Convoyeur',            cat: 'Transport',  kind: 'belt',        w: 1, h: 1, cost: 1,   speed: 1.6, tier: 0, tech: null,
                        desc: 'Transporte les objets dans le sens de la flèche. Glisse pour en poser plusieurs.' },
-    belt_fast:       { name: 'Convoyeur rapide',     cat: 'Transport',  kind: 'belt',        w: 1, h: 1, cost: 3,   speed: 3.2, tech: 'fast_belt',
+    belt_fast:       { name: 'Convoyeur rapide',     cat: 'Transport',  kind: 'belt',        w: 1, h: 1, cost: 3,   speed: 3.2, tier: 1, tech: 'fast_belt',
                        desc: 'Deux fois plus rapide qu’un convoyeur de base.' },
+    belt_armored:    { name: 'Convoyeur blindé',     cat: 'Transport',  kind: 'belt',        w: 1, h: 1, cost: 4,   speed: 4.8, tier: 2, tech: 'armored_belt',
+                       desc: 'Rails en titane : trois fois plus rapide qu’un convoyeur de base.' },
     splitter:        { name: 'Séparateur',           cat: 'Transport',  kind: 'router',      w: 1, h: 1, cost: 12,  tech: 'logistics1',
                        desc: 'Entrée par l’arrière, sortie répartie devant, à gauche et à droite. Peut recevoir un filtre : l’objet filtré sort tout droit.' },
     merger:          { name: 'Fusion',               cat: 'Transport',  kind: 'router',      w: 1, h: 1, cost: 10,  tech: 'logistics1',
                        desc: 'Fusionne jusqu’à trois flux (arrière, gauche, droite) vers une seule sortie devant.' },
+    overflow:        { name: 'Porte de débordement', cat: 'Transport',  kind: 'router',      w: 1, h: 1, cost: 14,  tech: 'logistics2',
+                       desc: 'Entrée par l’arrière. Tout sort devant ; quand devant est bloqué, le surplus part à gauche et à droite.' },
+    underflow:       { name: 'Porte de sous-débit',  cat: 'Transport',  kind: 'router',      w: 1, h: 1, cost: 14,  tech: 'logistics2',
+                       desc: 'Entrée par l’arrière. Alimente d’abord la gauche et la droite ; devant seulement quand les deux côtés sont bloqués.' },
+    junction:        { name: 'Croisement',           cat: 'Transport',  kind: 'junction',    w: 1, h: 1, cost: 8,   tech: 'logistics2',
+                       desc: 'Deux lignes se croisent sans se mélanger : chaque objet ressort en face de son entrée.' },
+    sorter_inv:      { name: 'Trieur inversé',       cat: 'Transport',  kind: 'router',      w: 1, h: 1, cost: 16,  tech: 'sorting',
+                       desc: 'Entrée par l’arrière. L’objet choisi (Infos → filtre) sort à gauche et à droite, tout le reste continue tout droit.' },
     underground_in:  { name: 'Entrée souterraine',   cat: 'Transport',  kind: 'tunnel_in',   w: 1, h: 1, cost: 15,  tech: 'tunnels',
                        desc: 'Plonge sous les autres lignes. Portée : 4 cases jusqu’à une sortie de même direction.' },
     underground_out: { name: 'Sortie souterraine',   cat: 'Transport',  kind: 'tunnel_out',  w: 1, h: 1, cost: 15,  tech: 'tunnels',
                        desc: 'Fait ressortir les objets d’une entrée souterraine alignée.' },
     chest:           { name: 'Coffre tampon',        cat: 'Transport',  kind: 'chest',       w: 1, h: 1, cost: 30,  tech: 'storage', capacity: 300,
                        desc: 'Stocke jusqu’à 300 objets pour lisser la production. Sort par la flèche.' },
+    unloader:        { name: 'Extracteur',           cat: 'Transport',  kind: 'unloader',    w: 1, h: 1, cost: 40,  tech: 'sorting',
+                       desc: 'Collé à un coffre, une machine ou une foreuse, il en tire les objets (filtre possible dans Infos) et les sort par sa flèche.' },
     // Mass driver: point-to-point long range link. range in tiles (centre to centre), volleys of `volley`
     // items every `reload` s = 4 items/s (= 8 drills = 2 heavy drills), whatever the research.
     driver:          { name: 'Catapulte magnétique', cat: 'Transport',  kind: 'driver',      w: 2, h: 2, cost: 300, tech: 'mass_driver',
@@ -145,6 +163,8 @@
     storage:       { name: 'Stockage tampon',       desc: 'Coffres pour lisser la production.',         cost: { brick: 15, plate: 10 }, req: ['logistics1'] },
     tunnels:       { name: 'Convoyeurs souterrains', desc: 'Passer sous les autres lignes.',            cost: { gear: 10, ingot_copper: 20 }, req: ['logistics1'] },
     fast_belt:     { name: 'Convoyeurs rapides',    desc: 'Des lignes deux fois plus rapides.',         cost: { gear: 25, wire: 20 }, req: ['logistics1'] },
+    logistics2:    { name: 'Aiguillages II',        desc: 'Portes de débordement et de sous-débit, croisements.', cost: { gear: 20, plate: 20 }, req: ['logistics1'] },
+    sorting:       { name: 'Tri avancé',            desc: 'Trieur inversé et extracteur.',              cost: { circuit: 15, gear: 20 }, req: ['storage', 'electronics'] },
     mass_driver:   { name: 'Catapultes magnétiques', desc: 'Envoyer les objets par salves jusqu’à 48 cases, par-dessus tout le reste.', cost: { circuit: 30, steel: 20, gear: 20 }, req: ['tunnels', 'metallurgy', 'electronics'] },
     automation1:   { name: 'Automatisation I',      desc: 'Machines 25 % plus rapides.',                cost: { gear: 20, plate: 20 }, req: [], effect: { machineSpeed: 0.25 } },
     drilling1:     { name: 'Forage renforcé',       desc: 'Foreuses 25 % plus rapides (même gain que l’Automatisation I).', cost: { plate: 20, gear: 10, ingot_iron: 20 }, req: [], effect: { drillSpeed: 0.25 } },
@@ -167,6 +187,7 @@
     probes:        { name: 'Sondes profondes',      desc: 'Recette de la sonde (chantier spatial).',    cost: { thruster: 10, processor: 20, tank: 10 }, req: ['spaceyard', 'propulsion', 'tanks'] },
     // ---- upgrades
     storage2:      { name: 'Entrepôts',             desc: 'Coffres tampons : 900 objets au lieu de 300.', cost: { alloy: 20, plate: 60, brick: 40 }, req: ['storage', 'alloys'], effect: { chestCap: 600 } },
+    armored_belt:  { name: 'Convoyeurs blindés',    desc: 'Rails en titane : des lignes trois fois plus rapides (14,5 objets/s).', cost: { ingot_titanium: 30, steel: 20 }, req: ['fast_belt', 'titanium'] },
     automation3:   { name: 'Automatisation III',    desc: 'Machines 25 % plus rapides de plus.',        cost: { alloy: 30, battery: 30 }, req: ['automation2', 'alloys', 'batteries'], effect: { machineSpeed: 0.25 } },
     automation4:   { name: 'Automatisation IV',     desc: 'Machines 25 % plus rapides de plus (retour aux cadences d’origine).', cost: { processor: 20, alloy: 40 }, req: ['automation3', 'processors'], effect: { machineSpeed: 0.25 } },
     drilling3:     { name: 'Forage au titane',      desc: 'Foreuses 25 % plus rapides de plus.',        cost: { alloy: 25, circuit: 40 }, req: ['drilling2', 'alloys'], effect: { drillSpeed: 0.25 } },
@@ -219,7 +240,8 @@
   // BUILD_TIME seconds on it. The game starts with WORKERS.start of them; more can be hired, each one
   // twice the price of the previous.
   CO.BUILD_TIME = {
-    belt: 0.2, belt_fast: 0.3, splitter: 0.4, merger: 0.4, underground_in: 0.4, underground_out: 0.4, chest: 0.4,
+    belt: 0.2, belt_fast: 0.3, belt_armored: 0.4, splitter: 0.4, merger: 0.4, overflow: 0.4, underflow: 0.4, junction: 0.3,
+    sorter_inv: 0.5, underground_in: 0.4, underground_out: 0.4, chest: 0.4, unloader: 0.6,
     drill: 0.75, smelter: 1, seller: 1, assembler: 1.5, lab: 1.5, drill_heavy: 2.5, driver: 2.5,
     steelmill: 3, fabricator: 4, spaceyard: 6
   };
