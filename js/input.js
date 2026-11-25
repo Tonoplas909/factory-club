@@ -348,9 +348,11 @@
     updateCursor(e);
     const cell = cellOf(cur);
     if (e.button === 0 && space) { drag = { kind: 'pan', lx: p.x, ly: p.y }; return; }
-    if (e.button === 1) {                     // middle button: temporary selection tool
-      setTool('select');
-      drag = { kind: 'select', start: cell, end: cell, auto: true };
+    if (e.button === 1) { drag = { kind: 'pan', lx: p.x, ly: p.y }; return; }   // middle button: move the camera, always
+    if (e.button === 0 && mods.ctrl && (tool === 'inspect' || tool === 'select')) {
+      // Ctrl + left: select. A drag selects a rectangle (which vanishes on release), a click adds or
+      // removes the building under the pointer.
+      drag = { kind: 'select', start: cell, end: cell, auto: true, ctrl: true };
       return;
     }
     if (e.button === 2) {
@@ -426,14 +428,20 @@
       case 'panclick':
         if (!d.moved) {
           const c = cellOf(cur || CO.render.screenToWorld(d.sx, d.sy)), b = under(c);
+          if (selection.blds.length && (!b || selection.blds.indexOf(b) < 0)) {   // click outside the selection: drop it
+            selection = { rect: null, blds: [] }; CO.emit('selection');
+          }
           if (!b && world.inBounds(c.x, c.y) && !CO.ownsCell(c.x, c.y)) { CO.ui.askBuyPlot(CO.plotOf(c.x, c.y)); break; }
           inspected = b; CO.emit('inspect');
         }
         break;
       case 'select': {
         const r = rectOf(d.start, d.end);
-        selection = { rect: d.auto ? null : r, blds: buildingsInRect(r) };
-        if (d.auto) tool = 'inspect';          // one-shot: buildings stay selected, the rectangle vanishes, back to inspect
+        if (d.ctrl && r.x0 === r.x1 && r.y0 === r.y1) {          // Ctrl + click: toggle one building
+          const b = under(d.start), blds = selection.blds.slice(), i = b ? blds.indexOf(b) : -1;
+          if (b && !b.def.fixed) { if (i >= 0) blds.splice(i, 1); else blds.push(b); }
+          selection = { rect: null, blds: blds };
+        } else selection = { rect: d.auto ? null : r, blds: buildingsInRect(r) };   // Ctrl-drag: the rectangle vanishes
         CO.emit('tool'); CO.emit('selection');
         break;
       }

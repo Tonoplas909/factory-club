@@ -56,9 +56,9 @@ Aucune étape de build : le site est statique. Les chemins sont relatifs, donc i
 | Outils | `V` Inspecter · `E` Sélection · `X` Supprimer · `1`…`9`, `0` bâtiments |
 | Copier / couper / coller une disposition | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` (`R` tourne le collage) |
 | Annuler / rétablir | `Ctrl+Z` / `Ctrl+Y` |
-| Déplacer la caméra | Flèches, WASD, ZQSD, ou Espace + glisser (ou glisser en mode Inspecter) |
 | Bulles d'infos | Survoler une ressource, un bâtiment de la palette, un bouton ou un gisement : nom, prix, et toutes les cadences (objets/s des convoyeurs, recettes des machines, extraction des foreuses) avec les recherches en cours |
-| Sélection rapide | Clic molette + glisser : rectangle de sélection, puis retour automatique à l'outil Inspecter |
+| Sélection | Ctrl + clic gauche : glisser = rectangle (il disparaît au relâchement, les bâtiments restent sélectionnés), clic = ajouter / retirer un bâtiment. Un clic simple sur un bâtiment non sélectionné ou dans le vide désélectionne tout |
+| Déplacer la caméra | Clic molette + glisser (avec n'importe quel outil), Espace + glisser, glisser en mode Inspecter, flèches, WASD / ZQSD |
 | Relier deux catapultes magnétiques | Inspecter la catapulte de départ → **Choisir la cible** → clic sur la catapulte d'arrivée (`Échap` ou clic droit pour annuler) |
 | Enchaîner les recherches | Onglet Recherche : **+ File d'attente** ; la suivante démarre seule à la fin de la recherche en cours |
 | Zoom | Molette, `+` / `-` |
