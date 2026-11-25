@@ -83,8 +83,9 @@
   }
 
   function ensureTerrain() {
-    if (terrain && terrainKey === String(world.seed)) return;
-    terrain = sprites.terrain(); terrainKey = String(world.seed);
+    const key = world.seed + ':' + world.oreRev;
+    if (terrain && terrainKey === key) return;
+    terrain = sprites.terrain(); terrainKey = key;
   }
 
   function drawStars() {
@@ -122,6 +123,7 @@
     }
     ctx.strokeStyle = 'rgba(255,211,127,0.35)'; ctx.lineWidth = 2;
     ctx.strokeRect(ox, oy, W * ts, H * ts);
+    drawLand(x0, y0, x1, y1);
 
     const ov = CO.input ? CO.input.getOverlay() : null;
     const list = world.list, vis = [];
@@ -136,7 +138,7 @@
     ctx.fillStyle = 'rgba(0,0,0,0.38)';
     for (let i = 0; i < vis.length; i++) {
       const b = vis[i];
-      if (b.kind === 'belt') continue;
+      if (b.kind === 'belt' || b.site) continue;
       const inset = b.w === 1 ? ts * 0.06 : 0;
       ctx.fillRect(ox + b.x * ts + so + inset, oy + b.y * ts + so + inset, b.w * ts - inset * 2, b.h * ts - inset * 2);
     }
@@ -155,6 +157,13 @@
         const busy = b.status === 'work' || b.kind === 'port' || (b.kind === 'lab' && CO.state.research);
         const f = busy ? Math.floor(time * (b.kind === 'port' ? 1.5 : 7)) % nf : 0;
         spr = sprites.building(b.type, b.dir, f);
+      }
+      if (b.site) {                                   // construction site: see-through, filling up as it is built
+        ctx.globalAlpha = 0.25 + 0.45 * (b.site.p / b.site.t);
+        ctx.drawImage(spr, 0, 0, spr.width, spr.height, px, py, b.w * ts, b.h * ts);
+        ctx.globalAlpha = 1;
+        drawSite(b, px, py, time);
+        continue;
       }
       ctx.drawImage(spr, 0, 0, spr.width, spr.height, px, py, b.w * ts, b.h * ts);
     }
@@ -189,6 +198,7 @@
 
     // 3. overlays: output arrows, recipe icons, status LEDs
     for (let i = 0; i < vis.length; i++) {
+      if (vis[i].site) continue;
       const b = vis[i], px = ox + b.x * ts, py = oy + b.y * ts, cx = px + b.w * ts / 2, cy = py + b.h * ts / 2;
       const k = b.kind;
       if (k === 'machine' || k === 'drill') {
@@ -247,6 +257,8 @@
 
     drawShots(time);
 
+    drawWorkers(time);
+
     // 4. floating texts
     const fx = CO.fx;
     for (let i = fx.length - 1; i >= 0; i--) {
@@ -262,6 +274,102 @@
 
     if (ov) drawOverlay(ov, time);
   };
+
+  // ------------------------------------------------------------ builders
+  /** Site frame: dashed yellow outline (marching while a worker builds it) and a progress bar. */
+  function drawSite(b, px, py, time) {
+    const w = b.w * ts, hh = b.h * ts, lw = Math.max(1, Math.round(ts / 16)), working = !!(b.site.w && b.site.w.building);
+    ctx.save();
+    ctx.setLineDash([Math.max(2, ts * 0.2), Math.max(2, ts * 0.14)]);
+    ctx.lineDashOffset = working ? -time * ts * 0.8 : 0;
+    ctx.strokeStyle = working ? ACC : 'rgba(255,211,127,0.55)'; ctx.lineWidth = lw;
+    ctx.strokeRect(px + lw, py + lw, w - lw * 2, hh - lw * 2);
+    ctx.restore();
+    if (b.site.p > 0) {
+      const bh = Math.max(2, Math.round(ts * 0.1)), bw = w - ts * 0.3;
+      ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.15 - 1, py + hh - ts * 0.22 - 1, bw + 2, bh + 2);
+      ctx.fillStyle = ACC; ctx.fillRect(px + ts * 0.15, py + hh - ts * 0.22, bw * (b.site.p / b.site.t), bh);
+    }
+  }
+  /** The workers: tiny astronauts with a jetpack, a flame when flying and a welding beam when building. */
+  function drawWorkers(time) {
+    const ws = CO.sim.workers;
+    if (!ws.length) return;
+    const u = Math.max(1, ts / 22);                   // one "pixel" of the little guy
+    for (let i = 0; i < ws.length; i++) {
+      const wk = ws[i], cx = ox + wk.x * ts, cy = oy + wk.y * ts;
+      if (cx < -ts || cy < -ts || cx > cw + ts || cy > ch + ts) continue;
+      const bob = Math.round(Math.sin(time * 5 + i * 1.7) * u * 1.2), by = cy - u * 6 + bob, f = wk.face;
+      // ground shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(cx - u * 3, cy + u * 3, u * 6, u * 1.5);
+      if (wk.building && wk.job && !wk.job.dead) {     // welding beam to a flickering point of the site
+        const j = wk.job, k = time * 9 + i;
+        const tx = ox + (j.x + j.w * (0.5 + 0.35 * Math.sin(k))) * ts, ty = oy + (j.y + j.h * (0.5 + 0.35 * Math.cos(k * 1.3))) * ts;
+        ctx.strokeStyle = 'rgba(255,211,127,0.85)'; ctx.lineWidth = Math.max(1, u);
+        ctx.beginPath(); ctx.moveTo(cx + f * u * 3, by + u * 2); ctx.lineTo(tx, ty); ctx.stroke();
+        ctx.fillStyle = '#fff6d8'; ctx.fillRect(tx - u, ty - u, u * 2, u * 2);
+      }
+      const R = function (x, y, w, h, col) {          // x mirrored with the facing direction
+        const X = f > 0 ? x : -x - w;
+        ctx.fillStyle = OUT; ctx.fillRect(cx + X * u - u * 0.6, by + y * u - u * 0.6, w * u + u * 1.2, h * u + u * 1.2);
+        ctx.fillStyle = col; ctx.fillRect(cx + X * u, by + y * u, w * u, h * u);
+      };
+      if (wk.moving) {                                  // jetpack flame
+        const fl = 2 + (Math.floor(time * 20 + i) % 2);
+        ctx.fillStyle = '#ffb347'; ctx.fillRect(cx + (f > 0 ? -4 : 2) * u, by + 5 * u, u * 2, u * fl);
+        ctx.fillStyle = '#fff6d8'; ctx.fillRect(cx + (f > 0 ? -3.5 : 2.5) * u, by + 5 * u, u, u * (fl - 1));
+      }
+      R(-4, -1, 2, 6, '#5f616c');                       // jetpack
+      R(-2, 4, 1.6, 2, '#868895'); R(0.4, 4, 1.6, 2, '#868895');   // legs
+      R(-2, -1, 4, 5, '#b4b6c0');                       // suit
+      R(-2.5, -5, 5, 4, '#e8e8ee');                     // helmet
+      R(0, -4, 2.5, 2, ACC);                            // visor
+    }
+  }
+
+  // ------------------------------------------------------------- land
+  function plotBox(p) {
+    const r = CO.plotRect(p);
+    return { x: ox + r.x0 * ts, y: oy + r.y0 * ts, w: (r.x1 - r.x0 + 1) * ts, h: (r.y1 - r.y0 + 1) * ts };
+  }
+  /** Land not bought yet is dimmed (its ore stays readable); a yellow line follows the edge of owned land. */
+  function drawLand(x0, y0, x1, y1) {
+    const land = CO.state.land, PW = CO.PLOTS_W, PH = CO.PLOTS_H;
+    const p0 = CO.plotOf(x0, y0), p1 = CO.plotOf(x1, y1);
+    const px0 = p0 % PW, py0 = Math.floor(p0 / PW), px1 = p1 % PW, py1 = Math.floor(p1 / PW);
+    const edge = new Path2D(), frames = new Path2D();
+    for (let py = py0; py <= py1; py++) for (let px = px0; px <= px1; px++) {
+      const p = py * PW + px, b = plotBox(p);
+      if (!land[p]) {
+        ctx.fillStyle = CO.plotBuyable(p) ? 'rgba(8,8,11,0.5)' : 'rgba(8,8,11,0.72)';
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        frames.rect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+        continue;
+      }
+      if (px > 0 && !land[p - 1]) { edge.moveTo(b.x, b.y); edge.lineTo(b.x, b.y + b.h); }
+      if (px < PW - 1 && !land[p + 1]) { edge.moveTo(b.x + b.w, b.y); edge.lineTo(b.x + b.w, b.y + b.h); }
+      if (py > 0 && !land[p - PW]) { edge.moveTo(b.x, b.y); edge.lineTo(b.x + b.w, b.y); }
+      if (py < PH - 1 && !land[p + PW]) { edge.moveTo(b.x, b.y + b.h); edge.lineTo(b.x + b.w, b.y + b.h); }
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1; ctx.stroke(frames);
+    ctx.strokeStyle = 'rgba(255,211,127,0.6)'; ctx.lineWidth = Math.max(2, Math.round(ts / 10)); ctx.stroke(edge);
+  }
+  /** The plot under the cursor when it is not owned: dashed frame, and its price when it can be bought. */
+  function drawPlotHover(p) {
+    const b = plotBox(p), ok = CO.plotBuyable(p), lw = Math.max(2, Math.round(ts / 10));
+    ctx.fillStyle = ok ? 'rgba(255,211,127,0.07)' : 'rgba(229,84,84,0.06)';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.setLineDash([Math.max(4, ts * 0.5), Math.max(3, ts * 0.3)]);
+    ctx.strokeStyle = ok ? ACC : 'rgba(229,84,84,0.75)'; ctx.lineWidth = lw;
+    ctx.strokeRect(b.x + lw / 2, b.y + lw / 2, b.w - lw, b.h - lw);
+    ctx.setLineDash([]);
+    const label = ok ? CO.fmt(CO.landPrice()) + ' ¢' : 'Hors d’atteinte';
+    ctx.font = 'bold ' + Math.round(CO.clamp(ts * 0.9, 12, 30)) + 'px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const tx = b.x + b.w / 2, ty = b.y + b.h / 2;
+    ctx.fillStyle = OUT; ctx.fillText(label, tx + 2, ty + 2);
+    ctx.fillStyle = !ok ? '#e55454' : CO.state.money >= CO.landPrice() ? ACC : '#e55454';
+    ctx.fillText(label, tx, ty);
+  }
 
   // ------------------------------------------------------ mass drivers
   function centre(b) { return [ox + (b.x + b.w / 2) * ts, oy + (b.y + b.h / 2) * ts]; }
@@ -316,6 +424,7 @@
 
   function drawOverlay(ov, time) {
     const lw = Math.max(2, Math.round(ts / 12));
+    if (ov.plot >= 0) drawPlotHover(ov.plot);
     if (ov.hover) outline(ov.hover, 'rgba(255,255,255,0.7)', lw);
     for (let i = 0; i < ov.selected.length; i++) outline(ov.selected[i], ACC, lw);
     for (let i = 0; i < ov.deleting.length; i++) {

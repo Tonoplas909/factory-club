@@ -108,6 +108,8 @@
       row('Clic molette + glisser', 'Sélection rectangulaire (puis retour à l’outil Inspecter)'),
       row('Catapulte magnétique', 'Inspecte la catapulte de départ, « Choisir la cible », puis clique sur celle d’arrivée (48 cases max)'),
       row('Recherche', '« + File d’attente » enchaîne les recherches ; les laboratoires mettent en réserve ce qui servira plus tard'),
+      row('Ouvriers', 'Un bâtiment posé est un chantier : un ouvrier part du Port le construire. Recrute-en d’autres dans l’onglet Station'),
+      row('Terrain', 'Clic sur une parcelle assombrie qui touche ton terrain pour l’acheter (chaque achat coûte 25 % de plus que le précédent)'),
       row('Tablette', 'Un doigt : outil actif · deux doigts : déplacer et zoomer'));
     openModal('Commandes', h('div', null,
       h('p', { text: 'Objectif : extraire, transformer, puis livrer les pièces au Port pour assembler la station. Pas de chronomètre : prends ton temps.' }), tbl,
@@ -245,6 +247,9 @@
     $('money-val').textContent = CO.fmt(st.money) + ' ¢';
     const r = CO.sim.moneyPerMin();
     $('money-rate').textContent = r >= 1 ? '+' + CO.fmt(r) + '/min' : '';
+    const busy = CO.sim.busyWorkers(), wait = CO.world.sites.length - busy;
+    $('workers-val').textContent = busy + '/' + st.workers;
+    $('workers-wait').textContent = wait > 0 ? wait + ' en attente' : '';
     const total = CO.PHASES.length;
     const label = st.phase < total ? 'Station · étape ' + (st.phase + 1) + '/' + total + ' · ' + p.name : 'Station en orbite · ' + p.name;
     $('phase-label').textContent = label + ' · ' + Math.floor(pr * 100) + ' %';
@@ -328,6 +333,19 @@
           hint ? h('div', { class: 'lock', text: '🔒 ' + hint }) : null)));
     }
     body.appendChild(h('p', { class: 'small', text: 'Récompense : ' + CO.fmt(p.reward) + ' ¢. Livre les objets au Port (4×4 au centre de la carte) ; le surplus est revendu.' }));
+    const owned = st.land.reduce(function (a, v) { return a + v; }, 0);
+    body.appendChild(section('Terrain', h('div', null,
+      h('div', { class: 'need-top' }, h('span', { text: owned + ' parcelles sur ' + st.land.length }), h('b', { text: 'Prochaine : ' + CO.fmt(CO.landPrice()) + ' ¢' })),
+      h('p', { class: 'small', text: 'Clique sur une parcelle assombrie qui touche ton terrain pour l’acheter. Chaque achat coûte 25 % de plus que le précédent ; le titane se trouve loin du Port.' }))));
+    const wp = CO.workerPrice();
+    body.appendChild(section('Ouvriers', h('div', null,
+      h('div', { class: 'need-top' }, h('span', { text: st.workers + ' ouvrier(s) sur ' + CO.WORKERS.max }), h('b', { text: wp == null ? 'Équipe au complet' : 'Recrue : ' + CO.fmt(wp) + ' ¢' })),
+      h('p', { class: 'small', text: 'Chaque bâtiment posé est un chantier : un ouvrier part du Port, vole jusqu’à lui et le construit (de ' + fmtTime(CO.BUILD_TIME.belt) + ' pour un convoyeur à ' + fmtTime(CO.BUILD_TIME.spaceyard) + ' pour un Chantier spatial). Plus d’ouvriers = plus de chantiers en même temps.' }),
+      wp == null ? null : h('button', { class: 'btn primary', text: 'Recruter un ouvrier · ' + CO.fmt(wp) + ' ¢', onclick: function () {
+        const err = CO.hireWorker();
+        if (err) CO.emit('toast', err + ' (il faut ' + CO.fmt(wp) + ' ¢).', 'warn');
+        else { CO.emit('toast', 'Nouvel ouvrier recruté : ' + CO.state.workers + ' en tout.', 'good'); CO.save.save(); }
+      } }))));
     const list = h('div', { class: 'phase-list' });
     for (let i = 0; i < total; i++) {
       list.appendChild(h('div', { class: 'phase-row' + (i < st.phase ? ' done' : i === st.phase ? ' cur' : '') }, h('span', { text: i < st.phase ? '✔' : String(i + 1) }), h('span', { text: CO.PHASES[i].name })));
@@ -335,6 +353,28 @@
     if (st.phase >= total) list.appendChild(h('div', { class: 'phase-row done' }, h('span', { text: '∞' }), h('span', { text: (st.phase - total) + ' extension(s) terminée(s)' })));
     body.appendChild(list);
   }
+
+  // ------------------------------------------------------------ land purchase
+  /** Confirmation dialog to buy plot `p` (or a toast explaining why it cannot be bought). */
+  UI.askBuyPlot = function (p) {
+    if (UI.modalOpen()) return;
+    const st = CO.state, price = CO.landPrice();
+    if (!CO.plotBuyable(p)) { CO.emit('toast', 'Ce terrain est hors d’atteinte : achète d’abord une parcelle qui touche le tien.', 'warn'); return; }
+    const raw = CO.plotOre(p), ore = {}, r = CO.plotRect(p), w = r.x1 - r.x0 + 1, hh = r.y1 - r.y0 + 1;
+    Object.keys(raw).sort(function (a, b) { return raw[b] - raw[a]; }).forEach(function (k) { ore[k] = raw[k]; });
+    const body = h('div', null,
+      h('p', { text: 'Parcelle de ' + w + '×' + hh + ' cases. Une fois achetée, tu peux y construire.' }),
+      section('Gisements (cases)', stockChips(ore)),
+      h('p', { class: 'small', text: 'Prix : ' + CO.fmt(price) + ' ¢ · tu as ' + CO.fmt(Math.floor(st.money)) + ' ¢. La parcelle suivante coûtera ' + CO.fmt(CO.landPrice(st.landBought + 1)) + ' ¢.' }));
+    const can = st.money >= price;
+    if (!can) body.appendChild(h('p', { class: 'small', style: 'color:var(--bad)', text: 'Il te manque ' + CO.fmt(Math.ceil(price - st.money)) + ' ¢.' }));
+    openModal('Acheter ce terrain ?', body, can ? [{ label: 'Annuler' }, { label: 'Acheter · ' + CO.fmt(price) + ' ¢', primary: true, run: function () {
+      const err = CO.buyPlot(p);
+      if (err) { CO.emit('toast', err + '.', 'warn'); return; }
+      CO.emit('toast', 'Terrain acheté pour ' + CO.fmt(price) + ' ¢. Prochain : ' + CO.fmt(CO.landPrice()) + ' ¢.', 'good');
+      CO.save.save();
+    } }] : [{ label: 'Fermer' }]);
+  };
 
   function depthOf(id, memo) {
     if (memo[id] != null) return memo[id];
@@ -482,6 +522,7 @@
   function pill(cls, text) { return h('span', { class: 'pill ' + cls }, h('i'), text); }
 
   function statusPill(b) {
+    if (b.site) return b.site.w ? pill('info', 'En construction') : pill('warn', 'Attend un ouvrier');
     switch (b.kind) {
       case 'machine':
         if (!b.recipe) return pill('warn', 'Recette à choisir');
@@ -503,6 +544,7 @@
     }
   }
   function statusHelp(b) {
+    if (b.site) return b.site.w ? 'Un ouvrier s’en occupe : ' + fmtTime(b.site.t) + ' de travail une fois sur place.' : 'Tous les ouvriers sont occupés : il sera construit dès qu’un se libère (recrute-en d’autres dans l’onglet Station).';
     if ((b.kind === 'machine' || b.kind === 'drill') && b.status === 'blocked') return 'Relie la flèche jaune à un convoyeur (ou à un bâtiment qui accepte la production).';
     if (b.kind === 'machine' && b.recipe && b.status === 'idle') return 'Amène les matières par convoyeur sur n’importe quel côté, sauf la sortie.';
     if (b.kind === 'drill' && !b.ore) return 'Déplace la foreuse sur un gisement coloré.';
@@ -585,6 +627,11 @@
     body.appendChild(h('div', { class: 'icard' }, statusPill(b), help ? h('div', { class: 'help', text: help }) : null,
       h('p', { class: 'small', text: b.def.desc })));
 
+    if (b.site) {                                  // a site: only its progress (and, for machines, the recipe to preset)
+      body.appendChild(section('Construction', progressBar(b, function () { return b.site ? b.site.p / b.site.t : 1; })));
+      if (b.kind !== 'machine') return;
+    }
+
     // ---- per kind
     if (b.kind === 'machine') {
       const grid = h('div', { class: 'grid' });
@@ -597,7 +644,7 @@
         }, itemIcon(out, 3), h('span', { text: itemName(out) }), ok ? null : h('em', { text: '🔒' })));
       });
       body.appendChild(section('Recette', grid));
-      if (b.recipe) {
+      if (b.recipe && !b.site) {
         const rec = RECIPES[b.recipe];
         body.appendChild(section('Production', flowCard(rec)));
         body.appendChild(section('Cycle en cours', progressBar(b, function () { return b.crafting ? b.prog / CO.craftTime(rec) : 0; })));
@@ -671,7 +718,7 @@
         if (!b || b.dead) return 'none' + sel;
         const labSig = b.kind === 'lab' ? JSON.stringify(st.researchProg) + JSON.stringify(st.researchBank) + st.researchQueue.join() : '';
         const drvSig = b.kind === 'driver' ? (b.target || '') + ':' + !!CO.sim.driverTarget(b) : '';
-        return b.id + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest + labSig + drvSig;
+        return b.id + ':' + (b.site ? 'S' + !!b.site.w : '') + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest + labSig + drvSig;
       }
     }
     return '';
@@ -703,6 +750,8 @@
   CO.on('unlock', function () { buildPalette(); });
   CO.on('loaded', function () { buildPalette(); lastSig = ''; renderSide(true); });
   CO.on('research', function () { lastSig = ''; });
+  CO.on('land', function () { lastSig = ''; });
+  CO.on('workers', function () { lastSig = ''; });
   CO.on('inspect', function () { if (CO.input.get().inspected) { if (tab !== 'info') setTab('info'); else renderSide(true); } else if (tab === 'info') renderSide(true); });
   CO.on('selection', function () { if (tab === 'info') renderSide(true); });
 
@@ -721,6 +770,7 @@
   let tipEl = null, tipOre = -1;
   function updateOreTip() {
     const hv = CO.input.hoverInfo();
+    if (hv && hv.mouse && !hv.b && !UI.modalOpen() && CO.world.inBounds(hv.x, hv.y) && !CO.ownsCell(hv.x, hv.y)) { landTip(hv); return; }
     const show = hv && hv.mouse && hv.ore && !hv.b && !UI.modalOpen();
     if (!show) { tipEl.hidden = true; tipOre = -1; return; }
     if (tipOre !== hv.ore) {                               // rebuild only when the hovered ore changes
@@ -729,6 +779,25 @@
       tipEl.innerHTML = '';
       tipEl.appendChild(itemIcon(id, 3));
       tipEl.appendChild(h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · Foreuse : ' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill) + ', Foreuse lourde : ' + fmtRate(BUILDINGS.drill_heavy.rate * CO.mods.drill) + ' (pleine couverture)' })));
+    }
+    tipEl.hidden = false;
+    const w = tipEl.offsetWidth, hh = tipEl.offsetHeight;
+    tipEl.style.left = Math.min(hv.sx + 16, window.innerWidth - w - 8) + 'px';
+    tipEl.style.top = Math.min(hv.sy + 18, window.innerHeight - hh - 8) + 'px';
+  }
+
+  /** Tooltip over land not bought yet: price, reachability and the ore it holds. */
+  function landTip(hv) {
+    const p = CO.plotOf(hv.x, hv.y), ok = CO.plotBuyable(p), price = CO.landPrice(), rich = CO.state.money >= price;
+    const key = 'L' + p + ':' + ok + ':' + price + ':' + rich;
+    if (tipOre !== key) {
+      tipOre = key;
+      tipEl.innerHTML = '';
+      const ore = CO.plotOre(p), ids = Object.keys(ore).sort(function (a, b) { return ore[b] - ore[a]; });
+      tipEl.appendChild(h('span', null,
+        h('b', { text: ok ? 'Terrain à vendre · ' + CO.fmt(price) + ' ¢' : 'Terrain hors d’atteinte' }),
+        h('small', { text: (ids.length ? 'Gisements : ' + ids.map(function (id) { return itemName(id) + ' (' + ore[id] + ')'; }).join(', ') : 'Aucun gisement') }),
+        h('small', { text: !ok ? 'Achète d’abord une parcelle qui touche ton terrain.' : rich ? 'Clic : acheter cette parcelle.' : 'Il te manque ' + CO.fmt(Math.ceil(price - CO.state.money)) + ' ¢.' })));
     }
     tipEl.hidden = false;
     const w = tipEl.offsetWidth, hh = tipEl.offsetHeight;

@@ -14,6 +14,14 @@
   CO.LEGACY_OY = (CO.MAP_H - 64) / 2;
   CO.MAP_CX = CO.MAP_W / 2;          // map centre = where the Port stands
   CO.MAP_CY = CO.MAP_H / 2;
+  // Land: the map is cut into 16×16 plots. The game starts with the 3×3 plots around the Port; every
+  // other plot is bought (it must touch owned land), each purchase LAND_GROWTH times dearer than the last.
+  CO.PLOT = 16;
+  CO.PLOT_OY = 8;                                                   // rows shifted so the Port sits mid-plot
+  CO.PLOTS_W = Math.ceil(CO.MAP_W / CO.PLOT);                       // 15 columns
+  CO.PLOTS_H = Math.ceil((CO.MAP_H + CO.PLOT_OY) / CO.PLOT);        // 11 rows (first and last are half plots)
+  CO.LAND_BASE = 400;
+  CO.LAND_GROWTH = 1.25;
   CO.SAVE_KEY = 'chantier-orbital-save-v1';
 
   // ---------------------------------------------------------------- items
@@ -206,4 +214,14 @@
   };
 
   CO.START_MONEY = 300;
+
+  // Builders: a placed building is only a site until a worker has flown there from the Port and spent
+  // BUILD_TIME seconds on it. The game starts with WORKERS.start of them; more can be hired, each one
+  // twice the price of the previous.
+  CO.BUILD_TIME = {
+    belt: 0.2, belt_fast: 0.3, splitter: 0.4, merger: 0.4, underground_in: 0.4, underground_out: 0.4, chest: 0.4,
+    drill: 0.75, smelter: 1, seller: 1, assembler: 1.5, lab: 1.5, drill_heavy: 2.5, driver: 2.5,
+    steelmill: 3, fabricator: 4, spaceyard: 6
+  };
+  CO.WORKERS = { start: 3, max: 12, base: 2500, speed: 8 };   // speed in tiles per second
 })(window.CO = window.CO || {});

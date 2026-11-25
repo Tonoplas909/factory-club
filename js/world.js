@@ -27,16 +27,27 @@
     oreAt: function (x, y) { return this.inBounds(x, y) ? this.ore[y * W + x] : 0; },
 
     /** Remove everything, regenerate ore patches from `seed` and drop the station port. */
+    sites: [],         // buildings waiting for (or under) construction, see makeSite
+
     reset: function (seed) {
-      this.cells.fill(null); this.list.length = 0; this.nextId = 1; this.version++;
+      this.cells.fill(null); this.list.length = 0; this.sites.length = 0; this.nextId = 1; this.version++;
       this.seed = seed;
       this.generateOre(seed);
       this.port = this.create('port', CO.MAP_CX - 2, CO.MAP_CY - 2, 0, null);
     },
 
+    /** Remove titanium from the plots owned at the start (it must be bought; see state.js). */
+    clearStartTitanium: function () {
+      const land = CO.startLand();
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        if (this.ore[y * W + x] === 6 && land[CO.plotOf(x, y)]) this.ore[y * W + x] = 0;
+      }
+      this.oreRev = (this.oreRev || 0) + 1;      // the terrain picture must be redrawn
+    },
+
     /** Place ore patches around the map. Positions are jittered by the seed. */
     generateOre: function (seed) {
-      this.ore.fill(0);
+      this.ore.fill(0); this.oreRev = (this.oreRev || 0) + 1;
       const rnd = CO.rng(seed * 7919 + 13);
       const OX = CO.LEGACY_OX, OY = CO.LEGACY_OY;
       // [ore id, centre x, centre y, radius]
@@ -113,6 +124,7 @@
         for (let i = 0; i < def.w; i++) {
           const cx = x + i, cy = y + j;
           if (!this.inBounds(cx, cy)) return { ok: false, reason: 'Hors de la carte' };
+          if (!CO.ownsCell(cx, cy)) return { ok: false, reason: 'Terrain non acheté' };
           const o = this.cells[cy * W + cx];
           if (o) {
             const swappable = !o.def.fixed && o.w === 1 && o.h === 1 &&
@@ -165,8 +177,25 @@
       }
       const idx = this.list.indexOf(b);
       if (idx >= 0) this.list.splice(idx, 1);
+      if (b.site) { const s = this.sites.indexOf(b); if (s >= 0) this.sites.splice(s, 1); }
       b.dead = true;
       this.version++;
+    },
+
+    /** Turn a freshly created building into a construction site (`done` seconds of work already spent).
+     *  A site takes up its cells but does nothing until a worker finishes it. */
+    makeSite: function (b, done) {
+      const t = CO.BUILD_TIME[b.type] || 1;
+      b.site = { t: t, p: Math.min(t * 0.999, Math.max(0, done || 0)), w: null };
+      this.sites.push(b);
+      this.version++;
+    },
+    finishSite: function (b) {
+      if (!b.site) return;
+      b.site = null;
+      const s = this.sites.indexOf(b); if (s >= 0) this.sites.splice(s, 1);
+      this.version++;
+      CO.emit('built', b);
     },
 
     setDir: function (b, dir) { b.dir = dir; this.refreshGeometry(b); this.version++; },
@@ -197,6 +226,7 @@
       if (b.recipe) o.r = b.recipe;
       if (b.filter) o.f = b.filter;
       if (b.target) o.k = b.target;
+      if (b.site) o.s = Math.round(b.site.p * 100) / 100;          // seconds of work already spent on the site
       if (b.items && b.items.length) o.i = b.items.map(function (it) { return [it.t, Math.round(it.p * 100) / 100, it.f]; });
       if (b.q && b.q.length) o.q = b.q.slice();
       if (b.kind === 'driver') {                       // items still flying are saved back into their launcher
@@ -222,6 +252,7 @@
         if (!def || def.fixed || !(o.d >= 0 && o.d < 4)) continue;
         if (!this.check(o.t, o.x, o.y, o.d).ok) continue;
         const b = this.create(o.t, o.x, o.y, o.d, { recipe: o.r, filter: o.f, target: o.k });
+        if (o.s != null) this.makeSite(b, Number(o.s) || 0);
         if (o.i && b.items) b.items = o.i.filter(function (a) { return CO.ITEMS[a[0]]; }).map(function (a) { return { t: a[0], p: a[1], f: a[2] }; });
         if (o.q && b.q) b.q = o.q.filter(function (t) { return CO.ITEMS[t]; });
         if (o.ib && b.inBuf) b.inBuf = o.ib;

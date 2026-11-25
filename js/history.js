@@ -30,7 +30,8 @@
     if (k === 'add') {
       if (!world.check(op.t, op.x, op.y, op.d).ok) return;
       st.money -= BUILDINGS[op.t].cost;
-      world.create(op.t, op.x, op.y, op.d, { recipe: op.c.r, filter: op.c.f, target: op.c.k });
+      const b = world.create(op.t, op.x, op.y, op.d, { recipe: op.c.r, filter: op.c.f, target: op.c.k });
+      world.makeSite(b, 0);                           // a worker has to come and build it
     } else if (k === 'del') {
       const b = world.at(op.x, op.y);
       if (b && b.type === op.t && !b.def.fixed) { st.money += BUILDINGS[op.t].cost; world.remove(b); }

@@ -8,6 +8,70 @@
   CO.mods = { machine: 1, drill: 1, chest: 0 };   // research bonuses (speed multipliers, extra chest capacity)
   CO.cam = { x: CO.MAP_CX, y: CO.MAP_CY, zoom: 32 };  // camera centre (tiles) and zoom (CSS px per tile)
 
+  // --------------------------------------------------------------- land
+  /** Plot index of cell (x, y). */
+  CO.plotOf = function (x, y) { return Math.floor((y + CO.PLOT_OY) / CO.PLOT) * CO.PLOTS_W + Math.floor(x / CO.PLOT); };
+  /** Cells covered by plot `p` (inclusive bounds, clipped to the map). */
+  CO.plotRect = function (p) {
+    const px = p % CO.PLOTS_W, py = Math.floor(p / CO.PLOTS_W);
+    const x0 = px * CO.PLOT, y0 = py * CO.PLOT - CO.PLOT_OY;
+    return { x0: Math.max(0, x0), y0: Math.max(0, y0), x1: Math.min(CO.MAP_W - 1, x0 + CO.PLOT - 1), y1: Math.min(CO.MAP_H - 1, y0 + CO.PLOT - 1) };
+  };
+  /** The 3×3 plots around the Port, owned from the start. */
+  CO.startLand = function () {
+    const land = new Array(CO.PLOTS_W * CO.PLOTS_H).fill(0), c = CO.plotOf(CO.MAP_CX, CO.MAP_CY);
+    const cx = c % CO.PLOTS_W, cy = Math.floor(c / CO.PLOTS_W);
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) land[(cy + j) * CO.PLOTS_W + cx + i] = 1;
+    return land;
+  };
+  CO.ownsCell = function (x, y) { return CO.state.land[CO.plotOf(x, y)] === 1; };
+  /** Price of the next plot (or of the n-th bought one): LAND_BASE × LAND_GROWTH^n, two significant digits. */
+  CO.landPrice = function (n) {
+    const p = CO.LAND_BASE * Math.pow(CO.LAND_GROWTH, n == null ? CO.state.landBought : n), m = Math.pow(10, Math.floor(Math.log10(p)) - 1);
+    return Math.round(p / m) * m;
+  };
+  /** A plot can be bought when it is not owned yet and touches owned land (by a side). */
+  CO.plotBuyable = function (p) {
+    const land = CO.state.land, px = p % CO.PLOTS_W, py = Math.floor(p / CO.PLOTS_W);
+    if (land[p]) return false;
+    return (px > 0 && land[p - 1] === 1) || (px < CO.PLOTS_W - 1 && land[p + 1] === 1) ||
+      (py > 0 && land[p - CO.PLOTS_W] === 1) || (py < CO.PLOTS_H - 1 && land[p + CO.PLOTS_W] === 1);
+  };
+  /** Buy plot `p`. Returns '' on success, else the reason it failed. */
+  CO.buyPlot = function (p) {
+    const st = CO.state, price = CO.landPrice();
+    if (!CO.plotBuyable(p)) return st.land[p] ? 'Déjà à toi' : 'Ce terrain doit toucher le tien';
+    if (st.money < price) return 'Pas assez d’argent';
+    st.money -= price; st.land[p] = 1; st.landBought++;
+    CO.emit('land');
+    return '';
+  };
+  // ------------------------------------------------------------ workers
+  /** Price of the next worker (null when the crew is full). */
+  CO.workerPrice = function () {
+    const w = CO.WORKERS, n = CO.state.workers;
+    return n >= w.max ? null : w.base * Math.pow(2, n - w.start);
+  };
+  /** Hire one more worker. Returns '' on success, else the reason it failed. */
+  CO.hireWorker = function () {
+    const price = CO.workerPrice();
+    if (price == null) return 'Équipe au complet';
+    if (CO.state.money < price) return 'Pas assez d’argent';
+    CO.state.money -= price; CO.state.workers++;
+    CO.emit('workers');
+    return '';
+  };
+
+  /** Ore cells of each type inside plot `p`: {itemId: cells}. */
+  CO.plotOre = function (p) {
+    const r = CO.plotRect(p), out = {};
+    for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {
+      const o = CO.world.oreAt(x, y);
+      if (o) { const id = CO.ORE_IDS[o]; out[id] = (out[id] || 0) + 1; }
+    }
+    return out;
+  };
+
   function freshState(seed) {
     return {
       v: 1,
@@ -22,7 +86,10 @@
       phaseHave: {},         // delivered items for the current phase
       stats: { produced: {}, sold: 0, delivered: 0 },
       time: 0,               // simulated seconds
-      lastRecipe: {}         // remembered recipe per machine type
+      lastRecipe: {},        // remembered recipe per machine type
+      land: CO.startLand(),  // 1 per owned plot (index = row * PLOTS_W + column)
+      landBought: 0,         // plots bought so far (sets the price of the next one)
+      workers: CO.WORKERS.start   // builders flying out of the Port to build the sites
     };
   }
   CO.state = freshState(1);
@@ -196,7 +263,9 @@
       state: {
         seed: st.seed, money: st.money, tech: st.tech, research: st.research, researchProg: st.researchProg,
         researchBank: st.researchBank, researchQueue: st.researchQueue,
-        phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe, rev: 4
+        phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe,
+        land: st.land.reduce(function (a, v, i) { if (v) a.push(i); return a; }, []), landBought: st.landBought,
+        startTitanium: st.startTitanium || undefined, workers: st.workers, rev: 5
       },
       cam: { x: CO.cam.x, y: CO.cam.y, zoom: CO.cam.zoom },
       buildings: CO.world.serialize()
@@ -234,6 +303,26 @@
     CO.world.reset(st.seed);
     const ox = legacyMap ? CO.LEGACY_OX : 0, oy = legacyMap ? CO.LEGACY_OY : 0;
     if (ox || oy) data.buildings.forEach(function (o) { o.x += ox; o.y += oy; });
+    // rev 5: land plots (set before the buildings come back: placement checks ownership). Older saves keep
+    // the start plots plus, for free, every plot that already holds a building, and the titanium that the
+    // start area used to have (new games have none there: titanium is a reason to buy land).
+    if (Array.isArray(s.land)) {
+      s.land.forEach(function (p) { if (p >= 0 && p < st.land.length) st.land[p | 0] = 1; });
+      st.landBought = Math.max(0, Math.floor(s.landBought) || 0);
+      st.startTitanium = !!s.startTitanium;
+    } else {
+      st.startTitanium = true;
+      data.buildings.forEach(function (o) {
+        const def = CO.BUILDINGS[o.t];
+        if (!def) return;
+        for (let j = 0; j < def.h; j++) for (let i = 0; i < def.w; i++) {
+          const x = o.x + i, y = o.y + j;
+          if (x >= 0 && y >= 0 && x < CO.MAP_W && y < CO.MAP_H) st.land[CO.plotOf(x, y)] = 1;
+        }
+      });
+    }
+    if (!st.startTitanium) CO.world.clearStartTitanium();
+    st.workers = CO.clamp(Math.floor(s.workers) || CO.WORKERS.start, CO.WORKERS.start, CO.WORKERS.max);
     CO.world.restore(data.buildings);
     if (data.cam) { CO.cam.x = data.cam.x + ox; CO.cam.y = data.cam.y + oy; CO.cam.zoom = CO.clamp(data.cam.zoom, 8, 72); }
     CO.history.clear();
@@ -261,6 +350,7 @@
       CO.state = freshState(seed || (1 + Math.floor(Math.random() * 99999)));
       CO.recalcMods();
       CO.world.reset(CO.state.seed);
+      CO.world.clearStartTitanium();
       CO.cam.x = CO.MAP_CX; CO.cam.y = CO.MAP_CY; CO.cam.zoom = 32;
       CO.history.clear();
       CO.emit('loaded');

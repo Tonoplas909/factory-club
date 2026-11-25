@@ -238,12 +238,13 @@
   const overlay = { hover: null, selected: [], deleting: [], ghosts: [], selRect: null, cursorCell: null, cursorColor: '#fff' };
   I.getOverlay = function () {
     const o = overlay;
-    o.hover = null; o.deleting = []; o.ghosts = []; o.cursorCell = null; o.selRect = null; o.link = null;
+    o.hover = null; o.deleting = []; o.ghosts = []; o.cursorCell = null; o.selRect = null; o.link = null; o.plot = -1;
     o.selected = selection.blds.slice();
     if (inspected && !inspected.dead && o.selected.indexOf(inspected) < 0) o.selected.push(inspected);
     if (cur) {
       const c = cellOf(cur), hb = world.at(c.x, c.y);
       if (tool === 'inspect') o.hover = hb;
+      if (!drag && world.inBounds(c.x, c.y) && !CO.ownsCell(c.x, c.y)) o.plot = CO.plotOf(c.x, c.y);
       if (tool === 'delete' && !drag && hb && !hb.def.fixed) o.deleting = [hb];
       if (tool === 'delete' && !hb) { o.cursorCell = c; o.cursorColor = 'rgba(229,84,84,0.85)'; }
       if (tool === 'select' && !drag) { o.cursorCell = c; o.cursorColor = 'rgba(255,211,127,0.85)'; }
@@ -387,6 +388,7 @@
       case 'panclick':
         if (!d.moved) {
           const c = cellOf(cur || CO.render.screenToWorld(d.sx, d.sy)), b = world.at(c.x, c.y);
+          if (!b && world.inBounds(c.x, c.y) && !CO.ownsCell(c.x, c.y)) { CO.ui.askBuyPlot(CO.plotOf(c.x, c.y)); break; }
           inspected = b; CO.emit('inspect');
         }
         break;
@@ -413,13 +415,14 @@
         if (BUILDINGS[buildType].kind === 'belt' && d.path.length > 1 && pl.length) rot = pl[pl.length - 1].dir;
         if (!n && pl.length === 1 && !pl[0].same) {
           const chk = world.check(pl[0].type, pl[0].x, pl[0].y, pl[0].dir);
-          if (!chk.ok) CO.emit('toast', chk.reason + '.', 'warn');
+          if (!chk.ok && !CO.ownsCell(pl[0].x, pl[0].y) && world.inBounds(pl[0].x, pl[0].y)) CO.ui.askBuyPlot(CO.plotOf(pl[0].x, pl[0].y));
+          else if (!chk.ok) CO.emit('toast', chk.reason + '.', 'warn');
         }
         break;
       }
       case 'paste': {
         const n = H.place(pastePlacements());
-        if (!n) CO.emit('toast', 'Impossible de coller ici (emplacement occupé ou hors carte).', 'warn');
+        if (!n) CO.emit('toast', 'Impossible de coller ici (emplacement occupé, hors carte ou terrain non acheté).', 'warn');
         break;
       }
     }

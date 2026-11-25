@@ -26,6 +26,15 @@ button:disabled { opacity: 0.4; cursor: default; }
 #phase-label { font-size: 12px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 #money-val { color: var(--gold); font-family: "Courier New", monospace; font-size: 16px; }
 #money-rate { color: var(--good); font-size: 11px; }
+#workers-val { color: var(--txt); font-family: "Courier New", monospace; font-size: 15px; }
+#workers-wait { color: #ffb347; font-size: 11px; }
+.wk-ico { width: 12px; height: 14px; flex: none; background:
+  linear-gradient(var(--accent), var(--accent)) 3px 2px / 6px 3px no-repeat,
+  linear-gradient(#e8e8ee, #e8e8ee) 2px 0 / 8px 6px no-repeat,
+  linear-gradient(#b4b6c0, #b4b6c0) 2px 6px / 8px 5px no-repeat,
+  linear-gradient(#5f616c, #5f616c) 0 6px / 2px 4px no-repeat,
+  linear-gradient(#b4b6c0, #b4b6c0) 3px 11px / 2px 3px no-repeat,
+  linear-gradient(#b4b6c0, #b4b6c0) 7px 11px / 2px 3px no-repeat; }
 .coin { width: 14px; height: 14px; border-radius: 0; background: var(--accent); box-shadow: 0 0 0 2px #8a5a1f inset; }
 .bar { height: 8px; background: #101013; border-radius: 0; overflow: hidden; border: 1px solid var(--line); }
 .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.4s; }

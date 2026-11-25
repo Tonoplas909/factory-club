@@ -121,6 +121,7 @@
 
   // ------------------------------------------------------------ insertion
   function insert(t, item, dir, carry, src) {
+    if (t.site) return false;                                // not built yet
     switch (t.kind) {
       case 'belt': case 'tunnel_in': return beltIn(t, item, dir, carry);
       case 'router': return routerIn(t, item, dir);
@@ -149,6 +150,7 @@
   }
 
   function exitIn(ex, item) {
+    if (ex.site) return false;
     const its = ex.items;
     if (its.length && its[its.length - 1].p < 0.5 + GAP) return false;
     its.push({ t: item, p: 0.5, f: (ex.dir + 2) & 3 });
@@ -329,7 +331,7 @@
   function driverTarget(b) {
     if (!b.target) return null;
     const t = world.at(b.tx, b.ty);
-    if (!t || t === b || t.kind !== 'driver' || t.x !== b.tx || t.y !== b.ty || driverDist(b, t) > b.def.range) return null;
+    if (!t || t === b || t.kind !== 'driver' || t.site || t.x !== b.tx || t.y !== b.ty || driverDist(b, t) > b.def.range) return null;
     return t;
   }
   sim.driverTarget = driverTarget;
@@ -373,6 +375,60 @@
     }
   }
 
+  // ---------------------------------------------------------------- workers
+  // Little builders. Each one takes the nearest site nobody has claimed, flies there in a straight line
+  // (over everything), builds it, then claims the next nearest site from where it stands; with nothing
+  // left to build it flies back to its spot next to the Port.
+  const workers = sim.workers = [];        // {x, y (tile coords, centre), job, building, moving, face}
+  function homeOf(i) {
+    const p = world.port, a = i / Math.max(1, CO.state.workers) * Math.PI * 2;
+    return { x: p.x + p.w / 2 + Math.cos(a) * 1.3, y: p.y + p.h / 2 + Math.sin(a) * 1.3 };
+  }
+  function syncWorkers() {
+    const n = CO.state.workers;
+    while (workers.length < n) { const h = homeOf(workers.length); workers.push({ x: h.x, y: h.y, job: null, building: false, moving: false, face: 1 }); }
+    if (workers.length > n) workers.length = n;
+  }
+  function claimNearest(w) {
+    const sites = world.sites;
+    let best = null, bd = Infinity;
+    for (let i = 0; i < sites.length; i++) {
+      const b = sites[i];
+      if (b.site.w && !b.site.w.gone) continue;
+      const dx = b.x + b.w / 2 - w.x, dy = b.y + b.h / 2 - w.y, d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = b; }
+    }
+    if (best) { best.site.w = w; w.job = best; }
+  }
+  function updateWorkers(dt) {
+    syncWorkers();
+    const step = CO.WORKERS.speed * dt;
+    for (let i = 0; i < workers.length; i++) {
+      const w = workers[i];
+      if (w.job && (w.job.dead || !w.job.site || w.job.site.w !== w)) w.job = null;
+      if (!w.job && world.sites.length) claimNearest(w);
+      const t = w.job ? { x: w.job.x + w.job.w / 2, y: w.job.y + w.job.h / 2 } : homeOf(i);
+      const dx = t.x - w.x, dy = t.y - w.y, d = Math.hypot(dx, dy);
+      w.building = false;
+      if (d > 0.02) {
+        if (step >= d) { w.x = t.x; w.y = t.y; } else { w.x += dx / d * step; w.y += dy / d * step; }
+        if (Math.abs(dx) > 0.01) w.face = dx > 0 ? 1 : -1;
+        w.moving = true;
+        continue;
+      }
+      w.moving = false;
+      if (w.job) {
+        const s = w.job.site;
+        s.p += dt; w.building = true;
+        if (s.p >= s.t) { world.finishSite(w.job); w.job = null; }
+      }
+    }
+  }
+  /** How many workers are busy (flying to a site or building it). */
+  sim.busyWorkers = function () { let n = 0; for (let i = 0; i < workers.length; i++) if (workers[i].job) n++; return n; };
+  // A loaded game starts with its whole crew next to the Port (sites keep their progress).
+  CO.on('loaded', function () { for (let i = 0; i < workers.length; i++) workers[i].gone = true; workers.length = 0; });
+
   const UPDATERS = {
     belt: updateBelt, tunnel_in: updateBelt, tunnel_out: updateBelt,
     router: updateRouter, chest: updateChest, drill: updateDrill, machine: updateMachine,
@@ -384,10 +440,12 @@
     st.time += dt;
     const list = world.list;
     for (let i = 0; i < list.length; i++) {
+      if (list[i].site) continue;                    // construction sites do nothing yet
       const f = UPDATERS[list[i].kind];
       if (f) f(list[i], dt);
     }
     if (sim.shots.length) updateShots(dt);
+    updateWorkers(dt);
     tAcc += dt;
     if (tAcc >= 1) {                                   // roll the statistics window
       tAcc -= 1;
