@@ -71,11 +71,12 @@
         else el.setAttribute(k, v === true ? '' : v);
       }
     }
-    for (let i = 2; i < arguments.length; i++) {
-      const c = arguments[i];
-      if (c == null || c === false) continue;
+    const add = function (c) {
+      if (c == null || c === false) return;
+      if (Array.isArray(c)) { c.forEach(add); return; }     // arrays of children are flattened
       el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
-    }
+    };
+    for (let i = 2; i < arguments.length; i++) add(arguments[i]);
     return el;
   };
 

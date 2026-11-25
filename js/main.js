@@ -12,11 +12,21 @@
   CO.render.init(canvas);
   CO.input.init(canvas);
   CO.ui.init();
+  CO.minimap.init();
 
   const restored = CO.save.load();
   if (!restored) {
     CO.save.newGame(1 + Math.floor(Math.random() * 99999));
     CO.ui.showHelp();                       // first launch: show the controls once
+    CO.markVersionSeen();                   // a new player does not need the update history
+  } else {
+    // First reload after an update: show what changed since the version the player last saw (only the
+    // latest update for players who had the game before the changelog existed).
+    const seen = CO.seenVersion();
+    if (seen == null || seen < CO.GAME_VERSION) {
+      CO.ui.showChangelog(seen == null ? CO.GAME_VERSION - 1 : seen);
+      CO.markVersionSeen();
+    }
   }
 
   let last = performance.now(), acc = 0, time = 0;
@@ -29,6 +39,7 @@
     time += dt;
     CO.input.update(dt);
     CO.render.draw(time, dt);
+    CO.minimap.draw(dt);
     CO.ui.update(dt);
     requestAnimationFrame(frame);
   }

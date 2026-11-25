@@ -50,7 +50,27 @@
 
   // ------------------------------------------------------------------- modal
   UI.modalOpen = function () { return !modalEl.hidden; };
-  UI.closeModal = function () { modalEl.hidden = true; modalEl.innerHTML = ''; };
+  // Dialogs that must not hide one another (changelog, then a notice...) wait their turn.
+  const modalQueue = [];
+  UI.closeModal = function () {
+    modalEl.hidden = true; modalEl.innerHTML = '';
+    if (modalQueue.length) setTimeout(function () { if (modalQueue.length) UI.whenFree(modalQueue.shift()); }, 0);
+  };
+  /** Run `fn` (which opens a dialog) now, or once the dialog on screen is closed. */
+  UI.whenFree = function (fn) { if (UI.modalOpen()) modalQueue.push(fn); else fn(); };
+
+  /** Update history: only the entries newer than `since`, or all of them when `since` is null. */
+  UI.showChangelog = function (since) {
+    const list = CO.CHANGELOG.filter(function (e) { return since == null || e.v > since; });
+    const body = h('div', { class: 'changelog' }, list.map(function (e) {
+      return h('div', { class: 'cl-entry' },
+        h('div', { class: 'cl-head' }, h('b', { text: e.title }), h('span', { class: 'small', text: 'v' + e.v + ' · ' + e.date })),
+        h('ul', null, e.items.map(function (t) { return h('li', { text: t }); })));
+    }));
+    const buttons = [{ label: 'Compris', primary: true }];
+    if (since != null && list.length < CO.CHANGELOG.length) buttons.unshift({ label: 'Tout l’historique', run: function () { UI.showChangelog(null); } });
+    UI.whenFree(function () { openModal(since == null ? 'Historique des mises à jour' : 'Nouveautés de la mise à jour', body, buttons, 'wide'); });
+  };
   function openModal(title, body, buttons, cls) {
     modalEl.innerHTML = '';
     const box = h('div', { class: 'dialog' + (cls ? ' ' + cls : '') }, h('h2', { text: title }), body);
@@ -68,6 +88,7 @@
     const item = function (label, fn) { return h('button', { class: 'menu-item', text: label, onclick: function () { m.hidden = true; fn(); } }); };
     m.appendChild(item('Ressources et recettes', function () { showGuide(); }));
     m.appendChild(item('Aide et commandes', showHelp));
+    m.appendChild(item('Nouveautés et historique', function () { UI.showChangelog(null); }));
     m.appendChild(item('Exporter la partie (fichier)', function () { CO.save.save(); CO.save.exportFile(); CO.emit('toast', 'Partie exportée.', 'good'); }));
     m.appendChild(item('Importer une partie…', function () { $('file-import').click(); }));
     m.appendChild(item('Nouvelle partie', function () {
@@ -113,6 +134,16 @@
       row('Sélection → Infos', 'Une recette (ou un filtre) par type de bâtiment sélectionné, appliquée à tous d’un coup (une seule annulation)'),
       row('Catapulte magnétique', 'Inspecte la catapulte de départ, « Choisir la cible », puis clique sur celle d’arrivée (48 cases max)'),
       row('Recherche', '« + File d’attente » enchaîne les recherches ; les laboratoires mettent en réserve ce qui servira plus tard'),
+      row('Programme orbital', 'Recherche Astronautique : le Pas de tir reçoit 10 Modules de fusée et un Satellite ou une Sonde profonde, assemble la fusée et la lance. Les missions (onglet Station) donnent des bonus permanents : machines, foreuses, terrains moins chers, générateurs'),
+      row('Drones', 'Recherche Drones logistiques : un Port de drones (portée 24 cases) envoie ses 4 drones chercher les objets des Coffres d’envoi (remplis par convoyeur) pour les porter aux Coffres de demande (objet choisi dans Infos, jusqu’à 40), qui les sortent par leur flèche'),
+      row('Contrats', 'Après ta première livraison, le Port propose des contrats (onglet Station) : livre une quantité d’un objet avant la fin du temps pour une grosse récompense. Deux à la fois ; les livraisons au Port les remplissent avant la station'),
+      row('Améliorations', 'Recherches Améliorations I et II : dans Infos, un bouton fait passer foreuses, machines, pompes et générateurs au niveau II (×1,5, coûte 2× le bâtiment) puis III (×2, 4× le bâtiment). Ils consomment plus de courant. Marche aussi sur toute une sélection'),
+      row('Fluides', 'Recherche Hydraulique : une Pompe à eau posée sur un lac remplit les tuyaux qui la touchent. Les tuyaux qui se touchent partagent leur contenu (un seul fluide par réseau). La Centrale à vapeur (eau + charbon) donne 400 kW ; la Raffinerie transforme le pétrole en plastique et carburant'),
+      row('Énergie', 'Foreuses, machines, laboratoires et catapultes ont besoin de courant. Le Port fournit 150 kW autour de lui ; les Poteaux électriques alimentent ce qui touche leur zone et se relient tout seuls ; les Générateurs thermiques brûlent du charbon. Un réseau trop chargé ralentit toutes ses machines'),
+      row('F', 'Pendant un collage ou la pose d’un plan : retourner la disposition (miroir gauche ↔ droite)'),
+      row('Plans', 'Onglet Plans : garde une sélection comme plan nommé (commun à toutes tes parties) et repose-la quand tu veux'),
+      row('Fantômes', 'Sans assez de crédits, ce que tu poses devient un fantôme bleu : un ouvrier le paie et le construit dès que les crédits arrivent. Le supprimer ne rembourse rien (il n’a rien coûté)'),
+      row('M', 'Afficher / masquer la minicarte (en haut à droite) : un clic ou un glissé dessus déplace la caméra'),
       row('Tab', 'Changer de vue : isométrique (voxels) ou vue de dessus — un bâtiment haut devient transparent quand la souris passe derrière'),
       row('Ouvriers', 'Un bâtiment posé est un chantier : un ouvrier part du Port le construire. Recrute-en d’autres dans l’onglet Station'),
       row('Terrain', 'Clic sur une parcelle assombrie qui touche ton terrain pour l’acheter (chaque achat coûte 25 % de plus que le précédent)'),
@@ -144,6 +175,7 @@
       if (rec) {
         const line = h('div', { class: 'gline' });
         Object.keys(rec.in).forEach(function (k, i) { if (i) line.appendChild(plus()); line.appendChild(chip(k, rec.in[k])); });
+        if (rec.fin) Object.keys(rec.fin).forEach(function (k) { if (line.children.length) line.appendChild(plus()); line.appendChild(chip(k, rec.fin[k])); });
         line.appendChild(h('span', { class: 'garrow', 'data-bld': rec.machine }, thumb(rec.machine, 30), h('small', { text: mach.name })));
         Object.keys(rec.out).forEach(function (k, i) { if (i) line.appendChild(plus()); line.appendChild(chip(k, rec.out[k])); });
         right.appendChild(line);
@@ -170,7 +202,7 @@
       ids.forEach(function (id) { body.appendChild(card(id)); });
     };
     sec('Matières premières (gisements)', CO.ITEM_ORDER.filter(function (id) { return !RECIPES[id]; }));
-    ['smelter', 'assembler', 'steelmill', 'fabricator', 'spaceyard'].forEach(function (m) {
+    ['smelter', 'assembler', 'steelmill', 'fabricator', 'spaceyard', 'refinery'].forEach(function (m) {
       sec(BUILDINGS[m].name, CO.ITEM_ORDER.filter(function (id) { return RECIPES[id] && RECIPES[id].machine === m; }));
     });
     openModal('Ressources et recettes', body, [{ label: 'Fermer', primary: true }], 'wide');
@@ -240,6 +272,7 @@
     toolBtns.paste.disabled = !st.clipboard;
     toolBtns.copy.disabled = !st.selection.length && !st.inspected;
     toolBtns.cut.disabled = toolBtns.copy.disabled;
+    $('btn-map').classList.toggle('active', CO.minimap.shown());
     toolBtns.view.querySelector('.tico').textContent = CO.render.mode === 'iso' ? '◇' : '□';
   }
 
@@ -257,7 +290,13 @@
     $('money-rate').textContent = r >= 1 ? '+' + CO.fmt(r) + '/min' : '';
     const busy = CO.sim.busyWorkers(), wait = CO.world.sites.length - busy;
     $('workers-val').textContent = busy + '/' + st.workers;
-    $('workers-wait').textContent = wait > 0 ? wait + ' en attente' : '';
+    const PWR = CO.power, pc = $('power');
+    $('power-val').textContent = CO.fmt(Math.round(PWR.demand)) + '/' + CO.fmt(Math.round(PWR.supply)) + ' kW';
+    pc.classList.toggle('short', PWR.demand > PWR.supply && PWR.supply > 0);
+    pc.classList.toggle('dead', PWR.unpowered > 0);
+    $('power-warn').textContent = PWR.unpowered ? PWR.unpowered + ' sans courant' : '';
+    const gs = CO.ghostStats(), paidWait = wait - gs.n;
+    $('workers-wait').textContent = [paidWait > 0 ? paidWait + ' en attente' : '', gs.n ? gs.n + ' fantôme(s)' : ''].filter(Boolean).join(' · ');
     const total = CO.PHASES.length;
     const label = st.phase < total ? 'Station · étape ' + (st.phase + 1) + '/' + total + ' · ' + p.name : 'Station en orbite · ' + p.name;
     $('phase-label').textContent = label + ' · ' + Math.floor(pr * 100) + ' %';
@@ -277,6 +316,7 @@
       else if (CO.world.list[i].type === 'smelter') smelters++;
     }
     if (!drills) return '① Pose une Foreuse (palette à gauche) sur un gisement coloré de la carte.';
+    if (CO.power.unpowered > 0) return '⚡ Un bâtiment n’a pas de courant : rapproche-le du Port, ou relie-le avec des Poteaux électriques (catégorie Énergie de la palette).';
     if (!belts) return '② Relie la foreuse avec des convoyeurs : maintiens le clic et glisse. La touche R tourne la sortie.';
     if (!st.stats.sold) return '③ Termine la ligne par un Comptoir de vente (ou le Port, au centre) : les crédits montent !';
     if (!smelters) return '④ Un lingot vaut plus qu’un minerai : intercale une Fonderie (la flèche jaune = sa sortie).';
@@ -288,25 +328,34 @@
     const t = currentHint(), el = $('hint');
     el.textContent = t; el.hidden = !t;
   }
+  function costText() {
+    const g = CO.input.getGhostCost();
+    return 'coût ' + CO.fmt(CO.input.getCost()) + ' ¢' + (g ? ' (dont ' + CO.fmt(g) + ' ¢ en fantômes)' : '');
+  }
+  function ghostLine() {
+    const gs = CO.ghostStats();
+    if (!gs.n) return null;
+    return h('div', { class: 'need-top ghost-line' }, h('span', { text: gs.n + ' fantôme(s) en attente' }), h('b', { text: 'Reste à payer : ' + CO.fmt(gs.cost) + ' ¢' }));
+  }
   function updateStatus() {
     const st = CO.input.get(), hv = CO.input.hoverInfo();
     let txt = '';
     if (st.tool === 'build') {
       const def = BUILDINGS[st.buildType];
-      txt = def.name + ' · ' + CO.DIR_ARROWS[st.rot] + ' · coût ' + CO.input.getCost() + ' ¢ · R pour tourner · glisser pour en poser plusieurs' + (def.kind === 'belt' ? ' (Ctrl : en L, Alt : à main levée)' : '');
-    } else if (st.tool === 'paste') txt = 'Coller : clique pour poser la disposition · R pour tourner · Échap pour annuler · coût ' + CO.input.getCost() + ' ¢';
+      txt = def.name + ' · ' + CO.DIR_ARROWS[st.rot] + ' · ' + costText() + ' · R pour tourner · glisser pour en poser plusieurs' + (def.kind === 'belt' ? ' (Ctrl : en L, Alt : à main levée)' : '');
+    } else if (st.tool === 'paste') txt = 'Coller : clique pour poser la disposition · R pour tourner · F pour retourner (miroir) · Échap pour annuler · ' + costText();
     else if (st.tool === 'select') txt = 'Sélection : tire un rectangle, puis Ctrl+C (copier), Suppr (supprimer)' + (st.selection.length ? ' · ' + st.selection.length + ' sélectionné(s)' : '');
     else if (st.tool === 'delete') txt = 'Suppression : tire un rectangle sur les bâtiments à détruire (remboursement intégral)';
     else if (st.tool === 'link') txt = 'Catapulte : clique sur la catapulte qui recevra les objets (cercle = portée de ' + BUILDINGS.driver.range + ' cases) · Échap ou clic droit pour annuler';
     else if (hv) {
       txt = hv.x + ', ' + hv.y;
-      if (hv.b) txt += ' · ' + hv.b.def.name; else if (hv.ore) txt += ' · Gisement : ' + itemName(CO.ORE_IDS[hv.ore]);
+      if (hv.b) txt += ' · ' + hv.b.def.name; else if (hv.ore) txt += ' · ' + oreLabel(hv.ore);
     }
     $('status').textContent = txt;
   }
 
   // -------------------------------------------------------------- side panel
-  const TABS = [['station', 'Station'], ['research', 'Recherche'], ['stats', 'Production'], ['info', 'Infos']];
+  const TABS = [['station', 'Station'], ['research', 'Recherche'], ['stats', 'Production'], ['plans', 'Plans'], ['info', 'Infos']];
   function buildTabs() {
     const t = $('tabs'); t.innerHTML = '';
     TABS.forEach(function (x) {
@@ -325,6 +374,54 @@
     return '';
   }
 
+  /** "Programme orbital" section: current mission, payloads sent, bonuses earned. */
+  function orbitSection(body) {
+    const o = CO.state.orbit;
+    if (!CO.state.tech.rocketry && !o.mission && !o.launches) return;
+    const m = CO.getMission(o.mission), box = h('div', { class: 'icard flat' });
+    box.appendChild(h('div', { class: 'ititle', text: (o.mission < CO.MISSIONS.length ? 'Mission ' + (o.mission + 1) + ' sur ' + CO.MISSIONS.length + ' — ' : '') + m.name }));
+    box.appendChild(h('p', { class: 'small', text: m.desc + ' Récompense : ' + m.text + '.' }));
+    box.appendChild(costRow(m.need, o.have));
+    const done = [];
+    for (let i = 0; i < Math.min(o.mission, CO.MISSIONS.length); i++) done.push(CO.MISSIONS[i].text);
+    box.appendChild(h('div', { class: 'small', text: o.launches + ' lancement(s)' + (done.length ? ' · Bonus acquis : ' + done.join(', ') : '') }));
+    box.appendChild(h('div', { class: 'small', text: 'Pas de tir : 10 Modules de fusée + 1 charge utile (Satellite ou Sonde profonde) par lancement.' }));
+    body.appendChild(section('Programme orbital', box));
+  }
+  function contractSig() {
+    const c = CO.state.contracts;
+    if (!c || !CO.contracts.open()) return '';
+    return c.offers.map(function (o) { return o.id; }).join() + '|' + c.active.map(function (a) { return a.id + ':' + a.have + ':' + Math.ceil((a.deadline - CO.state.time) / 5); }).join() + '|' + c.done;
+  }
+  function fmtClock(s) { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  /** "Contrats du Port" section of the Station tab: accepted contracts with their clock, then the offers. */
+  function contractsSection(body) {
+    if (!CO.contracts.open()) return;
+    const C = CO.contracts, c = CO.state.contracts || C.fresh(), st = CO.state;
+    const box = h('div', { class: 'contracts' });
+    c.active.forEach(function (a) {
+      const left = a.deadline - st.time, f = a.have / a.qty;
+      box.appendChild(h('div', { class: 'ctr active' + (left < 60 ? ' late' : '') },
+        h('div', { class: 'ctr-head' }, itemIcon(a.item, 3), h('b', { text: a.have + ' / ' + a.qty + ' ' + itemName(a.item) }),
+          h('span', { class: 'ctr-time', text: '⏱ ' + fmtClock(left) })),
+        h('div', { class: 'bar' }, h('i', { style: 'width:' + (f * 100) + '%' })),
+        h('div', { class: 'ctr-foot' }, h('span', { class: 'gold', text: '+' + CO.fmt(a.reward) + ' ¢' }),
+          h('button', { class: 'btn small', text: 'Abandonner', onclick: function () { C.abandon(a.id); renderSide(true); } }))));
+    });
+    c.offers.forEach(function (o) {
+      const full = c.active.length >= C.MAX_ACTIVE, normal = CO.ITEMS[o.item].price * o.qty;
+      box.appendChild(h('div', { class: 'ctr' },
+        h('div', { class: 'ctr-head' }, itemIcon(o.item, 3), h('b', { text: o.qty + ' ' + itemName(o.item) }), h('span', { class: 'ctr-time', text: '⏱ ' + Math.round(o.time / 60) + ' min' })),
+        h('div', { class: 'ctr-foot' }, h('span', { class: 'gold', text: '+' + CO.fmt(o.reward) + ' ¢', 'data-tip': 'Récompense|Vendus au comptoir, ces objets rapporteraient ' + CO.fmt(normal) + ' ¢' }),
+          h('span', null,
+            h('button', { class: 'btn small', text: 'Refuser', onclick: function () { C.decline(o.id); renderSide(true); } }),
+            h('button', { class: 'btn small primary', text: 'Accepter', disabled: full, 'data-tip': full ? 'Déjà ' + C.MAX_ACTIVE + ' contrats en cours' : null,
+              onclick: function () { if (C.accept(o.id)) CO.emit('toast', 'Contrat accepté : livre ' + o.qty + ' × ' + itemName(o.item) + ' au Port.', 'info'); renderSide(true); } })))));
+    });
+    if (!c.offers.length && !c.active.length) box.appendChild(h('p', { class: 'note', text: 'Pas de contrat pour l’instant : le Port en proposera dès que ton usine produira.' }));
+    box.appendChild(h('div', { class: 'small', text: 'Livre au Port : les contrats acceptés passent avant la station. Nouvelles offres dans ' + fmtClock(c.next - st.time) + ' · ' + c.done + ' rempli(s), ' + CO.fmt(c.earned) + ' ¢ gagnés.' }));
+    body.appendChild(section('Contrats du Port (' + c.active.length + ' / ' + C.MAX_ACTIVE + ')', box));
+  }
   function renderStation(body) {
     const st = CO.state, p = CO.getPhase(st.phase), total = CO.PHASES.length;
     stationCv = h('canvas', { class: 'station-cv', width: 192, height: 128 });
@@ -341,6 +438,8 @@
           hint ? h('div', { class: 'lock', text: '🔒 ' + hint }) : null)));
     }
     body.appendChild(h('p', { class: 'small', text: 'Récompense : ' + CO.fmt(p.reward) + ' ¢. Livre les objets au Port (4×4 au centre de la carte) ; le surplus est revendu.' }));
+    orbitSection(body);
+    contractsSection(body);
     const owned = st.land.reduce(function (a, v) { return a + v; }, 0);
     body.appendChild(section('Terrain', h('div', null,
       h('div', { class: 'need-top' }, h('span', { text: owned + ' parcelles sur ' + st.land.length }), h('b', { text: 'Prochaine : ' + CO.fmt(CO.landPrice()) + ' ¢' })),
@@ -349,6 +448,8 @@
     body.appendChild(section('Ouvriers', h('div', null,
       h('div', { class: 'need-top' }, h('span', { text: st.workers + ' ouvrier(s) sur ' + CO.WORKERS.max }), h('b', { text: wp == null ? 'Équipe au complet' : 'Recrue : ' + CO.fmt(wp) + ' ¢' })),
       h('p', { class: 'small', text: 'Chaque bâtiment posé est un chantier : un ouvrier part du Port, vole jusqu’à lui et le construit (de ' + fmtTime(CO.BUILD_TIME.belt) + ' pour un convoyeur à ' + fmtTime(CO.BUILD_TIME.spaceyard) + ' pour un Chantier spatial). Plus d’ouvriers = plus de chantiers en même temps.' }),
+      h('p', { class: 'small', text: 'Sans assez de crédits, ce que tu poses devient un fantôme (bleu) : un ouvrier le paie et le construit dès que les crédits arrivent.' }),
+      ghostLine(),
       wp == null ? null : h('button', { class: 'btn primary', text: 'Recruter un ouvrier · ' + CO.fmt(wp) + ' ¢', onclick: function () {
         const err = CO.hireWorker();
         if (err) CO.emit('toast', err + ' (il faut ' + CO.fmt(wp) + ' ¢).', 'warn');
@@ -457,6 +558,45 @@
   }
 
   function fmtRpm(x) { return x >= 10 ? String(Math.round(x)) : x.toFixed(1).replace('.', ','); }
+  // ---- production curves
+  let histRes = 1;                                  // curve window: index in CO.sim.HIST (10 min by default)
+  const openCurves = {};                            // items whose curve is unfolded (kept across re-renders)
+  const CHART_W = 300, CHART_H = 70, CHART_S = 2;   // CSS size of a chart; drawn at 2× to stay sharp
+  /** Line chart of per-minute series (oldest first, the last sample is "now") over the chosen window. */
+  function chart(series, colors, unit) {
+    const cv = h('canvas', { class: 'chart', width: CHART_W * CHART_S, height: CHART_H * CHART_S });
+    const g = cv.getContext('2d'), W = CHART_W, Hh = CHART_H, top = 12, bot = Hh - 13, slots = 59;
+    g.scale(CHART_S, CHART_S);
+    g.fillStyle = '#101014'; g.fillRect(0, 0, W, Hh);
+    g.fillStyle = '#26262d';
+    for (let i = 0; i <= 3; i++) g.fillRect(0, Math.round(top + i * (bot - top) / 3), W, 1);
+    g.font = '10px Consolas, "Courier New", monospace'; g.textBaseline = 'alphabetic';
+    g.fillStyle = '#9a9aa8';
+    g.textAlign = 'left'; g.fillText('−' + CO.sim.HIST[histRes].label, 3, Hh - 2);
+    g.textAlign = 'right'; g.fillText('maintenant', W - 3, Hh - 2);
+    const n = series[0].length;
+    if (n < 2) { g.textAlign = 'center'; g.fillText('Pas encore de données', W / 2, (top + bot) / 2 + 4); return cv; }
+    let max = 0;
+    series.forEach(function (sr) { sr.forEach(function (v) { if (v > max) max = v; }); });
+    const scale = max > 0 ? max * 1.1 : 1;
+    const X = function (i) { return W - 1 - (n - 1 - i) * (W - 2) / slots; };
+    const Y = function (v) { return bot - v / scale * (bot - top); };
+    series.forEach(function (sr, k) {
+      if (k === 0) {                                // soft area under the first series
+        g.globalAlpha = 0.18; g.fillStyle = colors[0];
+        g.beginPath(); g.moveTo(X(0), bot);
+        for (let i = 0; i < n; i++) g.lineTo(X(i), Y(sr[i]));
+        g.lineTo(X(n - 1), bot); g.closePath(); g.fill(); g.globalAlpha = 1;
+      }
+      g.strokeStyle = colors[k]; g.lineWidth = 1.5; g.lineJoin = 'round';
+      g.beginPath();
+      for (let i = 0; i < n; i++) { if (i) g.lineTo(X(i), Y(sr[i])); else g.moveTo(X(i), Y(sr[i])); }
+      g.stroke();
+    });
+    g.fillStyle = '#ececf0'; g.textAlign = 'left';
+    g.fillText(fmtRpm(max) + (unit || ' /min'), 3, 10);
+    return cv;
+  }
   /** Machines grouped by recipe (drills by ore): how many work, wait or are blocked, and what they lack. */
   function machineGroups() {
     const groups = {}, order = [];
@@ -466,22 +606,33 @@
       else if (b.kind === 'machine') { if (!b.recipe) { key = 'none'; item = null; } else { key = 'm:' + b.recipe; item = Object.keys(RECIPES[b.recipe].out)[0]; } }
       else return;
       let g = groups[key];
-      if (!g) { g = groups[key] = { item: item, drill: b.kind === 'drill', n: 0, work: 0, idle: 0, blocked: 0, miss: {} }; order.push(key); }
+      if (!g) { g = groups[key] = { item: item, drill: b.kind === 'drill', n: 0, work: 0, idle: 0, blocked: 0, off: 0, miss: {} }; order.push(key); }
       g.n++;
       if (key === 'none') return;
-      if (b.status === 'work') g.work++; else if (b.status === 'blocked') g.blocked++;
+      if (b.status === 'work') g.work++; else if (b.status === 'blocked') g.blocked++; else if (b.status === 'nopower') g.off++;
       else {
         g.idle++;
         const rec = RECIPES[b.recipe];
         for (const k in rec.in) if ((b.inBuf[k] || 0) < rec.in[k]) g.miss[k] = (g.miss[k] || 0) + 1;
+        if (rec.fin) for (const k in rec.fin) if (CO.fluid.amount(b, k) < rec.fin[k]) g.miss[k] = (g.miss[k] || 0) + 1;
       }
     });
     return order.map(function (k) { return groups[k]; });
   }
   function renderStats(body) {
     const st = CO.state;
-    body.appendChild(h('p', { class: 'small', text: 'Cadences mesurées sur la dernière minute. Si un objet est plus utilisé que produit (en rouge), ses machines clientes vont manquer : ajoute des producteurs.' }));
+    body.appendChild(h('p', { class: 'small', text: 'Cadences mesurées sur la dernière minute. Si un objet est plus utilisé que produit (en rouge), ses machines clientes vont manquer : ajoute des producteurs. Clique sur un objet pour voir sa courbe.' }));
+    const seg = h('div', { class: 'seg', 'data-tip': 'Durée des courbes|L’historique repart de zéro quand la page est rechargée' }, h('span', { text: 'Courbes sur' }));
+    CO.sim.HIST.forEach(function (w, i) {
+      seg.appendChild(h('button', { class: 'btn small' + (i === histRes ? ' primary' : ''), text: w.label, onclick: function () { histRes = i; renderSide(true); } }));
+    });
+    body.appendChild(seg);
     body.appendChild(h('div', { class: 'stat-money' }, h('span', { text: 'Revenus' }), h('b', { text: '+' + CO.fmt(CO.sim.moneyPerMin()) + ' ¢/min' })));
+    body.appendChild(chart([CO.sim.history(histRes, 'm')], ['#ffd37f']));
+    body.appendChild(h('div', { class: 'stat-money' }, h('span', { text: 'Énergie' }),
+      h('b', { style: CO.power.demand > CO.power.supply ? 'color:#ffb347' : '', text: CO.fmt(Math.round(CO.power.demand)) + ' / ' + CO.fmt(Math.round(CO.power.supply)) + ' kW' })));
+    body.appendChild(chart([CO.sim.history(histRes, 'ps'), CO.sim.history(histRes, 'pd')], ['#84f491', '#ffb347'], ' kW'));
+    body.appendChild(h('div', { class: 'legend' }, h('span', { class: 'lg-p', text: '— production' }), h('span', { class: 'lg-u', text: '— demande' })));
     let any = false;
     const tbl = h('table', { class: 'stats' }, h('tr', null, h('th', { text: '' }), h('th', { text: 'Objet /min' }),
       h('th', { text: 'Produit', 'data-tip': 'Produit|Sorti des foreuses et des machines, par minute' }), h('th', { text: 'Utilisé', 'data-tip': 'Utilisé|Consommé par les machines, les laboratoires et la station, par minute' }), h('th', { text: 'Vendu', 'data-tip': 'Vendu|Comptoirs de vente et surplus revendu par le Port, par minute' })));
@@ -490,8 +641,16 @@
       if (!tot && !u && !s) return;
       any = true;
       const short = u > p * 1.05 + 0.5;                  // used faster than made: buffers are draining
-      tbl.appendChild(h('tr', { 'data-tip': itemName(id) + '|' + CO.fmt(tot) + ' produits au total' }, h('td', null, itemIcon(id, 2)), h('td', { class: 'sname', text: itemName(id) }),
+      const open = !!openCurves[id];
+      tbl.appendChild(h('tr', { class: 'srow' + (open ? ' open' : ''), 'data-tip': itemName(id) + '|' + CO.fmt(tot) + ' produits au total|Clique pour ' + (open ? 'replier' : 'voir') + ' la courbe',
+        onclick: function () { if (openCurves[id]) delete openCurves[id]; else openCurves[id] = true; renderSide(true); } },
+        h('td', null, itemIcon(id, 2)), h('td', { class: 'sname', text: (open ? '▾ ' : '▸ ') + itemName(id) }),
         h('td', { text: fmtRpm(p) }), h('td', { class: short ? 'neg' : u > 0 ? 'pos' : '', text: fmtRpm(u) }), h('td', { class: 'muted', text: fmtRpm(s) })));
+      if (open) {
+        tbl.appendChild(h('tr', { class: 'scurve' }, h('td', { colspan: 5 },
+          chart([CO.sim.history(histRes, 'p', id), CO.sim.history(histRes, 'u', id)], ['#84f491', '#ffb347']),
+          h('div', { class: 'legend' }, h('span', { class: 'lg-p', text: '— produit' }), h('span', { class: 'lg-u', text: '— utilisé' }), h('span', { class: 'muted', text: 'par minute' })))));
+      }
     });
     body.appendChild(any ? tbl : h('p', { class: 'note', text: 'Rien produit pour l’instant. Pose une Foreuse sur un gisement !' }));
 
@@ -506,7 +665,8 @@
         h('b', { text: '×' + g.n }),
         g.item ? h('span', { class: 'c good' }, h('i', { class: 'dot good' }), String(g.work)) : null,
         g.item ? h('span', { class: 'c warn' }, h('i', { class: 'dot warn' }), String(g.idle)) : null,
-        g.item ? h('span', { class: 'c bad' }, h('i', { class: 'dot bad' }), String(g.blocked)) : null);
+        g.item ? h('span', { class: 'c bad' }, h('i', { class: 'dot bad' }), String(g.blocked)) : null,
+        g.off ? h('span', { class: 'c off', 'data-tip': 'Sans courant|Ces machines attendent de l’électricité' }, h('i', { class: 'dot off' }), String(g.off)) : null);
       const row = h('div', { class: 'mgroup' }, head, counts);
       const miss = Object.keys(g.miss);
       if (miss.length) {
@@ -527,11 +687,40 @@
   function fmtNum(x, digits) { return x.toLocaleString('fr-FR', { maximumFractionDigits: digits }); }
   function fmtRate(x) { return fmtNum(x, 7) + '/s'; }   // rates are binary fractions (n/128 at worst): 7 decimals are exact
   function fmtTime(t) { return fmtNum(t, 2) + ' s'; }
+  function oreLabel(ore) {
+    const id = CO.ORE_IDS[ore];
+    return id === 'water' ? 'Lac' : id === 'oil' ? 'Nappe de pétrole' : 'Gisement : ' + itemName(id);
+  }
   function pill(cls, text) { return h('span', { class: 'pill ' + cls }, h('i'), text); }
 
   function statusPill(b) {
+    if (b.site && !b.site.paid) return pill('info', 'Fantôme : attend des crédits');
     if (b.site) return b.site.w ? pill('info', 'En construction') : pill('warn', 'Attend un ouvrier');
+    if (CO.render.noPower(b)) return pill('off', b.net ? 'Réseau sans puissance' : 'Pas de courant');
     switch (b.kind) {
+      case 'generator':
+        if (!b.def.fuel) return b.status === 'work' ? pill('good', 'Produit') : pill('info', 'Prête (aucune demande)');
+        return b.status === 'work' ? pill('good', 'Brûle du charbon') : b.status === 'nofuel' ? pill('bad', 'Plus de charbon')
+          : b.status === 'nowater' ? pill('bad', 'Pas d’eau') : pill('info', 'En veille (aucune demande)');
+      case 'launch_pad':
+        if (b.phase === 'flight') return pill('good', 'Décollage');
+        if (b.phase === 'build') return pill('good', 'Assemblage de la fusée');
+        return pill(b.parts >= b.def.parts && b.payload ? 'warn' : 'info', 'Modules ' + b.parts + ' / ' + b.def.parts + (b.payload ? ' · ' + itemName(b.payload) : ' · sans charge'));
+      case 'drone_hub': {
+        const fly = (b.drones || []).filter(function (d) { return d.state !== 'idle'; }).length;
+        return fly ? pill('good', fly + ' drone(s) en vol') : pill('info', 'Drones au repos');
+      }
+      case 'drone_provider': return pill('info', b.q.length + ' / ' + b.def.capacity);
+      case 'drone_requester':
+        return b.filter ? pill('info', 'Demande : ' + itemName(b.filter) + ' (' + b.q.length + ' / ' + b.def.want + ')') : pill('warn', 'Objet à choisir');
+      case 'pump':
+        if (!b.n) return pill('bad', b.def.fluid === 'water' ? 'Hors lac' : 'Hors nappe');
+        return b.status === 'nopipe' ? pill('warn', 'Aucun tuyau') : b.status === 'blocked' ? pill('bad', 'Tuyaux pleins') : pill('good', 'Pompe');
+      case 'pipe': case 'fluid_tank': {
+        const n = b.fnet;
+        return n && n.amount > 0 ? pill('info', itemName(n.fluid) + ' · ' + Math.round(n.amount / n.cap * 100) + ' %') : pill('info', 'Vide');
+      }
+      case 'pole': return b.net ? pill(b.net.sat >= 1 ? 'good' : b.net.sat > 0 ? 'warn' : 'bad', 'Réseau ' + Math.round(b.net.sat * 100) + ' %') : pill('info', 'Isolé');
       case 'machine':
         if (!b.recipe) return pill('warn', 'Recette à choisir');
         return b.status === 'work' ? pill('good', 'En production') : b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('warn', 'Attend des matières');
@@ -563,7 +752,26 @@
     }
   }
   function statusHelp(b) {
+    if (b.site && !b.site.paid) return 'Posé sans assez de crédits : un ouvrier viendra le payer (' + CO.fmt(b.def.cost) + ' ¢) et le construire dès que tu les auras.';
     if (b.site) return b.site.w ? 'Un ouvrier s’en occupe : ' + fmtTime(b.site.t) + ' de travail une fois sur place.' : 'Tous les ouvriers sont occupés : il sera construit dès qu’un se libère (recrute-en d’autres dans l’onglet Station).';
+    if (CO.render.noPower(b)) return b.net ? 'Son réseau ne produit rien : ajoute un générateur (et du charbon), ou relie le réseau au Port avec des poteaux.'
+      : 'Aucun réseau électrique ne l’atteint : pose un Poteau électrique à moins de 2 cases de lui, relié au Port ou à un générateur.';
+    if (b.kind === 'generator' && b.status === 'nofuel') return 'Amène du charbon par convoyeur, sur n’importe quel côté.';
+    if (b.kind === 'generator' && b.status === 'nowater') return 'Relie la centrale à une pompe à eau par des tuyaux (un tuyau doit toucher la centrale).';
+    if (b.kind === 'launch_pad' && b.phase === 'load') {
+      const m = CO.getMission(CO.state.orbit.mission), need = Object.keys(m.need).filter(function (k) { return CO.orbit.missing(k) > 0; });
+      return 'Amène ' + (b.def.parts - b.parts) + ' Module(s) de fusée' + (b.payload ? '' : ' et une charge utile (' + (need.length ? need.map(itemName).join(' ou ') : 'aucune n’est demandée') + ')') + ' par convoyeur, sur n’importe quel côté.';
+    }
+    if (b.kind === 'drone_requester' && !b.filter) return 'Choisis ci-dessous l’objet que les drones doivent apporter. Le coffre doit être à portée d’un Port de drones.';
+    if (b.kind === 'drone_requester' && !(CO.drones.hubs || []).some(function (hb) { return hb.req && hb.req.indexOf(b) >= 0; })) return 'Aucun Port de drones ne l’atteint (24 cases autour du port).';
+    if (b.kind === 'drone_provider' && !(CO.drones.hubs || []).some(function (hb) { return hb.prov && hb.prov.indexOf(b) >= 0; })) return 'Aucun Port de drones ne l’atteint (24 cases autour du port).';
+    if (b.kind === 'pump' && b.status === 'nopipe') return 'Pose un tuyau qui touche la pompe, et mène-le jusqu’aux machines qui consomment.';
+    if (b.kind === 'pump' && b.status === 'blocked') return 'Les tuyaux sont pleins : relie-les à ce qui consomme (centrale à vapeur, raffinerie) ou ajoute une cuve.';
+    if (b.kind === 'machine' && b.recipe && b.status === 'idle' && RECIPES[b.recipe].fin) {
+      const fin = RECIPES[b.recipe].fin;
+      for (const k in fin) if (CO.fluid.amount(b, k) < fin[k]) return 'Il manque ' + itemName(k).toLowerCase() + ' : relie un tuyau qui en contient à n’importe quel côté.';
+    }
+    if (b.def.power && b.pw > 0 && b.pw < 1) return 'Le réseau manque de puissance : cette machine tourne à ' + Math.round(b.pw * 100) + ' % de sa vitesse. Ajoute des générateurs.';
     if ((b.kind === 'machine' || b.kind === 'drill') && b.status === 'blocked') return 'Relie la flèche jaune à un convoyeur (ou à un bâtiment qui accepte la production).';
     if (b.kind === 'machine' && b.recipe && b.status === 'idle') return 'Amène les matières par convoyeur sur n’importe quel côté, sauf la sortie.';
     if (b.kind === 'drill' && !b.ore) return 'Déplace la foreuse sur un gisement coloré.';
@@ -590,7 +798,7 @@
       for (const k in map) col.appendChild(h('div', { class: 'flow-item', 'data-item': k }, itemIcon(k, 3), h('b', { text: '×' + map[k] }), h('small', { text: fmtRate(map[k] / t) })));
       return col;
     };
-    return h('div', { class: 'flow' }, side(rec.in), h('div', { class: 'flow-arrow', text: '➜' }), side(rec.out),
+    return h('div', { class: 'flow' }, side(Object.assign({}, rec.in, rec.fin || {})), h('div', { class: 'flow-arrow', text: '➜' }), side(rec.out),
       h('div', { class: 'flow-foot', text: 'Cycle : ' + fmtTime(t) + ' · cadence d’une machine' }));
   }
 
@@ -612,6 +820,17 @@
    * all the buildings of that type at once.
    */
   function batchSettings(body, selection) {
+    const up = selection.filter(function (b) { return !b.dead && CO.nextLevel(b); });
+    if (up.length) {
+      const price = up.reduce(function (s, b) { return s + CO.upgradePrice(b); }, 0);
+      body.appendChild(section('Amélioration', h('div', null,
+        h('button', { class: 'btn primary', text: '⬆ Améliorer ' + up.length + ' bâtiment(s) d’un niveau · ' + CO.fmt(price) + ' ¢', onclick: function () {
+          const n = CO.history.upgrade(up);
+          if (n) CO.emit('toast', n + ' bâtiment(s) amélioré(s) d’un coup.', 'good');
+          renderSide(true);
+        } }),
+        h('div', { class: 'small', text: 'Ceux qui manquent de crédits restent à leur niveau. Ctrl+Z annule tout (remboursé).' }))));
+    }
     const byType = {};
     selection.forEach(function (b) { if (!b.dead) (byType[b.type] = byType[b.type] || []).push(b); });
     Object.keys(byType).forEach(function (t) {
@@ -630,7 +849,7 @@
             onclick: function () { set(r.id); } }, itemIcon(out, 3), h('span', { text: itemName(out) }), ok ? null : h('em', { text: '🔒' })));
         });
         body.appendChild(section('Recette des ' + n + ' « ' + def.name + ' »' + (cur === undefined ? ' (mélangées)' : ''), grid));
-      } else if (t === 'splitter' || t === 'sorter_inv' || t === 'unloader') {
+      } else if (t === 'splitter' || t === 'sorter_inv' || t === 'unloader' || t === 'drone_requester') {
         const cur = same('filter'), grid = h('div', { class: 'grid' });
         grid.appendChild(h('button', { class: 'rec' + (cur === null ? ' active' : ''), onclick: function () { set(null); } }, h('span', { class: 'none', text: '∅' }), h('span', { text: 'Aucun' })));
         CO.ITEM_ORDER.forEach(function (id) {
@@ -654,6 +873,7 @@
           h('div', { class: 'ititle', text: sel.selection.length + ' élément(s) sélectionné(s)' }), grid,
           h('div', { class: 'actions' },
             h('button', { class: 'btn', text: '⧉ Copier', onclick: function () { CO.input.copy(); } }),
+            h('button', { class: 'btn', text: '★ Garder comme plan', onclick: UI.savePlan }),
             h('button', { class: 'btn danger', text: '✖ Supprimer', onclick: function () { CO.input.deleteSelected(); } }))));
         batchSettings(body, sel.selection);
       } else {
@@ -744,6 +964,28 @@
     } else if (b.kind === 'port') {
       const p = CO.getPhase(CO.state.phase);
       body.appendChild(section('Étape en cours', h('div', { class: 'icard flat' }, h('b', { text: p.name }), costRow(p.need, CO.state.phaseHave))));
+    } else if (b.kind === 'launch_pad') {
+      const m = CO.getMission(CO.state.orbit.mission);
+      body.appendChild(section('Fusée', h('div', { class: 'icard flat' },
+        kv('Modules', b.parts + ' / ' + b.def.parts), kv('Charge utile', b.payload ? itemName(b.payload) : '—'),
+        b.phase === 'build' ? progressBar(b, function () { return b.phase === 'build' ? b.t / CO.orbit.ASSEMBLE : 1; }) : null)));
+      body.appendChild(section('Mission : ' + m.name, costRow(m.need, CO.state.orbit.have)));
+    } else if (b.kind === 'drone_provider' || b.kind === 'drone_requester' || b.kind === 'drone_hub') {
+      if (b.kind === 'drone_hub') {
+        const ds = b.drones || [];
+        body.appendChild(section('Drones', h('div', { class: 'icard flat' }, kv('Drones', ds.length + ' · ' + ds.filter(function (d) { return d.state !== 'idle'; }).length + ' en vol'),
+          kv('Portée', b.def.range + ' cases autour'), kv('Coffres reliés', (b.prov || []).length + ' d’envoi · ' + (b.req || []).length + ' de demande'),
+          kv('Charge', CO.drones.CARRY + ' objets par vol'))));
+      } else {
+        body.appendChild(section('Contenu', stockChips(countBy(b.q))));
+        if (b.kind === 'drone_requester') {
+          const grid = h('div', { class: 'grid' });
+          CO.ITEM_ORDER.forEach(function (id) {
+            grid.appendChild(h('button', { class: 'rec' + (b.filter === id ? ' active' : ''), 'data-item': id, onclick: function () { CO.history.configure(b, id); renderSide(true); } }, itemIcon(id, 3)));
+          });
+          body.appendChild(section('Objet demandé (jusqu’à ' + b.def.want + ')', grid));
+        }
+      }
     } else if (b.type === 'splitter' || b.type === 'sorter_inv' || b.kind === 'unloader') {
       const grid = h('div', { class: 'grid' });
       grid.appendChild(h('button', { class: 'rec' + (!b.filter ? ' active' : ''), onclick: function () { CO.history.configure(b, null); renderSide(true); } }, h('span', { class: 'none', text: '∅' }), h('span', { text: 'Aucun' })));
@@ -755,26 +997,145 @@
       body.appendChild(section('Sur la case', stockChips(countBy(b.items.map(function (i) { return i.t; })))));
     }
 
+    upgradeInfo(body, b);
+    powerInfo(body, b);
+    fluidInfo(body, b);
     if (b.def.fixed) return;
     body.appendChild(h('div', { class: 'actions' },
       h('button', { class: 'btn', text: '↻ Tourner (R)', onclick: function () { CO.history.rotate(b); renderSide(true); } }),
+      h('button', { class: 'btn', text: '★ Plan', 'data-tip': 'Garder comme plan|Ajoute ce bâtiment (avec sa recette) à tes plans', onclick: UI.savePlan }),
       h('button', { class: 'btn danger', text: '✖ Supprimer', onclick: function () { CO.input.deleteSelected(); } })));
+  }
+
+  // ------------------------------------------------------------------- plans
+  /** Dialog asking for a plan name; `done(name)` runs on validation (empty name → default). */
+  function askName(title, initial, okLabel, done) {
+    const input = h('input', { class: 'name-input', type: 'text', maxlength: 40, value: initial });
+    const finish = function () { const v = input.value.trim() || initial; UI.closeModal(); done(v); };
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); finish(); }
+      else if (e.key === 'Escape') { e.preventDefault(); UI.closeModal(); }
+      e.stopPropagation();
+    });
+    openModal(title, h('div', null, input), [{ label: 'Annuler' }, { label: okLabel, primary: true, run: function () { done(input.value.trim() || initial); } }]);
+    setTimeout(function () { input.focus(); input.select(); }, 0);
+  }
+  /** Save the current selection (or inspected building) as a new plan of the library. */
+  UI.savePlan = function () {
+    const bp = CO.input.blueprintOfSelection();
+    if (!bp) { CO.emit('toast', 'Sélectionne d’abord des bâtiments (Ctrl + clic gauche glissé).', 'warn'); return; }
+    askName('Garder comme plan', CO.plans.nextName(), 'Garder', function (name) {
+      const p = CO.plans.add(name, bp);
+      if (p) { CO.emit('toast', 'Plan « ' + name + ' » gardé : ' + bp.items.length + ' pièce(s). Retrouve-le dans l’onglet Plans.', 'good'); lastSig = ''; }
+    });
+  };
+  function renderPlans(body) {
+    const can = !!CO.input.blueprintOfSelection();
+    body.appendChild(h('p', { class: 'small', text: 'Garde une disposition pour la reposer quand tu veux, dans toutes tes parties. Sélectionne des bâtiments (Ctrl + clic gauche glissé), puis garde-les comme plan. Pendant la pose : R tourne, F retourne (miroir). Sans assez de crédits, les pièces en trop deviennent des fantômes.' }));
+    body.appendChild(h('button', { class: 'btn primary wide', text: '★ Garder la sélection comme plan', disabled: !can,
+      'data-tip': can ? null : 'Rien de sélectionné|Ctrl + clic gauche glissé pour sélectionner des bâtiments', onclick: UI.savePlan }));
+    const list = CO.plans.list();
+    if (!list.length) { body.appendChild(h('p', { class: 'note', text: 'Aucun plan pour l’instant.' })); return; }
+    const wrap = h('div', { class: 'plans' });
+    list.forEach(function (p) {
+      const bp = p.bp, locked = CO.plans.locked(bp), cost = CO.plans.cost(bp);
+      wrap.appendChild(h('div', { class: 'plan-card' },
+        h('div', { class: 'plan-pic' }, CO.plans.thumb(bp, 96, 72)),
+        h('div', { class: 'plan-txt' },
+          h('b', { class: 'plan-name', text: p.name }),
+          h('div', { class: 'small', text: bp.items.length + ' pièce(s) · ' + bp.w + '×' + bp.h + ' cases' }),
+          h('div', { class: 'small gold', text: CO.fmt(cost) + ' ¢' }),
+          locked.length ? h('div', { class: 'small bad', text: '🔒 Pas encore débloqué : ' + locked.join(', ') + ' (ces pièces ne seront pas posées)' }) : null,
+          h('div', { class: 'actions' },
+            h('button', { class: 'btn small primary', text: 'Poser', onclick: function () { CO.input.loadBlueprint(bp); } }),
+            h('button', { class: 'btn small', text: 'Renommer', onclick: function () {
+              askName('Renommer le plan', p.name, 'Renommer', function (name) { CO.plans.rename(p.id, name); lastSig = ''; });
+            } }),
+            h('button', { class: 'btn small danger', text: 'Supprimer', onclick: function () {
+              openModal('Supprimer ce plan ?', h('p', { text: '« ' + p.name + ' » sera retiré de tes plans. Ce qui est déjà construit ne bouge pas.' }),
+                [{ label: 'Annuler' }, { label: 'Supprimer', primary: true, run: function () { CO.plans.remove(p.id); lastSig = ''; CO.emit('toast', 'Plan supprimé.', 'info'); } }]);
+            } })))));
+    });
+    body.appendChild(wrap);
+  }
+
+  /** Power of a building: what it uses, or the network it belongs to (poles, generators, Port). */
+  function powerInfo(body, b) {
+    if (b.site) return;
+    const net = b.net;
+    const netRows = function (n) {
+      return [kv('Production', CO.fmt(Math.round(n.supply)) + ' kW'), kv('Demande', CO.fmt(Math.round(n.demand)) + ' kW'),
+        kv('Alimentation', Math.round(n.sat * 100) + ' %'),
+        h('div', { class: 'small', text: 'Réseau : ' + n.gens.length + ' source(s) · ' + n.cons.length + ' machine(s) · ' + (n.nodes.length - n.gens.length) + ' poteau(x)' })];
+    };
+    if (b.def.power) {
+      const rows = [kv('Consommation', b.def.power + ' kW en marche')];
+      if (net) rows.push(kv('Vitesse', Math.round((b.pw || 0) * 100) + ' %'));
+      else rows.push(h('div', { class: 'small', style: 'color:#b9a8ff', text: 'Non raccordé : aucun poteau, générateur ou Port ne le touche.' }));
+      body.appendChild(section('Énergie', h('div', { class: 'icard flat' }, rows.concat(net ? netRows(net) : []))));
+    } else if (b.kind === 'generator' || b.kind === 'pole' || b.kind === 'port') {
+      const rows = [];
+      if (b.def.gen) rows.push(kv('Puissance', CO.fmt(Math.round(b.def.gen * (b.kind === 'port' ? 1 : CO.lvlSpeed(b)))) + ' kW'));
+      if (b.def.fuel) rows.push(kv('Charbon', b.fuel + ' / ' + CO.power.FUEL_CAP + (b.burn > 0 ? ' · en cours : ' + fmtNum(b.burn, 1) + ' s' : '')));
+      if (b.kind === 'pole') rows.push(kv('Portée', 'zone ' + (b.def.cover * 2 + 1) + '×' + (b.def.cover * 2 + 1) + ' · liaisons ' + b.def.reach + ' cases'));
+      body.appendChild(section('Réseau électrique', h('div', { class: 'icard flat' }, rows.concat(net ? netRows(net) : []))));
+    }
+  }
+
+  /** Level of an upgradable building and the button to raise it. */
+  function upgradeInfo(body, b) {
+    if (!CO.canUpgradeKind(b) || b.site) return;
+    const U = CO.UPGRADE, l = b.lvl || 1, max = U.speed.length;
+    const box = h('div', { class: 'icard flat' },
+      kv('Niveau', U.names[l - 1] + ' / ' + U.names[max - 1]),
+      kv(b.kind === 'generator' ? 'Production' : 'Vitesse', '×' + fmtNum(U.speed[l - 1], 1)),
+      b.def.power ? kv('Consommation', '×' + fmtNum(U.power[l - 1], 1)) : null);
+    if (l < max) {
+      const next = CO.nextLevel(b), price = CO.upgradePrice(b), tech = TECHS[U.tech[l]];
+      if (!next) box.appendChild(h('div', { class: 'small lock', text: '🔒 Niveau ' + U.names[l] + ' : recherche ' + tech.name }));
+      else box.appendChild(h('button', { class: 'btn primary', disabled: CO.state.money < price,
+        text: '⬆ Niveau ' + U.names[l] + ' (×' + fmtNum(U.speed[l], 1) + ') · ' + CO.fmt(price) + ' ¢',
+        onclick: function () { if (CO.history.upgrade([b])) CO.emit('toast', b.def.name + ' amélioré au niveau ' + U.names[b.lvl - 1] + '.', 'good'); renderSide(true); } }));
+    }
+    body.appendChild(section('Amélioration', box));
+  }
+
+  /** Pipe networks a building belongs to (pipes, tanks) or uses (pumps, steam plants, refineries). */
+  function fluidInfo(body, b) {
+    if (b.site) return;
+    const nets = b.fnet ? [b.fnet] : b.fnets;
+    if (!nets || (!b.fnet && !b.def.fluidIO)) return;
+    if (!nets.length) { body.appendChild(section('Fluides', h('div', { class: 'small', text: 'Aucun tuyau ne le touche.' }))); return; }
+    const box = h('div', { class: 'icard flat' });
+    nets.forEach(function (n) {
+      const f = n.amount / n.cap;
+      box.appendChild(kv(n.amount > 0 ? itemName(n.fluid) : 'Réseau vide', CO.fmt(Math.round(n.amount)) + ' / ' + CO.fmt(n.cap)));
+      box.appendChild(h('div', { class: 'bar' }, h('i', { style: 'width:' + (f * 100) + '%' + (n.amount > 0 ? ';background:' + ITEMS[n.fluid].color : '') })));
+      box.appendChild(h('div', { class: 'small', text: n.parts.length + ' tuyau(x) / cuve(s) · ' + n.users.length + ' bâtiment(s) relié(s)' }));
+    });
+    body.appendChild(section(nets.length > 1 ? 'Fluides (' + nets.length + ' réseaux)' : 'Fluides', box));
   }
 
   /** Cheap signature of what the current tab displays: re-render only when it changes. */
   function signature() {
     const st = CO.state;
     switch (tab) {
-      case 'station': return st.phase + ':' + JSON.stringify(st.phaseHave) + ':' + JSON.stringify(st.tech);
+      case 'station': return JSON.stringify(st.orbit) + st.phase + ':' + JSON.stringify(st.phaseHave) + ':' + JSON.stringify(st.tech) + ':' + CO.ghostStats().cost + ':' + contractSig();
       case 'research': return st.research + JSON.stringify(st.researchProg) + JSON.stringify(st.tech) + JSON.stringify(st.researchBank) + st.researchQueue.join() + CO.world.list.length;
       case 'stats': return Math.floor(simTime) + ':' + st.phase;
+      case 'plans': return CO.plans.rev + ':' + !!CO.input.blueprintOfSelection() + ':' + JSON.stringify(st.tech);
       case 'info': {
         const b = CO.input.get().inspected;
         const sel = CO.input.get().selection.length;
-        if (!b || b.dead) return 'none' + sel;
+        if (!b || b.dead) return 'none' + sel + ':' + CO.input.get().selection.reduce(function (s, x) { return s + (x.lvl || 1); }, 0) + ':' + Math.floor(st.money / 100);
         const labSig = b.kind === 'lab' ? JSON.stringify(st.researchProg) + JSON.stringify(st.researchBank) + st.researchQueue.join() : '';
         const drvSig = b.kind === 'driver' ? (b.target || '') + ':' + !!CO.sim.driverTarget(b) : '';
-        return b.id + ':' + (b.site ? 'S' + !!b.site.w : '') + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest + labSig + drvSig;
+        const fns = b.fnet ? [b.fnet] : b.fnets || [];
+        const flSig = fns.map(function (n) { return (n.fluid || '') + Math.round(n.amount); }).join(',');
+        const lpSig = b.kind === 'launch_pad' ? b.parts + b.phase + b.payload + JSON.stringify(st.orbit) : '';
+        const drSig = lpSig + (b.drones ? b.drones.map(function (d) { return d.state[0]; }).join('') : '');
+        const pwSig = drSig + flSig + ':' + Math.round((b.pw || 0) * 100) + (b.net ? ':' + Math.round(b.net.supply) + '/' + Math.round(b.net.demand) + '/' + b.net.cons.length + '/' + b.net.nodes.length : '') + (b.fuel != null ? ':' + b.fuel : '');
+        return pwSig + ':L' + b.lvl + (CO.nextLevel(b) ? 'u' + (CO.state.money >= CO.upgradePrice(b)) : '') + b.id + ':' + (b.site ? 'S' + !!b.site.w + b.site.paid : '') + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest + labSig + drvSig;
       }
     }
     return '';
@@ -785,7 +1146,7 @@
     lastSig = signature();
     const sc = body.scrollTop;
     body.innerHTML = ''; stationCv = null; live = null;
-    ({ station: renderStation, research: renderResearch, stats: renderStats, info: renderInfo })[tab](body);
+    ({ station: renderStation, research: renderResearch, stats: renderStats, plans: renderPlans, info: renderInfo })[tab](body);
     body.scrollTop = sc;
   }
 
@@ -804,10 +1165,31 @@
     CO.save.save();
   });
   CO.on('unlock', function () { buildPalette(); });
-  CO.on('loaded', function () { buildPalette(); lastSig = ''; renderSide(true); });
+  CO.on('loaded', function () {
+    buildPalette(); lastSig = ''; renderSide(true);
+    if (CO.save.powerNotice) {
+      CO.save.powerNotice = false;
+      setTimeout(function () { UI.whenFree(function () {
+        openModal('Nouveau : l’électricité', h('div', null,
+          h('p', { text: 'Les foreuses, machines, laboratoires et catapultes ont maintenant besoin de courant pour fonctionner.' }),
+          h('p', { text: 'Le Port fournit 150 kW autour de lui. Plus loin, pose des Poteaux électriques (4 ¢, catégorie Énergie de la palette) : chacun alimente les bâtiments qui touchent sa zone et se relie tout seul aux poteaux voisins.' }),
+          h('p', { text: 'Pour produire plus, construis des Générateurs thermiques et nourris-les de charbon par convoyeur. Le compteur ⚡ en haut indique la production et la demande.' })),
+          [{ label: 'Compris', primary: true }]);
+      }); }, 300);
+    }
+  });
   CO.on('research', function () { lastSig = ''; });
   CO.on('land', function () { lastSig = ''; });
   CO.on('workers', function () { lastSig = ''; });
+  CO.on('contracts', function () { lastSig = ''; });
+  CO.on('orbit', function () { lastSig = ''; });
+  CO.on('mission', function (m) {
+    const last = m.id === 'mars';
+    openModal(last ? 'Cap sur Mars !' : 'Mission accomplie', h('div', null,
+      h('p', { text: last ? 'L’expédition est partie : ta station est devenue un port interplanétaire. Bravo, Macalamar ! Les missions profondes continuent pour qui veut aller plus loin.' : m.name + ' : réussi.' }),
+      h('p', { class: 'small', text: 'Récompense : ' + m.text + '.' })), [{ label: 'Continuer', primary: true }]);
+    CO.save.save();
+  });
   CO.on('inspect', function () { if (CO.input.get().inspected) { if (tab !== 'info') setTab('info'); else renderSide(true); } else if (tab === 'info') renderSide(true); });
   CO.on('selection', function () {
     if (CO.input.get().selection.length && tab !== 'info') setTab('info');   // show the batch settings
@@ -837,7 +1219,11 @@
       const id = CO.ORE_IDS[hv.ore];
       tipEl.innerHTML = '';
       tipEl.appendChild(itemIcon(id, 3));
-      tipEl.appendChild(h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · Foreuse : ' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill) + ', Foreuse lourde : ' + fmtRate(BUILDINGS.drill_heavy.rate * CO.mods.drill) + ' (pleine couverture)' })));
+      tipEl.appendChild(CO.isFluidOre(hv.ore)
+        ? h('span', null, h('b', { text: oreLabel(hv.ore) }), h('small', { text: id === 'water'
+          ? 'Pompe à eau : ' + fmtNum(BUILDINGS.pump.rate, 0) + ' eau/s (pleine couverture), à relier par des tuyaux'
+          : 'Puits de pétrole : ' + fmtNum(BUILDINGS.oil_well.rate, 0) + ' pétrole/s (pleine couverture) · recherche Pétrochimie' }))
+        : h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · Foreuse : ' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill) + ', Foreuse lourde : ' + fmtRate(BUILDINGS.drill_heavy.rate * CO.mods.drill) + ' (pleine couverture)' })));
     }
     tipEl.hidden = false;
     const w = tipEl.offsetWidth, hh = tipEl.offsetHeight;
@@ -983,6 +1369,7 @@
     buildMenu(); buildPalette(); buildToolbar(); buildTabs();
     if (window.innerWidth < 1100) document.body.classList.add('side-collapsed');   // tablets: panel opens on demand
     $('btn-panel').addEventListener('click', function () { document.body.classList.toggle('side-collapsed'); });
+    $('btn-map').addEventListener('click', function () { CO.minimap.toggle(); });
     const side = $('side');
     side.addEventListener('pointerdown', function () { pressing = true; });
     window.addEventListener('pointerup', function () { setTimeout(function () { pressing = false; }, 60); });

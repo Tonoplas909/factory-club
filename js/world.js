@@ -108,6 +108,26 @@
           }
         }
       }
+      // Lakes and oil pools (appended last, only on empty cells: the ore above is unchanged). One small lake
+      // near the Port for the first pumps; oil only far away.
+      const rnd4 = CO.rng(seed * 48611 + 7);
+      const fluids = [[7, 1, 3.2, 4.2, 14, 26], [7, 46, 3.5, 7.5, 30, 9999], [8, 34, 2.6, 4.2, 70, 9999]];
+      for (let k = 0; k < fluids.length; k++) {
+        const e = fluids[k];
+        for (let n = 0; n < e[1]; n++) {
+          for (let tries = 0; tries < 300; tries++) {
+            const r = e[2] + rnd4() * (e[3] - e[2]);
+            const cx = 8 + rnd4() * (W - 16), cy = 8 + rnd4() * (H - 16), d = Math.hypot(cx - CO.MAP_CX, cy - CO.MAP_CY);
+            if (d < e[4] || d > e[5]) continue;
+            let ok = true;
+            for (let q = 0; q < placed.length && ok; q++) if (Math.hypot(cx - placed[q][0], cy - placed[q][1]) < r + placed[q][2] + 3) ok = false;
+            if (!ok) continue;
+            placed.push([cx, cy, r]);
+            this.stamp(e[0], cx, cy, r, Math.floor(rnd4() * 1000), 0, 0);
+            break;
+          }
+        }
+      }
       // Keep the port area clean.
       for (let y = CO.MAP_CY - 4; y < CO.MAP_CY + 4; y++) for (let x = CO.MAP_CX - 4; x < CO.MAP_CX + 4; x++) this.ore[y * W + x] = 0;
     },
@@ -124,12 +144,18 @@
       }
     },
 
-    /** Dominant ore under a w×h footprint: {id, n (covered tiles of that ore)}. */
-    countOre: function (x, y, w, h) {
+    /**
+     * Dominant ore under a w×h footprint: {id, n (covered tiles of that ore)}. Lakes and oil pools are
+     * ignored (drills), unless `only` names the one ore id to count (pumps).
+     */
+    countOre: function (x, y, w, h, only) {
       const c = new Array(CO.ORE_IDS.length).fill(0);
       for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) c[this.oreAt(x + i, y + j)]++;
       let best = 0, bn = 0;
-      for (let k = 1; k < c.length; k++) if (c[k] > bn) { bn = c[k]; best = k; }
+      for (let k = 1; k < c.length; k++) {
+        if (only ? k !== only : CO.isFluidOre(k)) continue;
+        if (c[k] > bn) { bn = c[k]; best = k; }
+      }
       return { id: best, n: bn };
     },
 
@@ -157,6 +183,8 @@
         }
       }
       if (def.kind === 'drill' && this.countOre(x, y, def.w, def.h).n === 0) return { ok: false, reason: 'Doit couvrir un gisement' };
+      if (def.kind === 'pump' && this.countOre(x, y, def.w, def.h, CO.ORE_IDS.indexOf(def.fluid)).n === 0)
+        return { ok: false, reason: def.fluid === 'water' ? 'Doit couvrir un lac' : 'Doit couvrir une nappe de pétrole' };
       const replace = replaces[0] || null;
       if (replaces.length === 1 && def.w === 1 && def.h === 1 && replace.type === type && replace.dir === dir) return { ok: false, same: true, reason: 'Déjà posé' };
       return { ok: true, replace: replace, replaces: replaces };
@@ -165,7 +193,8 @@
     /** Create a building and register it in the grid. `cfg` = {recipe, filter, target} (optional). */
     create: function (type, x, y, dir, cfg) {
       const def = BUILDINGS[type];
-      const b = { id: this.nextId++, type: type, def: def, kind: def.kind, x: x, y: y, w: def.w, h: def.h, dir: dir, fc: null };
+      const b = { id: this.nextId++, type: type, def: def, kind: def.kind, x: x, y: y, w: def.w, h: def.h, dir: dir, fc: null,
+        lvl: Math.max(1, Math.min(CO.UPGRADE.speed.length, (cfg && cfg.lvl) | 0 || 1)) };
       switch (def.kind) {
         case 'belt': case 'tunnel_in': case 'tunnel_out':
           b.items = []; b.lastIn = -1; b.link = null; b.linkVer = -1; break;
@@ -177,6 +206,14 @@
           b.slot = null; b.timer = 0; b.rr = 0; b.filter = (cfg && cfg.filter) || null; b.status = 'idle'; break;
         case 'chest':
           b.q = []; b.outT = 0; break;
+        case 'drone_provider':
+          b.q = []; b.reserved = {}; break;
+        case 'drone_requester':
+          b.q = []; b.outT = 0; b.incoming = 0; b.filter = (cfg && cfg.filter) || null; break;
+        case 'drone_hub':
+          b.drones = []; b.status = 'idle'; break;
+        case 'launch_pad':
+          b.parts = 0; b.payload = null; b.phase = 'load'; b.t = 0; b.status = 'idle'; break;
         case 'driver':
           b.q = []; b.incoming = 0; b.cd = 0; b.status = 'idle'; b.rr = 0; b.aim = null;
           this.setTarget(b, cfg && cfg.target); break;
@@ -186,6 +223,13 @@
         }
         case 'machine':
           b.recipe = (cfg && cfg.recipe) || null; b.inBuf = {}; b.outBuf = []; b.prog = 0; b.crafting = false; b.status = 'idle'; b.rr = 0; break;
+        case 'generator':                              // fuel: items waiting, burn: seconds left on the one burning
+          b.fuel = 0; b.burn = 0; b.status = 'idle'; break;
+        case 'pole': break;
+        case 'pump':
+          b.n = this.countOre(x, y, def.w, def.h, CO.ORE_IDS.indexOf(def.fluid)).n; b.status = 'idle'; break;
+        case 'pipe': case 'fluid_tank':                // fa / ff: share of the network content kept by this piece
+          b.fa = 0; b.ff = null; break;
         default:
           b.pend = 0; b.pendT = 0; break;
       }
@@ -210,9 +254,10 @@
 
     /** Turn a freshly created building into a construction site (`done` seconds of work already spent).
      *  A site takes up its cells but does nothing until a worker finishes it. */
-    makeSite: function (b, done) {
+    /** Turn `b` into a construction site. `paid` false makes it a ghost: paid when a worker claims it. */
+    makeSite: function (b, done, paid) {
       const t = CO.BUILD_TIME[b.type] || 1;
-      b.site = { t: t, p: Math.min(t * 0.999, Math.max(0, done || 0)), w: null };
+      b.site = { t: t, p: Math.min(t * 0.999, Math.max(0, done || 0)), w: null, paid: paid !== false };
       this.sites.push(b);
       this.version++;
     },
@@ -252,9 +297,21 @@
       if (b.recipe) o.r = b.recipe;
       if (b.filter) o.f = b.filter;
       if (b.target) o.k = b.target;
+      if (b.lvl > 1) o.l = b.lvl;
+      if (b.kind === 'launch_pad' && (b.parts || b.payload)) { o.rp = b.parts; o.pl = b.payload; o.ph = b.phase; o.pt = Math.round(b.t * 100) / 100; }
       if (b.site) o.s = Math.round(b.site.p * 100) / 100;          // seconds of work already spent on the site
+      if (b.site && !b.site.paid) o.g = 1;                          // ghost: not paid yet
       if (b.items && b.items.length) o.i = b.items.map(function (it) { return [it.t, Math.round(it.p * 100) / 100, it.f]; });
       if (b.q && b.q.length) o.q = b.q.slice();
+      if (b.kind === 'drone_requester' && CO.drones) {   // what drones are carrying to it is saved into it
+        const fly = CO.drones.inFlightTo(b);
+        if (fly.length) o.q = (o.q || []).concat(fly);
+      }
+      if (b.kind === 'generator' && (b.fuel || b.burn > 0)) { o.fu = b.fuel; o.bu = Math.round(b.burn * 100) / 100; }
+      if ((b.kind === 'pipe' || b.kind === 'fluid_tank') && CO.fluid) {
+        const c = CO.fluid.contentOf(b);
+        if (c.a > 0) { o.fa = Math.round(c.a * 10) / 10; o.ff = c.f; }
+      }
       if (b.kind === 'driver') {                       // items still flying are saved back into their launcher
         const fly = CO.sim ? CO.sim.inFlightFrom(b) : [];
         if (fly.length) o.q = (o.q || []).concat(fly);
@@ -277,11 +334,18 @@
         const o = arr[i], def = BUILDINGS[o.t];
         if (!def || def.fixed || !(o.d >= 0 && o.d < 4)) continue;
         if (!this.check(o.t, o.x, o.y, o.d).ok) continue;
-        const b = this.create(o.t, o.x, o.y, o.d, { recipe: o.r, filter: o.f, target: o.k });
-        if (o.s != null) this.makeSite(b, Number(o.s) || 0);
+        const b = this.create(o.t, o.x, o.y, o.d, { recipe: o.r, filter: o.f, target: o.k, lvl: o.l });
+        if (o.s != null) this.makeSite(b, Number(o.s) || 0, !o.g);
         if (o.i && b.items) b.items = o.i.filter(function (a) { return CO.ITEMS[a[0]]; }).map(function (a) { return { t: a[0], p: a[1], f: a[2] }; });
         if (o.q && b.q) b.q = o.q.filter(function (t) { return CO.ITEMS[t]; });
         if (o.ib && b.inBuf) b.inBuf = o.ib;
+        if (b.kind === 'launch_pad') {
+          b.parts = Math.max(0, Math.min(b.def.parts, o.rp | 0));
+          b.payload = o.pl === 'satellite' || o.pl === 'probe' ? o.pl : null;
+          b.phase = o.ph === 'build' || o.ph === 'flight' ? o.ph : 'load'; b.t = Math.max(0, Number(o.pt) || 0);
+        }
+        if (b.kind === 'generator') { b.fuel = Math.max(0, Number(o.fu) || 0); b.burn = Math.max(0, Number(o.bu) || 0); }
+        if ((b.kind === 'pipe' || b.kind === 'fluid_tank') && o.ff && CO.ITEMS[o.ff] && CO.ITEMS[o.ff].fluid) { b.fa = Math.max(0, Number(o.fa) || 0); b.ff = o.ff; }
         if (o.ob) { if (b.outBuf) b.outBuf = o.ob.slice(); else if (b.out) b.out = o.ob.slice(); }
       }
     }

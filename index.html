@@ -5,20 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#0b0f1e">
   <title>Chantier Orbital — construis ta station spatiale</title>
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=18">
 </head>
 <body>
   <div id="app">
     <canvas id="game" tabindex="0"></canvas>
+    <canvas id="minimap" data-tip="Carte|Clique ou glisse pour déplacer la caméra|M pour masquer"></canvas>
 
     <header id="topbar">
       <div class="brand"><span class="logo"></span><b>Chantier Orbital</b></div>
       <div class="chip" id="money" data-tip="Crédits|Gagnés en vendant au Comptoir ou au Port, et à chaque étape de la station"><span class="coin"></span><b id="money-val">0</b><small id="money-rate"></small></div>
       <div class="chip" id="workers" data-tip="Ouvriers|Au travail / dans l’équipe|Chaque bâtiment posé attend qu’un ouvrier vienne le construire|Recrute-en d’autres dans l’onglet Station"><span class="wk-ico"></span><b id="workers-val">0/3</b><small id="workers-wait"></small></div>
+      <div class="chip" id="power" data-tip="Énergie|Production / demande de tous les réseaux électriques|Une machine sans courant s’arrête ; un réseau trop chargé ralentit toutes ses machines|Pose des poteaux et des générateurs (catégorie Énergie)"><span class="pw-ico">⚡</span><b id="power-val">0/0 kW</b><small id="power-warn"></small></div>
       <div class="chip grow" id="station-chip" data-tip="Station|Progression de l’étape en cours (onglet Station pour le détail)">
         <span id="phase-label"></span>
         <div class="bar"><i id="phase-bar"></i></div>
       </div>
+      <button id="btn-map" class="ibtn" data-tip="Minicarte|Afficher / masquer la carte en haut à droite (M)">▦</button>
       <button id="btn-panel" class="ibtn" data-tip="Panneau latéral|Afficher / masquer Station, Recherche, Production, Infos">▤</button>
       <button id="btn-menu" class="ibtn" data-tip="Menu|Recettes, aide, export / import, nouvelle partie">☰</button>
       <div id="menu" hidden></div>
@@ -38,19 +41,27 @@
   </div>
   <input type="file" id="file-import" accept=".json,application/json" hidden>
 
-  <script src="js/util.js?v=9"></script>
-  <script src="js/config.js?v=9"></script>
-  <script src="js/world.js?v=9"></script>
-  <script src="js/state.js?v=9"></script>
-  <script src="js/sim.js?v=9"></script>
-  <script src="js/history.js?v=9"></script>
-  <script src="js/sprites.js?v=9"></script>
-  <script src="js/voxel.js?v=9"></script>
-  <script src="js/station.js?v=9"></script>
-  <script src="js/render.js?v=9"></script>
-  <script src="js/iso.js?v=9"></script>
-  <script src="js/input.js?v=9"></script>
-  <script src="js/ui.js?v=9"></script>
-  <script src="js/main.js?v=9"></script>
+  <script src="js/util.js?v=18"></script>
+  <script src="js/config.js?v=18"></script>
+  <script src="js/changelog.js?v=18"></script>
+  <script src="js/world.js?v=18"></script>
+  <script src="js/state.js?v=18"></script>
+  <script src="js/sim.js?v=18"></script>
+  <script src="js/power.js?v=18"></script>
+  <script src="js/fluid.js?v=18"></script>
+  <script src="js/contracts.js?v=18"></script>
+  <script src="js/drones.js?v=18"></script>
+  <script src="js/orbit.js?v=18"></script>
+  <script src="js/history.js?v=18"></script>
+  <script src="js/plans.js?v=18"></script>
+  <script src="js/sprites.js?v=18"></script>
+  <script src="js/voxel.js?v=18"></script>
+  <script src="js/station.js?v=18"></script>
+  <script src="js/render.js?v=18"></script>
+  <script src="js/iso.js?v=18"></script>
+  <script src="js/minimap.js?v=18"></script>
+  <script src="js/input.js?v=18"></script>
+  <script src="js/ui.js?v=18"></script>
+  <script src="js/main.js?v=18"></script>
 </body>
 </html>

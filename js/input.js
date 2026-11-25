@@ -24,10 +24,12 @@
   let clipboard = null;                 // {w,h,items:[{type,rx,ry,dir,cfg,tr}]} (tr: relative driver target)
   let linkSrc = null;                   // mass driver whose target is being chosen (tool 'link')
   const held = {};                      // keyboard pan keys currently down
-  let lastCost = 0;
+  let lastCost = 0, lastGhostCost = 0;
 
   I.get = function () { return { tool: tool, buildType: buildType, rot: rot, inspected: inspected, selection: selection.blds, clipboard: clipboard, linkSrc: linkSrc }; };
   I.getCost = function () { return lastCost; };
+  /** Part of the preview cost that would be placed as ghosts (not enough credits right now). */
+  I.getGhostCost = function () { return lastGhostCost; };
 
   // ------------------------------------------------------------ tool state
   function setTool(t) {
@@ -175,7 +177,7 @@
     if (!cur || !clipboard) return [];
     const bx = Math.round(cur.x - clipboard.w / 2), by = Math.round(cur.y - clipboard.h / 2);
     return clipboard.items.map(function (it) {
-      const cfg = { recipe: it.cfg.recipe, filter: it.cfg.filter, target: it.tr ? (bx + it.tr.rx) + ',' + (by + it.tr.ry) : null };
+      const cfg = { recipe: it.cfg.recipe, filter: it.cfg.filter, target: it.tr ? (bx + it.tr.rx) + ',' + (by + it.tr.ry) : null, lvl: it.cfg.lvl };
       return { type: it.type, x: bx + it.rx, y: by + it.ry, dir: it.dir, cfg: cfg };
     });
   }
@@ -214,7 +216,7 @@
   }
 
   function validate(pl) {
-    let money = CO.state.money, total = 0;
+    let money = CO.state.money, total = 0, ghost = 0;
     const taken = {};
     for (let i = 0; i < pl.length; i++) {
       const p = pl[i], def = BUILDINGS[p.type];
@@ -225,16 +227,18 @@
         if (taken[key] && !(def.w === 1 && def.h === 1)) ok = false;
       }
       if (ok) {
-        let price = def.cost;
-        for (let r = 0; r < chk.replaces.length; r++) price -= BUILDINGS[chk.replaces[r].type].cost;
-        if (price > money) ok = false; else { money -= price; total += price; }
+        let price = CO.fullCost(p.type, p.cfg && p.cfg.lvl);
+        for (let r = 0; r < chk.replaces.length; r++) price -= CO.paidValue(chk.replaces[r]);
+        if (price <= money) { money -= price; total += price; }
+        else if (chk.replaces.length) ok = false;              // replacing pieces must be paid right away
+        else { p.ghost = true; total += price; ghost += price; }  // placed as a ghost, paid later by a worker
         for (let j = 0; j < def.h; j++) for (let k = 0; k < def.w; k++) taken[(p.x + k) + ',' + (p.y + j)] = true;
       }
       p.valid = ok || !!chk.same;
       p.same = !!chk.same;
       p.replaces = (ok && chk.replaces && def.w * def.h > 1) ? chk.replaces : null;   // belts that will be removed
     }
-    lastCost = total;
+    lastCost = total; lastGhostCost = ghost;
     return pl;
   }
 
@@ -250,7 +254,7 @@
         // A driver keeps its link only when its target is copied too (stored relative to the blueprint).
         const t = b.kind === 'driver' ? CO.sim.driverTarget(b) : null;
         const tr = t && list.indexOf(t) >= 0 ? { rx: t.x - x0, ry: t.y - y0, w: t.w, h: t.h } : null;
-        return { type: b.type, rx: b.x - x0, ry: b.y - y0, dir: b.dir, cfg: { recipe: b.recipe || null, filter: b.filter || null }, tr: tr };
+        return { type: b.type, rx: b.x - x0, ry: b.y - y0, dir: b.dir, cfg: { recipe: b.recipe || null, filter: b.filter || null, lvl: b.lvl > 1 ? b.lvl : undefined }, tr: tr };
       })
     };
   }
@@ -263,6 +267,29 @@
     });
     bp.h = bp.w; bp.w = oh;
   }
+  /** Flip a blueprint left ↔ right. Every building is square, so only positions and E/W directions change. */
+  function mirrorBlueprint(bp) {
+    bp.items.forEach(function (it) {
+      const d = BUILDINGS[it.type];
+      it.rx = bp.w - (it.rx + d.w);
+      if (it.dir === 0 || it.dir === 2) it.dir = 2 - it.dir;
+      if (it.tr) it.tr = { rx: bp.w - (it.tr.rx + it.tr.w), ry: it.tr.ry, w: it.tr.w, h: it.tr.h };
+    });
+  }
+  I.mirror = function () {
+    if (tool === 'paste' && clipboard) { mirrorBlueprint(clipboard); return true; }
+    return false;
+  };
+  /** Deep copy of a blueprint, so a plan of the library is never changed by rotating / mirroring a paste. */
+  function cloneBlueprint(bp) { return JSON.parse(JSON.stringify(bp)); }
+  /** Blueprint of the current selection (or inspected building), or null. */
+  I.blueprintOfSelection = function () { const bp = blueprintFrom(currentTargets()); return bp ? cloneBlueprint(bp) : null; };
+  /** Load a blueprint (a plan of the library) into the clipboard and start pasting it. */
+  I.loadBlueprint = function (bp) {
+    if (!bp || !bp.items || !bp.items.length) return;
+    clipboard = cloneBlueprint(bp);
+    I.paste();
+  };
   function currentTargets() {
     if (selection.blds.length) return selection.blds;
     return inspected ? [inspected] : [];
@@ -551,6 +578,8 @@
       case 'e': setTool('select'); break;
       case 'x': setTool('delete'); break;
       case 'i': CO.ui.showGuide(); break;
+      case 'f': I.mirror(); break;
+      case 'm': CO.minimap.toggle(); break;
       case 'tab': e.preventDefault(); CO.render.toggleMode(); break;
       case 'escape':
         if (tool === 'link') endLink();

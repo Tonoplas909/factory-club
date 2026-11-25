@@ -5,8 +5,11 @@
  *   {k:'del', t, x, y, d, c}      a building was removed
  *   {k:'rot', x, y, a, b}         rotated from direction a to b
  *   {k:'cfg', x, y, a, b}         recipe/filter/target changed (a/b = {r, f, k})
+ *   {k:'lvl', x, y, a, b}         upgraded from level a to level b (pays / refunds the difference)
  * Operations reference buildings by position (not id) because undo re-creates buildings.
- * Placing costs credits; removing refunds 100 % (no punishment, in the spirit of the game).
+ * Placing costs credits; removing refunds 100 % of what was paid (no punishment, in the spirit of the game).
+ * When credits run short, a placed piece becomes a ghost (op.g = 1): an unpaid site that a worker pays for
+ * when it comes to build it. Removing a ghost refunds nothing, since nothing was paid.
  */
 (function (CO) {
   'use strict';
@@ -16,8 +19,21 @@
 
   const H = CO.history = {};
 
-  function cfgOf(b) { return { r: b.recipe || null, f: b.filter || null, k: b.target || null }; }
-  function snap(b, k) { return { k: k, t: b.type, x: b.x, y: b.y, d: b.dir, c: cfgOf(b) }; }
+  function cfgOf(b) { const c = { r: b.recipe || null, f: b.filter || null, k: b.target || null }; if (b.lvl > 1) c.l = b.lvl; return c; }
+  function snap(b, k) {
+    const o = { k: k, t: b.type, x: b.x, y: b.y, d: b.dir, c: cfgOf(b) };
+    if (b.site && !b.site.paid) o.g = 1;
+    return o;
+  }
+  /** Credits actually spent on `b`: its cost, or 0 for a ghost not paid yet. */
+  CO.paidValue = function (b) { return b.site && !b.site.paid ? 0 : CO.fullCost(b.type, b.lvl); };
+  /** Ghost sites waiting for credits: how many, and what they will cost. */
+  CO.ghostStats = function () {
+    let n = 0, cost = 0;
+    const s = world.sites;
+    for (let i = 0; i < s.length; i++) if (!s[i].site.paid) { n++; cost += CO.fullCost(s[i].type, s[i].lvl); }
+    return { n: n, cost: cost };
+  };
 
   function flip(k, inv) {
     if (!inv) return k;
@@ -29,18 +45,27 @@
     const st = CO.state, k = flip(op.k, inv);
     if (k === 'add') {
       if (!world.check(op.t, op.x, op.y, op.d).ok) return;
-      st.money -= BUILDINGS[op.t].cost;
-      const b = world.create(op.t, op.x, op.y, op.d, { recipe: op.c.r, filter: op.c.f, target: op.c.k });
-      world.makeSite(b, 0);                           // a worker has to come and build it
+      const cost = CO.fullCost(op.t, op.c.l), paid = !op.g && st.money >= cost;
+      if (paid) st.money -= cost;
+      const b = world.create(op.t, op.x, op.y, op.d, { recipe: op.c.r, filter: op.c.f, target: op.c.k, lvl: op.c.l });
+      world.makeSite(b, 0, paid);                     // a worker has to come and build it (and pay it, if a ghost)
     } else if (k === 'del') {
       const b = world.at(op.x, op.y);
-      if (b && b.type === op.t && !b.def.fixed) { st.money += BUILDINGS[op.t].cost; world.remove(b); }
+      if (b && b.type === op.t && !b.def.fixed) { st.money += CO.paidValue(b); world.remove(b); }
     } else if (k === 'rot') {
       const b = world.at(op.x, op.y);
       if (b) world.setDir(b, inv ? op.a : op.b);
     } else if (k === 'cfg') {
       const b = world.at(op.x, op.y);
       if (b) setCfg(b, inv ? op.a : op.b);
+    } else if (k === 'lvl') {
+      const b = world.at(op.x, op.y), from = inv ? op.b : op.a, to = inv ? op.a : op.b;
+      if (!b || b.lvl !== from) return;
+      const diff = CO.levelSpent(b.type, to) - CO.levelSpent(b.type, from);
+      if (b.site && !b.site.paid) { b.lvl = to; return; }        // a ghost pays everything when it is built
+      if (diff > st.money) return;
+      st.money -= diff; b.lvl = to;
+      world.version++;                                           // power demand / speed changed
     }
   }
 
@@ -60,21 +85,12 @@
         }
         b.recipe = c.r; b.crafting = false; b.prog = 0;
       }
-    } else if (b.kind === 'router' || b.kind === 'unloader') b.filter = c.f;
+    } else if (b.kind === 'router' || b.kind === 'unloader' || b.kind === 'drone_requester') b.filter = c.f;
     else if (b.kind === 'driver') world.setTarget(b, c.k || null);
   }
 
-  function netCost(ops, inv) {
-    let c = 0;
-    for (let i = 0; i < ops.length; i++) {
-      const k = flip(ops[i].k, inv);
-      if (k === 'add') c += BUILDINGS[ops[i].t].cost; else if (k === 'del') c -= BUILDINGS[ops[i].t].cost;
-    }
-    return c;
-  }
-
+  // Never refused for lack of credits: a re-added piece that cannot be paid comes back as a ghost.
   function exec(ops, inv) {
-    if (CO.state.money < netCost(ops, inv)) { CO.emit('toast', 'Pas assez de crédits pour cette action.', 'warn'); return false; }
     if (inv) for (let i = ops.length - 1; i >= 0; i--) applyOp(ops[i], true);
     else for (let i = 0; i < ops.length; i++) applyOp(ops[i], false);
     return true;
@@ -109,21 +125,27 @@
    */
   H.place = function (placements) {
     const ops = [], st = CO.state;
-    let skippedMoney = false, placed = 0;
+    let skippedMoney = false, placed = 0, ghosts = 0;
     for (let i = 0; i < placements.length; i++) {
       const p = placements[i];
       if (!CO.isBuildingUnlocked(p.type)) continue;
       const chk = world.check(p.type, p.x, p.y, p.dir);
       if (!chk.ok) continue;
-      let price = BUILDINGS[p.type].cost;
-      for (let r = 0; r < chk.replaces.length; r++) price -= BUILDINGS[chk.replaces[r].type].cost;
-      if (st.money < price) { skippedMoney = true; break; }
+      const cost = CO.fullCost(p.type, p.cfg && p.cfg.lvl);
+      let price = cost;
+      for (let r = 0; r < chk.replaces.length; r++) price -= CO.paidValue(chk.replaces[r]);
+      // A piece that replaces others is paid now or not placed: a line is never cut while waiting for credits.
+      if (chk.replaces.length && st.money < price) { skippedMoney = true; continue; }
       for (let r = 0; r < chk.replaces.length; r++) { const o = snap(chk.replaces[r], 'del'); ops.push(o); applyOp(o, false); }
       const cfg = p.cfg || {};
       const add = { k: 'add', t: p.type, x: p.x, y: p.y, d: p.dir, c: { r: cfg.recipe || null, f: cfg.filter || null, k: cfg.target || null } };
+      if (cfg.lvl > 1 && CO.canUpgradeKind({ kind: BUILDINGS[p.type].kind, def: BUILDINGS[p.type] })) add.c.l = cfg.lvl;
+      if (st.money < cost) { add.g = 1; ghosts++; }
       ops.push(add); applyOp(add, false); placed++;
     }
-    if (skippedMoney) CO.emit('toast', 'Pas assez de crédits.', 'warn');
+    if (skippedMoney) CO.emit('toast', 'Pas assez de crédits pour remplacer certaines pièces : elles n\u2019ont pas été posées.', 'warn');
+    if (ghosts) CO.emit('toast', ghosts + ' pièce(s) en fantôme : les ouvriers les construiront quand les crédits arriveront.', 'info');
+    H.lastGhosts = ghosts;
     push(ops);
     return placed;
   };
@@ -150,11 +172,27 @@
   /** Change recipe (machines), filter (splitters) or target ("x,y", mass drivers). `value` = id/key or null. */
   H.configure = function (b, value) {
     const a = cfgOf(b), c = { r: a.r, f: a.f, k: a.k };
-    if (b.kind === 'machine') c.r = value; else if (b.kind === 'router' || b.kind === 'unloader') c.f = value; else if (b.kind === 'driver') c.k = value; else return;
+    if (b.kind === 'machine') c.r = value; else if (b.kind === 'router' || b.kind === 'unloader' || b.kind === 'drone_requester') c.f = value; else if (b.kind === 'driver') c.k = value; else return;
     if (c.r === a.r && c.f === a.f && c.k === a.k) return;
     const op = { k: 'cfg', x: b.x, y: b.y, a: a, b: c };
     applyOp(op, false); push([op]);
     if (b.kind === 'machine' && value) CO.state.lastRecipe[b.type] = value;
+  };
+  /** Upgrade every building of `list` that can go one level up (research done, credits enough). One undo step. */
+  H.upgrade = function (list) {
+    const ops = [];
+    let skipped = 0;
+    list.forEach(function (b) {
+      if (b.dead) return;
+      const to = CO.nextLevel(b);
+      if (!to) return;
+      if (CO.upgradePrice(b) > CO.state.money) { skipped++; return; }
+      const op = { k: 'lvl', x: b.x, y: b.y, a: b.lvl || 1, b: to };
+      applyOp(op, false); ops.push(op);
+    });
+    if (ops.length) push(ops);
+    if (skipped) CO.emit('toast', skipped + ' bâtiment(s) non amélioré(s) : pas assez de crédits.', 'warn');
+    return ops.length;
   };
   /** Same recipe / filter for many buildings at once (one undo step). */
   H.configureMany = function (list, value) {
@@ -162,7 +200,7 @@
     list.forEach(function (b) {
       if (b.dead) return;
       const a = cfgOf(b), c = { r: a.r, f: a.f, k: a.k };
-      if (b.kind === 'machine') c.r = value; else if (b.kind === 'router' || b.kind === 'unloader') c.f = value; else return;
+      if (b.kind === 'machine') c.r = value; else if (b.kind === 'router' || b.kind === 'unloader' || b.kind === 'drone_requester') c.f = value; else return;
       if (c.r === a.r && c.f === a.f) return;
       const op = { k: 'cfg', x: b.x, y: b.y, a: a, b: c };
       applyOp(op, false); ops.push(op);

@@ -216,6 +216,112 @@
       lip(m, n, 3);
       return m;
     },
+    pole: function () {                                // wooden post, crossbar and two glass insulators (wires hook at z 12)
+      const m = new Model(8);
+      m.box(2, 2, 0, 4, 4, 1, M0).box(3, 3, 1, 2, 2, 11, '#7a5a3a').box(3, 3, 12, 2, 2, 1, '#5e4630');
+      m.box(0, 3, 10, 8, 2, 1, '#5e4630');
+      m.box(0, 3, 11, 1, 2, 1, GLASS).box(7, 3, 11, 1, 2, 1, GLASS).box(3, 3, 13, 2, 2, 1, ACC);
+      return m;
+    },
+    pylon: function () {                               // steel lattice tower, taller than a pole
+      const m = new Model(8);
+      m.box(0, 0, 0, 8, 8, 1, M0);
+      for (const p of [[1, 1], [6, 1], [1, 6], [6, 6]]) m.box(p[0], p[1], 1, 1, 1, 10, M2);
+      for (let z = 2; z < 18; z += 3) { m.box(1, 1, z, 6, 1, 1, M1).box(1, 6, z, 6, 1, 1, M1).box(1, 1, z, 1, 6, 1, M1).box(6, 1, z, 1, 6, 1, M1); }
+      m.box(2, 2, 11, 4, 4, 7, M2).box(3, 3, 18, 2, 2, 2, M3);
+      m.box(0, 3, 16, 8, 2, 1, M1).box(0, 3, 17, 1, 2, 1, GLASS).box(7, 3, 17, 1, 2, 1, GLASS).box(3, 3, 20, 2, 2, 1, ACC);
+      return m;
+    },
+    generator: function (f) {                          // coal boiler with a glowing firebox and a tall chimney
+      const n = 16, m = plinth(new Model(n), n, 2);
+      m.box(2, 2, 2, 9, 12, 7, '#6b5a52').box(2, 2, 9, 9, 12, 1, M1);
+      m.box(10, 4, 2, 3, 8, 5, DARK).box(12, 5, 3, 1, 6, 3, HOT[f % 4]);
+      m.box(11, 11, 2, 3, 3, 4, '#2a2a30').box(11, 11, 6, 3, 3, 1, '#464656');      // coal hopper
+      m.box(3, 3, 10, 3, 3, 9, M0).box(3, 3, 19, 3, 3, 1, DARK);                     // chimney
+      m.box(7, 7, 10, 3, 3, 1, HOT[(f + 2) % 4]);
+      hazard(m, 2, 14, 2, 9, 1);
+      return m;
+    },
+    solar_plant: function () {                         // four flat panels on short legs
+      const n = 16, m = plinth(new Model(n), n, 1);
+      for (const p of [[1, 1], [8, 1], [1, 8], [8, 8]]) {
+        m.box(p[0] + 3, p[1] + 3, 1, 1, 1, 2, M1);
+        m.box(p[0], p[1], 3, 7, 7, 1, '#2f6fe0');
+        m.box(p[0] + 3, p[1], 3, 1, 7, 1, '#9fd0ff').box(p[0], p[1] + 3, 3, 7, 1, 1, '#9fd0ff');
+      }
+      return m;
+    },
+    launch_pad: function (f) {                         // concrete pad, flame trench, service tower with a beacon
+      const n = 32, m = new Model(n);
+      m.box(0, 0, 0, n, n, 1, M0).box(1, 1, 1, n - 2, n - 2, 1, M1);
+      hazard(m, 2, 2, 2, n - 4, 2); hazard(m, 2, n - 4, 2, n - 4, 2);
+      m.cyl(16, 16, 2, 7, 1, DARK).cyl(16, 16, 2, 4, 1, '#1a1a1e');
+      m.box(25, 10, 2, 4, 4, 26, M1);
+      for (let z = 4; z < 28; z += 4) m.box(25, 10, z, 4, 4, 1, M3);
+      m.box(21, 11, 20, 4, 2, 1, M2).box(21, 11, 12, 4, 2, 1, M2);
+      m.box(26, 11, 28, 2, 2, 1, f % 2 ? '#e55454' : '#7a2a2a');
+      return m;
+    },
+    drone_hub: function (f) {                          // landing pad, cross marking, mast with a beacon
+      const n = 16, m = plinth(new Model(n), n, 2);
+      m.box(2, 2, 2, 12, 12, 1, DARK);
+      m.box(4, 7, 3, 8, 2, 1, ACC).box(7, 4, 3, 2, 8, 1, ACC);
+      m.box(13, 13, 2, 2, 2, 9, M1).box(13, 13, 11, 2, 2, 1, f % 2 ? '#84f491' : '#2f6a3a');
+      for (const p of [[2, 2], [13, 2], [2, 13]]) m.box(p[0], p[1], 3, 1, 1, 1, f % 2 ? ACC : ACC_D);
+      return m;
+    },
+    drone_provider: function () {                      // blue crate
+      const m = new Model(8);
+      m.box(1, 1, 0, 6, 6, 5, '#3f6fb8').box(1, 1, 5, 6, 6, 1, '#5f8fd8').box(3, 3, 6, 2, 2, 1, '#bfe6ff');
+      return m;
+    },
+    drone_requester: function () {                     // orange crate with an output lip
+      const m = new Model(8);
+      m.box(1, 1, 0, 6, 6, 5, '#c8783a').box(1, 1, 5, 6, 6, 1, '#e8985a').box(3, 3, 6, 2, 2, 1, '#ffe0c0');
+      m.box(7, 3, 1, 1, 2, 2, ACC);
+      return m;
+    },
+    pump: function (f) {                               // pump on a lake: housing, motor, a piston going up and down
+      const n = 16, m = new Model(n);
+      m.box(0, 0, 0, n, n, 1, M0).box(2, 2, 1, 12, 12, 1, '#2c5fa8');
+      m.cyl(8, 8, 1, 4.5, 6, M2).cyl(8, 8, 7, 3, 1, M3).box(7, 7, 8, 2, 2, 2 + (f % 2) * 2, ACC);
+      for (const p of [[0, 7], [14, 7], [7, 0], [7, 14]]) m.box(p[0], p[1], 1, 2, 2, 2, M3);
+      return m;
+    },
+    oil_well: function (f) {                           // pumpjack: A-frame and a nodding beam
+      const n = 16, m = plinth(new Model(n), n, 2);
+      m.cyl(4, 11, 2, 2.5, 3, '#1d1824');
+      m.box(9, 6, 2, 2, 4, 9, M1);
+      const up = f % 2;
+      m.box(2, 7, 10 + up, 7, 2, 1, M2).box(9, 7, 11, 1, 2, 1, M2).box(10, 7, 11 - up, 5, 2, 1, M2);
+      m.box(2, 7, 7 + up, 2, 2, 3, ACC).box(13, 7, 8 - up, 2, 2, 3, M0);
+      hazard(m, 1, 14, 2, 14, 1);
+      return m;
+    },
+    fluid_tank: function () {                          // big round tank with a ladder
+      const n = 16, m = plinth(new Model(n), n, 1);
+      m.cyl(8, 8, 1, 7, 9, '#9aa6c0').cyl(8, 8, 10, 6, 1, '#7f8aa4').cyl(8, 8, 5, 7.05, 1, ACC_D);
+      m.box(14, 7, 1, 1, 2, 10, M0);
+      return m;
+    },
+    steam_plant: function (f) {                        // brick boiler and a cooling tower
+      const n = 24, m = plinth(new Model(n), n, 2);
+      m.box(2, 2, 2, 9, 20, 8, '#6b5a52').box(2, 2, 10, 9, 20, 1, M1);
+      m.box(10, 8, 2, 2, 8, 5, DARK).box(11, 9, 3, 1, 6, 3, HOT[f % 4]);
+      m.cyl(17, 12, 2, 6, 5, '#c8ccd8').cyl(17, 12, 7, 5, 5, '#d4d8e2').cyl(17, 12, 12, 5.5, 4, '#e2e6ee').cyl(17, 12, 15, 4, 1, '#3a3b42');
+      m.box(4, 4, 11, 2, 2, 6, M0);
+      return m;
+    },
+    refinery: function (f) {                           // distillation columns, a round tank and a flare
+      const n = 24, m = plinth(new Model(n), n, 2);
+      m.cyl(7, 7, 2, 3.5, 16, M3).cyl(7, 7, 18, 2, 1, M2);
+      for (let z = 5; z < 18; z += 4) m.cyl(7, 7, z, 3.6, 1, ACC_D);
+      m.cyl(15, 6, 2, 2.5, 12, M3).cyl(15, 6, 14, 1.5, 1, M2);
+      m.cyl(15, 16, 2, 5, 6, '#d8d2ea').cyl(15, 16, 8, 4, 1, '#b8b0cc');
+      m.box(3, 13, 2, 6, 2, 2, M2).box(3, 17, 2, 6, 2, 2, M2);
+      m.box(4, 20, 2, 1, 1, 9, M0).box(4, 20, 11, 1, 1, 1, HOT[f % 4]);
+      return m;
+    },
     lab: function (f) {
       const n = 16, m = plinth(new Model(n), n, 2);
       m.box(2, 2, 2, 12, 12, 6, WHITE).box(2, 2, 8, 12, 12, 1, M2);
@@ -315,16 +421,49 @@
       return m;
     }
   };
-  V.frames = { drill: 2, drill_heavy: 2, smelter: 4, assembler: 4, steelmill: 4, fabricator: 4, spaceyard: 2, lab: 4, port: 2 };
+  V.frames = { launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 4, refinery: 4, generator: 4, drill: 2, drill_heavy: 2, smelter: 4, assembler: 4, steelmill: 4, fabricator: 4, spaceyard: 2, lab: 4, port: 2 };
 
   const cache = new Map();
   V.building = function (type, dir, frame) {
+    if (type === 'pipe') return V.pipe(dir & 1 ? 10 : 5, null);
     const nf = V.frames[type] || 1, f = (frame || 0) % nf, d = BUILDINGS[type].fixed ? 0 : dir || 0;
     const k = 'b' + type + d + ':' + f;
     let s = cache.get(k);
     if (!s) {
       const fn = type === 'drill_heavy' ? function (fr) { return MODELS.drill(fr, true); } : MODELS[type];
       s = raster(rotated(fn(f), d));
+      cache.set(k, s);
+    }
+    return s;
+  };
+  /** Rocket standing on a pad: `stage` parts of `total` built (it grows from the bottom), with fins and a nose. */
+  V.rocket = function (stage, total) {
+    const k = 'R' + stage + ':' + total;
+    let s = cache.get(k);
+    if (!s) {
+      const m = new Model(8), hmax = 22, hh = Math.max(1, Math.round(hmax * stage / total));
+      m.cyl(4, 4, 0, 2.6, Math.min(hh, 3), M2);
+      for (const p of [[0, 3], [7, 3], [3, 0], [3, 7]]) if (hh >= 2) m.box(p[0], p[1], 0, 1, 2, 3, '#e55454');
+      if (hh > 3) m.cyl(4, 4, 3, 2.2, hh - 3, WHITE);
+      if (hh > 10) m.cyl(4, 4, 9, 2.25, 1, '#e55454');
+      if (stage >= total) m.cyl(4, 4, hmax, 1.5, 2, WHITE).cyl(4, 4, hmax + 2, 0.8, 1, '#e55454');
+      s = raster(m);
+      cache.set(k, s);
+    }
+    return s;
+  };
+  /** Pipe piece: hub and arms towards the connected sides (mask: 1 E, 2 S, 4 W, 8 N); the hub top shows the fluid. */
+  V.pipe = function (mask, fluid) {
+    const k = 'P' + mask + (fluid || '');
+    let s = cache.get(k);
+    if (!s) {
+      const m = new Model(8);
+      if (mask & 1) m.box(5, 2, 1, 3, 4, 3, M2).box(7, 2, 1, 1, 4, 3, M3);
+      if (mask & 2) m.box(2, 5, 1, 4, 3, 3, M2).box(2, 7, 1, 4, 1, 3, M3);
+      if (mask & 4) m.box(0, 2, 1, 3, 4, 3, M2).box(0, 2, 1, 1, 4, 3, M3);
+      if (mask & 8) m.box(2, 0, 1, 4, 3, 3, M2).box(2, 0, 1, 4, 1, 3, M3);
+      m.box(2, 2, 0, 4, 4, 1, M0).box(2, 2, 1, 4, 4, 3, M1).box(3, 3, 4, 2, 2, 1, fluid ? ITEMS[fluid].color : DARK);
+      s = raster(m);
       cache.set(k, s);
     }
     return s;
@@ -391,6 +530,12 @@
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const gx = tx + (x >> 3), gy = ty + (y >> 3);
       if (gx >= W || gy >= H) continue;
+      const fo = world.ore[gy * W + gx];
+      if (fo && CO.isFluidOre(fo)) {                          // lake / oil pool: flat liquid with a few ripples
+        const water = CO.ORE_IDS[fo] === 'water', rip = CO.hash2(gx * 8 + x, gy * 8 + y, seed + 77) > 0.93;
+        paintVoxel(buf, w, x, y, -1, water ? (rip ? '#5f9fe8' : '#2c5fa8') : (rip ? '#4a3d5e' : '#1d1824'), ox, oy);
+        continue;
+      }
       const pal = CO.vnoise(gx * 0.06, gy * 0.06, seed + 5) > 0.55 ? SAND : BASALT;
       const base = pal[Math.floor(CO.hash2(gx, gy, seed) * 3)];
       const edge = (x & 7) === 0 || (y & 7) === 0;
@@ -401,6 +546,7 @@
       const gx = tx + i, gy = ty + j;
       if (gx >= W || gy >= H) continue;
       const ore = world.ore[gy * W + gx];
+      if (ore && CO.isFluidOre(ore)) continue;
       if (ore) {
         const it = ITEMS[CO.ORE_IDS[ore]], k = 2 + Math.floor(CO.hash2(gx, gy, seed + 31) * 3);
         for (let r = 0; r < k; r++) {

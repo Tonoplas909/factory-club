@@ -60,12 +60,25 @@
     processor:    { name: 'Processeur',        price: 90,  shape: 'chip',    color: '#3a5fc8', accent: '#ffd24a' },
     tank:         { name: 'Réservoir',         price: 80,  shape: 'tank',    color: '#d0d6e8', accent: '#5de0e6' },
     core:         { name: 'Cœur de réacteur',  price: 180, shape: 'orb',     color: '#ff8a3a', accent: '#fff0a0' },
-    probe:        { name: 'Sonde profonde',    price: 400, shape: 'probe',   color: '#c36bff', accent: '#ffffff' }
+    probe:        { name: 'Sonde profonde',    price: 400, shape: 'probe',   color: '#c36bff', accent: '#ffffff' },
+    // ---- orbital program
+    rocket_part:  { name: 'Module de fusée',   price: 900, shape: 'nozzle',  color: '#e8e8ee', accent: '#e55454' },
+    satellite:    { name: 'Satellite',         price: 1500, shape: 'panel',  color: '#c8a04a', accent: '#9fd0ff' },
+    // ---- oil chain
+    plastic:      { name: 'Plastique',         price: 25,  shape: 'plate',   color: '#d8d2ea', accent: '#ffffff' },
+    fuel:         { name: 'Carburant',         price: 70,  shape: 'tank',    color: '#e0663a', accent: '#ffd37f' },
+    // ---- fluids: never on belts, they flow in pipes (see fluid.js)
+    water:        { name: 'Eau',               price: 0,   shape: 'drop',    color: '#3f8fe0', accent: '#bfe6ff', fluid: true },
+    oil:          { name: 'Pétrole',           price: 0,   shape: 'drop',    color: '#3a3045', accent: '#a08ac0', fluid: true }
   };
-  CO.ITEM_ORDER = Object.keys(CO.ITEMS);
+  /** Items that travel on belts (fluids excluded). */
+  CO.ITEM_ORDER = Object.keys(CO.ITEMS).filter(function (id) { return !CO.ITEMS[id].fluid; });
+  CO.FLUIDS = Object.keys(CO.ITEMS).filter(function (id) { return CO.ITEMS[id].fluid; });
 
   // Ore tile ids used in the ore layer (0 = none).
-  CO.ORE_IDS = ['', 'iron_ore', 'copper_ore', 'stone', 'coal', 'sand', 'titanium_ore'];
+  CO.ORE_IDS = ['', 'iron_ore', 'copper_ore', 'stone', 'coal', 'sand', 'titanium_ore', 'water', 'oil'];
+  /** Ore ids that are fluids (lakes, oil pools): pumped, never drilled. */
+  CO.isFluidOre = function (id) { return id > 0 && !!CO.ITEMS[CO.ORE_IDS[id]].fluid; };
 
   // ------------------------------------------------------------- recipes
   // `machine`: building type that can run it. `tech`: research needed (null = from the start).
@@ -93,7 +106,12 @@
     processor:    { machine: 'fabricator', in: { circuit: 2, silicon: 2 },            out: { processor: 1 }, time: 8, tech: 'processors' },
     tank:         { machine: 'fabricator', in: { alloy: 2, glass: 2 },               out: { tank: 1 },  time: 16, tech: 'tanks' },
     core:         { machine: 'spaceyard',  in: { alloy: 2, processor: 1, battery: 2 }, out: { core: 1 }, time: 16, tech: 'spaceyard' },
-    probe:        { machine: 'spaceyard',  in: { thruster: 1, processor: 2, tank: 1 }, out: { probe: 1 }, time: 32, tech: 'probes' }
+    probe:        { machine: 'spaceyard',  in: { thruster: 1, processor: 2, tank: 1 }, out: { probe: 1 }, time: 32, tech: 'probes' },
+    rocket_part:  { machine: 'spaceyard',  in: { hull: 2, fuel: 4, processor: 1, plastic: 4 }, out: { rocket_part: 1 }, time: 24, tech: 'rocketry' },
+    satellite:    { machine: 'spaceyard',  in: { solar: 4, processor: 4, battery: 4, alloy: 4 }, out: { satellite: 1 }, time: 32, tech: 'rocketry' },
+    // `fin`: fluids taken from the pipes touching the machine, per cycle
+    plastic:      { machine: 'refinery',   in: { coal: 1 }, fin: { oil: 10 }, out: { plastic: 2 }, time: 4, tech: 'oil' },
+    fuel:         { machine: 'refinery',   in: {},          fin: { oil: 20 }, out: { fuel: 1 },    time: 4, tech: 'oil' }
   };
   for (const id in CO.RECIPES) CO.RECIPES[id].id = id;
 
@@ -126,30 +144,61 @@
                        desc: 'Stocke jusqu’à 300 objets pour lisser la production. Sort par la flèche.' },
     unloader:        { name: 'Extracteur',           cat: 'Transport',  kind: 'unloader',    w: 1, h: 1, cost: 40,  tech: 'sorting',
                        desc: 'Collé à un coffre, une machine ou une foreuse, il en tire les objets (filtre possible dans Infos) et les sort par sa flèche.' },
+    // ---- drones (late game): air delivery between send and request chests within a drone port's range
+    drone_hub:       { name: 'Port de drones',       cat: 'Transport',  kind: 'drone_hub',   w: 2, h: 2, cost: 1500, tech: 'drones', drones: 4, range: 24, power: 30,
+                       desc: 'Abrite 4 drones qui portent jusqu’à 10 objets des Coffres d’envoi vers les Coffres de demande, à 24 cases de lui au plus (zone carrée). 30 kW quand ils volent.' },
+    drone_provider:  { name: 'Coffre d’envoi',       cat: 'Transport',  kind: 'drone_provider', w: 1, h: 1, cost: 60, tech: 'drones', capacity: 100,
+                       desc: 'Reçoit les objets des convoyeurs (n’importe quel côté) : les drones viennent les chercher.' },
+    drone_requester: { name: 'Coffre de demande',    cat: 'Transport',  kind: 'drone_requester', w: 1, h: 1, cost: 60, tech: 'drones', capacity: 100, want: 40,
+                       desc: 'Choisis l’objet voulu dans Infos : les drones en apportent jusqu’à en avoir 40, et le coffre les sort par sa flèche.' },
     // Mass driver: point-to-point long range link. range in tiles (centre to centre), volleys of `volley`
     // items every `reload` s = 4 items/s (= 8 drills = 2 heavy drills), whatever the research.
     driver:          { name: 'Catapulte magnétique', cat: 'Transport',  kind: 'driver',      w: 2, h: 2, cost: 300, tech: 'mass_driver',
                        range: 48, volley: 8, reload: 2, capacity: 32,
                        desc: 'Lance les objets reçus vers une autre catapulte, jusqu’à 48 cases (4 objets/s, en salves de 8). Sans cible, elle reçoit et sort par la flèche. Infos → « Choisir la cible ».' },
-    drill:           { name: 'Foreuse',              cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 40,  tech: null, rate: 0.5,
+    drill:           { name: 'Foreuse',              cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 40,  tech: null, rate: 0.5, power: 10,
                        desc: 'À poser sur un gisement : 0,5 minerai/s à pleine couverture (0,125 par case). Équivaut à 2 fonderies. Sort par la flèche.' },
-    drill_heavy:     { name: 'Foreuse lourde',       cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 180, tech: 'heavy_drill', rate: 2,
+    drill_heavy:     { name: 'Foreuse lourde',       cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 180, tech: 'heavy_drill', rate: 2, power: 35,
                        desc: 'Grande foreuse 3×3 : 2 minerais/s à pleine couverture (9 cases). Équivaut à 8 fonderies.' },
-    smelter:         { name: 'Fonderie',             cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 60,  tech: null,
+    smelter:         { name: 'Fonderie',             cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 60,  tech: null, power: 15,
                        desc: 'Fond minerais, pierre et sable en lingots, briques et verre. La recette se choisit seule.' },
-    assembler:       { name: 'Atelier',              cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 90,  tech: null,
+    assembler:       { name: 'Atelier',              cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 90,  tech: null, power: 20,
                        desc: 'Fabrique plaques, engrenages, fils et circuits. Clique dessus pour choisir la recette.' },
-    steelmill:       { name: 'Haut-fourneau',        cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 220, tech: 'metallurgy',
+    steelmill:       { name: 'Haut-fourneau',        cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 220, tech: 'metallurgy', power: 60,
                        desc: 'Produit acier et silicium.' },
-    fabricator:      { name: 'Fabrique orbitale',    cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 380, tech: 'advanced',
+    fabricator:      { name: 'Fabrique orbitale',    cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 380, tech: 'advanced', power: 90,
                        desc: 'Assemble les pièces avancées de la station.' },
-    spaceyard:       { name: 'Chantier spatial',     cat: 'Production', kind: 'machine',     w: 4, h: 4, cost: 900, tech: 'spaceyard',
+    spaceyard:       { name: 'Chantier spatial',     cat: 'Production', kind: 'machine',     w: 4, h: 4, cost: 900, tech: 'spaceyard', power: 250,
                        desc: 'Géant 4×4 : cœurs de réacteur et sondes profondes, les pièces les plus complexes.' },
-    lab:             { name: 'Laboratoire',          cat: 'Autres',     kind: 'lab',         w: 2, h: 2, cost: 80,  tech: null,
+    launch_pad:      { name: 'Pas de tir',           cat: 'Production', kind: 'launch_pad',  w: 4, h: 4, cost: 5000, tech: 'rocketry', power: 200, parts: 10,
+                       desc: 'Reçoit des Modules de fusée et une charge utile (Satellite ou Sonde profonde) par convoyeur, de n’importe quel côté. Avec 10 modules et une charge, il assemble la fusée et la lance : chaque lancement fait avancer le programme orbital (onglet Station).' },
+    refinery:        { name: 'Raffinerie',           cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 600, tech: 'oil', power: 80, fluidIO: true,
+                       desc: 'Transforme le pétrole amené par tuyau en plastique (avec du charbon) ou en carburant. Relie un tuyau de pétrole à n’importe quel côté.' },
+    // ---- energy: machines, drills, labs and launchers only work when a power network reaches them
+    pole:            { name: 'Poteau électrique',    cat: 'Énergie',    kind: 'pole',        w: 1, h: 1, cost: 4,   tech: null, cover: 2, reach: 7,
+                       desc: 'Alimente tout bâtiment qui touche sa zone (5×5 cases autour de lui) et se relie tout seul aux poteaux et générateurs à 7 cases ou moins.' },
+    pylon:           { name: 'Pylône',               cat: 'Énergie',    kind: 'pole',        w: 1, h: 1, cost: 25,  tech: 'power_grid', cover: 1, reach: 18,
+                       desc: 'Transporte le courant loin : se relie aux poteaux et pylônes jusqu’à 18 cases. Petite zone (3×3).' },
+    generator:       { name: 'Générateur thermique', cat: 'Énergie',    kind: 'generator',   w: 2, h: 2, cost: 60,  tech: null, gen: 120, fuel: 'coal', burn: 6, cover: 1,
+                       desc: 'Brûle du charbon amené par convoyeur (n’importe quel côté) : 120 kW. À pleine charge, un charbon dure 6 s ; il brûle moins vite quand le réseau demande moins.' },
+    solar_plant:     { name: 'Centrale solaire',     cat: 'Énergie',    kind: 'generator',   w: 2, h: 2, cost: 500, tech: 'photovoltaics', gen: 80, cover: 1,
+                       desc: 'Produit 80 kW en continu, sans carburant.' },
+    steam_plant:     { name: 'Centrale à vapeur',    cat: 'Énergie',    kind: 'generator',   w: 3, h: 3, cost: 900, tech: 'steam_power', gen: 400, fuel: 'coal', burn: 4, water: 10, cover: 1, fluidIO: true,
+                       desc: 'Chaudière et turbine : 400 kW. Brûle du charbon (convoyeur, n’importe quel côté) et consomme 10 eau/s à pleine charge, amenée par un tuyau.' },
+    // ---- fluids
+    pipe:            { name: 'Tuyau',                cat: 'Fluides',    kind: 'pipe',        w: 1, h: 1, cost: 2,   tech: 'fluids',
+                       desc: 'Les tuyaux qui se touchent forment un réseau qui partage son contenu (100 unités par tuyau, un seul fluide). Relie pompes, cuves et machines à fluides.' },
+    pump:            { name: 'Pompe à eau',          cat: 'Fluides',    kind: 'pump',        w: 2, h: 2, cost: 80,  tech: 'fluids', fluid: 'water', rate: 20, power: 15, fluidIO: true,
+                       desc: 'À poser sur un lac : 20 eau/s à pleine couverture, envoyée dans les tuyaux qui la touchent.' },
+    oil_well:        { name: 'Puits de pétrole',     cat: 'Fluides',    kind: 'pump',        w: 2, h: 2, cost: 400, tech: 'oil', fluid: 'oil', rate: 5, power: 40, fluidIO: true,
+                       desc: 'À poser sur une nappe de pétrole (taches sombres, loin du Port) : 5 pétrole/s à pleine couverture.' },
+    fluid_tank:      { name: 'Cuve',                 cat: 'Fluides',    kind: 'fluid_tank',  w: 2, h: 2, cost: 120, tech: 'fluids', capacity: 2000, fluidIO: true,
+                       desc: 'Réserve de 2 000 unités, reliée comme un tuyau : elle amortit les à-coups entre pompes et machines.' },
+    lab:             { name: 'Laboratoire',          cat: 'Autres',     kind: 'lab',         w: 2, h: 2, cost: 80,  tech: null, power: 25,
                        desc: 'Consomme les objets de la recherche en cours (onglet Recherche) et met en réserve ceux qui serviront à une recherche future.' },
     seller:          { name: 'Comptoir de vente',    cat: 'Autres',     kind: 'seller',      w: 2, h: 2, cost: 25,  tech: null,
                        desc: 'Achète tout ce qu’on lui apporte, à prix fixe.' },
-    port:            { name: 'Port de la station',   cat: 'Autres',     kind: 'port',        w: 4, h: 4, cost: 0,   tech: null, fixed: true, hidden: true,
+    port:            { name: 'Port de la station',   cat: 'Autres',     kind: 'port',        w: 4, h: 4, cost: 0,   tech: null, fixed: true, hidden: true, gen: 150, cover: 6,
                        desc: 'Reçoit les pièces de la station. Le surplus est revendu.' }
   };
   for (const id in CO.BUILDINGS) CO.BUILDINGS[id].id = id;
@@ -169,10 +218,18 @@
     automation1:   { name: 'Automatisation I',      desc: 'Machines 25 % plus rapides.',                cost: { gear: 20, plate: 20 }, req: [], effect: { machineSpeed: 0.25 } },
     drilling1:     { name: 'Forage renforcé',       desc: 'Foreuses 25 % plus rapides (même gain que l’Automatisation I).', cost: { plate: 20, gear: 10, ingot_iron: 20 }, req: [], effect: { drillSpeed: 0.25 } },
     electronics:   { name: 'Électronique',          desc: 'Recette du circuit.',                        cost: { wire: 30, plate: 15 }, req: [] },
+    fluids:        { name: 'Hydraulique',           desc: 'Tuyaux, pompe à eau et cuve.',               cost: { plate: 40, gear: 20 }, req: ['logistics1'] },
+    steam_power:   { name: 'Vapeur',                desc: 'Centrale à vapeur : eau + charbon → 400 kW.', cost: { steel: 30, circuit: 20 }, req: ['fluids', 'metallurgy'] },
+    oil:           { name: 'Pétrochimie',           desc: 'Puits de pétrole et raffinerie : plastique et carburant.', cost: { steel: 40, circuit: 30, glass: 30 }, req: ['steam_power'] },
+    rocketry:      { name: 'Astronautique',         desc: 'Pas de tir, modules de fusée et satellites : le programme orbital.', cost: { thruster: 20, processor: 30, fuel: 40 }, req: ['probes', 'oil'] },
+    drones:        { name: 'Drones logistiques',    desc: 'Port de drones, Coffres d’envoi et de demande : livraisons par les airs.', cost: { processor: 20, battery: 30, plastic: 30 }, req: ['processors', 'oil'] },
+    upgrades1:     { name: 'Améliorations I',       desc: 'Niveau II des foreuses, machines, pompes et générateurs (×1,5).', cost: { gear: 40, circuit: 20 }, req: ['electronics'] },
+    upgrades2:     { name: 'Améliorations II',      desc: 'Niveau III (×2 par rapport au niveau I).',   cost: { steel: 40, circuit: 40 }, req: ['upgrades1', 'metallurgy'] },
+    power_grid:    { name: 'Haute tension',         desc: 'Pylône : relie le courant jusqu’à 18 cases.', cost: { wire: 40, circuit: 15 }, req: ['electronics'] },
     heavy_drill:   { name: 'Foreuse lourde',        desc: 'Foreuse 3×3 pour les grands gisements.',     cost: { circuit: 15, plate: 40 }, req: ['electronics', 'drilling1'] },
     metallurgy:    { name: 'Métallurgie',           desc: 'Haut-fourneau : acier et silicium.',         cost: { plate: 30, brick: 30, gear: 15, ingot_copper: 20 }, req: ['automation1'] },
     advanced:      { name: 'Assemblage avancé',     desc: 'Fabrique orbitale et plaques de coque.',     cost: { steel: 20, circuit: 20 }, req: ['metallurgy', 'electronics'] },
-    photovoltaics: { name: 'Photovoltaïque',        desc: 'Recette du panneau solaire.',                cost: { silicon: 30, glass: 30 }, req: ['advanced'] },
+    photovoltaics: { name: 'Photovoltaïque',        desc: 'Panneau solaire et Centrale solaire (80 kW).',                cost: { silicon: 30, glass: 30 }, req: ['advanced'] },
     modules:       { name: 'Modules habitables',    desc: 'Recette du kit modulaire.',                  cost: { hull: 20, circuit: 30 }, req: ['advanced'] },
     propulsion:    { name: 'Propulsion',            desc: 'Recette du propulseur.',                     cost: { steel: 40, circuit: 40, gear: 30 }, req: ['advanced'] },
     automation2:   { name: 'Automatisation II',     desc: 'Machines 25 % plus rapides de plus.',        cost: { steel: 40, circuit: 40, gear: 20 }, req: ['advanced', 'automation1'], effect: { machineSpeed: 0.25 } },
@@ -234,6 +291,30 @@
     return { id: 'ext' + n, name: 'Extension n° ' + n, desc: 'La station grandit : de nouveaux modules sont commandés.', need: need, reward: 4000 + n * 500, extension: n };
   };
 
+  // Building upgrades: level 1 (as built), II and III. Speed (or output) and power use grow with the level;
+  // each level costs `cost[l]` times the building's price. Only these kinds can be upgraded.
+  CO.UPGRADE = {
+    speed: [1, 1.5, 2], power: [1, 1.6, 2.4], cost: [0, 2, 4], tech: [null, 'upgrades1', 'upgrades2'],
+    kinds: { drill: true, machine: true, pump: true, generator: true }, names: ['I', 'II', 'III']
+  };
+
+  // Orbital program: missions done one after another with rockets launched from a launch pad. `need`: payloads
+  // to send; `bonus`: permanent effect once done (machine / drill speed, land price, generator output).
+  CO.MISSIONS = [
+    { id: 'comsat',  name: 'Satellite de communication', desc: 'Un premier relais en orbite basse.',            need: { satellite: 1 },             bonus: { machine: 0.10 }, text: 'Machines +10 %' },
+    { id: 'network', name: 'Constellation',              desc: 'Trois satellites pour couvrir toute la planète.', need: { satellite: 3 },           bonus: { drill: 0.20 },   text: 'Foreuses +20 %' },
+    { id: 'moon',    name: 'Sondes lunaires',            desc: 'Cartographier la Lune avant de s’y poser.',       need: { probe: 2 },               bonus: { land: -0.20 },   text: 'Terrains −20 %' },
+    { id: 'base',    name: 'Base lunaire',               desc: 'Panneaux, relais et sondes : un avant-poste.',     need: { satellite: 4, probe: 2 }, bonus: { power: 0.20 },   text: 'Générateurs +20 %' },
+    { id: 'mars',    name: 'Expédition vers Mars',       desc: 'Le grand voyage : la station devient un port interplanétaire.', need: { satellite: 6, probe: 6 }, bonus: { machine: 0.15, drill: 0.15 }, text: 'Machines et foreuses +15 %' }
+  ];
+  /** Mission `i`; after the planned ones, endless deep-space missions paid in credits. */
+  CO.getMission = function (i) {
+    if (i < CO.MISSIONS.length) return CO.MISSIONS[i];
+    const n = i - CO.MISSIONS.length + 1;
+    return { id: 'deep' + n, name: 'Mission profonde n° ' + n, desc: 'Toujours plus loin dans le système solaire.', deep: n,
+      need: { satellite: 2 + Math.floor(n / 2), probe: 2 + Math.floor((n + 1) / 2) }, reward: 50000 * n, text: '+' + (50000 * n).toLocaleString('fr-FR') + ' ¢' };
+  };
+
   CO.START_MONEY = 300;
 
   // Builders: a placed building is only a site until a worker has flown there from the Port and spent
@@ -242,6 +323,7 @@
   CO.BUILD_TIME = {
     belt: 0.2, belt_fast: 0.3, belt_armored: 0.4, splitter: 0.4, merger: 0.4, overflow: 0.4, underflow: 0.4, junction: 0.3,
     sorter_inv: 0.5, underground_in: 0.4, underground_out: 0.4, chest: 0.4, unloader: 0.6,
+    launch_pad: 8, drone_hub: 3, drone_provider: 0.5, drone_requester: 0.5, pole: 0.3, pylon: 0.6, generator: 1.2, solar_plant: 2, steam_plant: 4, refinery: 4, pipe: 0.2, pump: 1, oil_well: 2, fluid_tank: 1,
     drill: 0.75, smelter: 1, seller: 1, assembler: 1.5, lab: 1.5, drill_heavy: 2.5, driver: 2.5,
     steelmill: 3, fabricator: 4, spaceyard: 6
   };

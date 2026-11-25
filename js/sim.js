@@ -49,8 +49,43 @@
     for (let i = 0; i < moneyBuckets.length; i++) s += moneyBuckets[i];
     return s * 60 / windowSeconds();
   };
+  // Longer history for the curves of the Production tab: three rings of at most 60 samples, one sample
+  // per 1 s, 10 s and 60 s (so 1 min, 10 min and 1 h of history). Not saved: it restarts with the page.
+  sim.HIST = [{ label: '1 min', step: 1 }, { label: '10 min', step: 10 }, { label: '1 h', step: 60 }];
+  const HIST_LEN = 60;
+  const rings = [[], [], []], accs = [null, null, null];
+  function newAcc() { return { p: {}, u: {}, m: 0, n: 0, ps: 0, pd: 0 }; }
+  function addInto(acc, b, money) {
+    for (const k in b.p) acc.p[k] = (acc.p[k] || 0) + b.p[k];
+    for (const k in b.u) acc.u[k] = (acc.u[k] || 0) + b.u[k];
+    acc.m += money; acc.n++;
+    acc.ps += CO.power ? CO.power.supply : 0; acc.pd += CO.power ? CO.power.demand : 0;
+  }
+  function pushHistory(b, money) {
+    for (let r = 0; r < 3; r++) {
+      const acc = accs[r] || (accs[r] = newAcc());
+      addInto(acc, b, money);
+      if (acc.n < sim.HIST[r].step) continue;
+      rings[r].push(acc); accs[r] = null;
+      if (rings[r].length > HIST_LEN) rings[r].shift();
+    }
+  }
+  /**
+   * Values (oldest first) at resolution `res` of `kind`: 'p' produced, 'u' used (items per minute),
+   * 'm' income (credits per minute), 'ps' / 'pd' power supply / demand (average kW).
+   */
+  sim.history = function (res, kind, item) {
+    const ring = rings[res], f = 60 / sim.HIST[res].step, out = new Array(ring.length);
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i];
+      out[i] = kind === 'ps' || kind === 'pd' ? a[kind] / a.n : (kind === 'm' ? a.m : a[kind][item] || 0) * f;
+    }
+    return out;
+  };
+
   sim.resetStats = function () {
     cur = { p: {}, u: {}, s: {} }; curMoney = 0; tAcc = 0; buckets.length = 0; moneyBuckets.length = 0;
+    for (let r = 0; r < 3; r++) { rings[r].length = 0; accs[r] = null; }
     CO.fx.length = 0; sim.shots.length = 0;
   };
   // A new or loaded game must not inherit the gauges (nor the volleys in flight) of the previous one.
@@ -82,7 +117,7 @@
         }
         return (n.x + DX[n.dir] === x && n.y + DY[n.dir] === y) ? n.dir : -1;
       }
-      case 'chest': case 'machine': case 'drill': case 'driver': {
+      case 'chest': case 'machine': case 'drill': case 'driver': case 'drone_requester': {
         if (n.kind === 'driver' && n.target) return -1;    // a launcher sends through the air, not to its front
         const fc = n.fc;
         for (let i = 0; i < fc.length; i += 2) if (fc[i] === x && fc[i + 1] === y) return n.dir;
@@ -99,7 +134,7 @@
       case 'belt': case 'tunnel_out': return n.items.length > 0 && n.items[0].p >= 0.95;
       case 'router': case 'unloader': return n.slot !== null;
       case 'junction': return n.slots[0] !== null || n.slots[1] !== null || n.slots[2] !== null || n.slots[3] !== null;
-      case 'chest': return n.q.length > 0;
+      case 'chest': case 'drone_requester': return n.q.length > 0;
       case 'machine': return n.outBuf.length > 0;
       case 'drill': return n.out.length > 0;
       case 'driver': return !n.target && n.q.length > 0;
@@ -145,11 +180,16 @@
       case 'chest':
         if (dir === ((t.dir + 2) & 3) || t.q.length >= CO.chestCap(t.def)) return false;
         t.q.push(item); return true;
+      case 'drone_provider':                                 // filled by belts on any side, emptied by drones
+        if (t.q.length >= t.def.capacity) return false;
+        t.q.push(item); return true;
       case 'machine': return machineIn(t, item, dir);
       case 'driver':                                         // only a linked launcher loads from belts (any side)
         if (!driverTarget(t) || t.q.length + t.incoming >= t.def.capacity) return false;
         t.q.push(item); return true;
       case 'lab': return labIn(t, item);
+      case 'generator': return CO.power.fuelIn(t, item);
+      case 'launch_pad': return CO.orbit.padIn(t, item);
       case 'seller': { const p = ITEMS[item].price; CO.addMoney(p); t.pend += p; sim.countSold(item, 1); return true; }
       case 'port': return portIn(t, item);
     }
@@ -215,6 +255,7 @@
    */
   function labIn(b, item) {
     const st = CO.state;
+    if (!(b.pw > 0)) return false;                           // an unpowered lab takes nothing
     if (st.research) {
       const need = CO.TECHS[st.research].cost[item] || 0, have = st.researchProg[item] || 0;
       if (have < need) {
@@ -230,6 +271,7 @@
 
   function portIn(b, item) {
     const st = CO.state, ph = CO.getPhase(st.phase);
+    if (CO.contracts.deliver(item)) { sim.countUsed(item, 1); return true; }   // accepted contracts come first
     const need = ph.need[item] || 0, have = st.phaseHave[item] || 0;
     if (have < need) {
       st.phaseHave[item] = have + 1; st.stats.delivered++; sim.countUsed(item, 1);
@@ -306,7 +348,7 @@
   function takeFrom(n, filter) {
     let arr = null;
     switch (n.kind) {
-      case 'chest': arr = n.q; break;
+      case 'chest': case 'drone_provider': case 'drone_requester': arr = n.q; break;
       case 'machine': arr = n.outBuf; break;
       case 'drill': arr = n.out; break;
       case 'driver': if (!n.target) arr = n.q; break;
@@ -355,9 +397,12 @@
 
   function updateDrill(b, dt) {
     if (b.out.length) flush(b, b.out);
-    if (!b.ore) { b.status = 'idle'; return; }
-    if (b.out.length >= 4) { b.status = 'blocked'; b.acc = Math.min(b.acc, 1); return; }
-    b.acc += dt * CO.drillRate(b);
+    if (!b.ore) { b.status = 'idle'; b.wants = false; return; }
+    if (b.out.length >= 4) { b.status = 'blocked'; b.wants = false; b.acc = Math.min(b.acc, 1); return; }
+    b.wants = true;
+    const pw = b.pw || 0;
+    if (pw <= 0) { b.status = 'nopower'; return; }
+    b.acc += dt * CO.drillRate(b) * pw;
     b.status = 'work';
     if (b.acc >= 1) { b.acc -= 1; b.out.push(b.ore); sim.countProduced(b.ore, 1); }
   }
@@ -367,12 +412,16 @@
   function updateMachine(b, dt) {
     if (b.outBuf.length) flush(b, b.outBuf);
     const rec = b.recipe ? RECIPES[b.recipe] : null;
-    if (!rec) { b.status = 'idle'; return; }
-    const room = b.outBuf.length + outTotal(rec) <= OUT_CAP;
+    if (!rec) { b.status = 'idle'; b.wants = false; return; }
+    const room = b.outBuf.length + outTotal(rec) <= OUT_CAP, pw = b.pw || 0;
     if (b.crafting) {
-      b.prog += dt * CO.mods.machine;
+      if (b.prog < rec.time) {                                 // still working: needs power
+        b.wants = true;
+        if (pw <= 0) { b.status = 'nopower'; return; }
+        b.prog += dt * CO.mods.machine * pw * CO.lvlSpeed(b);
+      }
       if (b.prog >= rec.time) {
-        if (!room) { b.prog = rec.time; b.status = 'blocked'; return; }
+        if (!room) { b.prog = rec.time; b.status = 'blocked'; b.wants = false; return; }
         b.crafting = false; b.prog = 0;
         for (const k in rec.out) for (let i = 0; i < rec.out[k]; i++) b.outBuf.push(k);
         for (const k in rec.out) sim.countProduced(k, rec.out[k]);
@@ -380,10 +429,28 @@
     }
     let can = true;
     for (const k in rec.in) if ((b.inBuf[k] || 0) < rec.in[k]) { can = false; break; }
+    if (can && rec.fin) for (const k in rec.fin) if (CO.fluid.amount(b, k) < rec.fin[k] - 1e-6) { can = false; break; }
     if (can && room) {
+      b.wants = true;
+      if (pw <= 0) { b.status = 'nopower'; return; }
       for (const k in rec.in) { b.inBuf[k] -= rec.in[k]; sim.countUsed(k, rec.in[k]); }
+      if (rec.fin) for (const k in rec.fin) CO.fluid.take(b, k, rec.fin[k]);
       b.crafting = true; b.prog = 0; b.status = 'work';
-    } else b.status = can ? 'blocked' : 'idle';
+    } else { b.status = can ? 'blocked' : 'idle'; b.wants = false; }
+  }
+
+  /** Water pumps and oil wells: push their fluid into the pipes touching them. */
+  function updatePump(b, dt) {
+    const fl = b.def.fluid;
+    b.wants = false;
+    if (!b.n) { b.status = 'idle'; return; }
+    if (!b.fnets || !b.fnets.length) { b.status = 'nopipe'; return; }
+    if (CO.fluid.room(b, fl) <= 1e-6) { b.status = 'blocked'; return; }
+    b.wants = true;
+    const pw = b.pw || 0;
+    if (pw <= 0) { b.status = 'nopower'; return; }
+    CO.fluid.give(b, fl, b.def.rate * b.n / (b.w * b.h) * pw * CO.lvlSpeed(b) * dt);
+    b.status = 'work';
   }
 
   function updateSink(b, dt) {
@@ -416,8 +483,9 @@
   };
 
   function updateDriver(b, dt) {
-    if (b.cd > 0) b.cd = Math.max(0, b.cd - dt);
-    const tg = driverTarget(b);
+    const tg = driverTarget(b), pw = b.pw || 0;
+    b.wants = !!tg && b.q.length > 0;                 // only a launcher needs power (to reload and shoot)
+    if (b.cd > 0) b.cd = Math.max(0, b.cd - dt * (tg ? pw : 1));
     if (!tg) {                                        // receiver: unload through the front, like a chest
       b.aim = null;
       if (b.target) { b.status = 'blocked'; return; } // linked to something that is gone or out of range
@@ -426,6 +494,7 @@
       return;
     }
     b.aim = Math.atan2(tg.y + tg.h / 2 - b.y - b.h / 2, tg.x + tg.w / 2 - b.x - b.w / 2);
+    if (b.wants && pw <= 0) { b.status = 'nopower'; return; }
     if (b.cd > 0) { b.status = 'work'; return; }
     if (!b.q.length) { b.status = 'idle'; return; }
     // Never shoot more than the target can still store: space is reserved until the volley lands.
@@ -464,14 +533,19 @@
   }
   function claimNearest(w) {
     const sites = world.sites;
+    const money = CO.state.money;
     let best = null, bd = Infinity;
     for (let i = 0; i < sites.length; i++) {
       const b = sites[i];
       if (b.site.w && !b.site.w.gone) continue;
-      const dx = b.x + b.w / 2 - w.x, dy = b.y + b.h / 2 - w.y, d = dx * dx + dy * dy;
+      if (!b.site.paid && money < CO.fullCost(b.type, b.lvl)) continue;   // a ghost waits until it can be paid
+      const dx = b.x + b.w / 2 - w.x, dy = b.y + b.h / 2 - w.y;
+      const d = dx * dx + dy * dy + (b.site.paid ? 0 : 0.5);  // paid sites first at equal distance
       if (d < bd) { bd = d; best = b; }
     }
-    if (best) { best.site.w = w; w.job = best; }
+    if (!best) return;
+    if (!best.site.paid) { CO.state.money -= CO.fullCost(best.type, best.lvl); best.site.paid = true; }
+    best.site.w = w; w.job = best;
   }
   function updateWorkers(dt) {
     syncWorkers();
@@ -505,12 +579,14 @@
   const UPDATERS = {
     belt: updateBelt, tunnel_in: updateBelt, tunnel_out: updateBelt,
     router: updateRouter, junction: updateJunction, unloader: updateUnloader, chest: updateChest, drill: updateDrill, machine: updateMachine,
-    driver: updateDriver, seller: updateSink, port: updateSink
+    driver: updateDriver, seller: updateSink, port: updateSink, pump: updatePump, drone_requester: updateChest, launch_pad: function (b, dt) { CO.orbit.updatePad(b, dt); }
   };
 
   sim.step = function (dt) {
     const st = CO.state;
     st.time += dt;
+    CO.fluid.update();                               // pipe networks (rebuilt when the layout changed)
+    CO.power.update(dt);                             // network supply / demand → b.pw of every consumer
     const list = world.list;
     for (let i = 0; i < list.length; i++) {
       if (list[i].site) continue;                    // construction sites do nothing yet
@@ -518,12 +594,15 @@
       if (f) f(list[i], dt);
     }
     if (sim.shots.length) updateShots(dt);
+    CO.drones.update(dt);
     updateWorkers(dt);
     tAcc += dt;
     if (tAcc >= 1) {                                   // roll the statistics window
       tAcc -= 1;
       buckets.push(cur); moneyBuckets.push(curMoney);
-      cur = { p: {}, u: {}, s: {} }; curMoney = 0;
+      pushHistory(cur, curMoney);
+      CO.contracts.update();                         // deadlines and new offers
+      cur ={ p: {}, u: {}, s: {} }; curMoney = 0;
       if (buckets.length > 60) { buckets.shift(); moneyBuckets.shift(); }
     }
   };

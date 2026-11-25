@@ -7,7 +7,8 @@
   'use strict';
   const T = CO.TILE, DX = CO.DX, DY = CO.DY, world = CO.world, sprites = CO.sprites, ITEMS = CO.ITEMS;
   const Rn = CO.render = {};
-  const ACC = '#ffd37f', OUT = '#1f1f25';            // Mindustry-like team accent and outline
+  const ACC = '#ffd37f', OUT = '#1f1f25';
+  const GHOST_FILL = 'rgba(110,160,255,0.18)', GHOST_LINE = 'rgba(150,190,255,0.85)';   // unpaid ghost sites            // Mindustry-like team accent and outline
   let canvas, ctx, cw = 0, ch = 0, dpr = 1, ts = 32, ox = 0, oy = 0;
   let terrainKey = '', starPat = null;
 
@@ -38,6 +39,101 @@
   Rn.pan = function (dx, dy) {
     if (Rn.mode === 'iso' && CO.iso) { CO.iso.pan(dx, dy); return; }
     CO.cam.x -= dx / CO.cam.zoom; CO.cam.y -= dy / CO.cam.zoom;
+  };
+  // ------------------------------------------------------------ power (shared with iso.js)
+  const NOPOWER = '#8f7bff';
+  /** Status light colour: green working, orange waiting, red blocked, violet without power. */
+  Rn.ledColor = function (b) {
+    if (b.kind === 'lab') return !CO.state.research ? '#ffb347' : b.pw > 0 ? '#84f491' : NOPOWER;
+    if (b.kind === 'generator') return b.status === 'work' ? '#84f491' : b.status === 'nofuel' ? '#e55454' : '#ffb347';
+    return b.status === 'work' ? '#84f491' : b.status === 'blocked' ? '#e55454' : b.status === 'nopower' ? NOPOWER : '#ffb347';
+  };
+  /** Does `b` stand still for lack of power? (gets the blinking bolt badge) */
+  Rn.noPower = function (b) {
+    if (!b.def.power || b.site) return false;
+    if (b.kind === 'lab') return !!CO.state.research && !(b.pw > 0);
+    return b.status === 'nopower';
+  };
+  /** Blinking lightning badge centred on (x, y), `s` pixels wide. */
+  Rn.bolt = function (x, y, s, time) {
+    if (Math.floor(time * 2.5) % 3 === 2) return;
+    x = Math.round(x); y = Math.round(y); s = Math.round(s);
+    ctx.fillStyle = OUT; ctx.fillRect(x - s / 2 - 1, y - s / 2 - 1, s + 2, s + 2);
+    ctx.fillStyle = '#4a1f5a'; ctx.fillRect(x - s / 2, y - s / 2, s, s);
+    ctx.fillStyle = ACC; ctx.beginPath();
+    [[0.12, -0.42], [-0.28, 0.06], [-0.02, 0.06], [-0.14, 0.42], [0.28, -0.1], [0.02, -0.1]].forEach(function (q, i) {
+      const X = x + q[0] * s, Y = y + q[1] * s; if (i) ctx.lineTo(X, Y); else ctx.moveTo(X, Y);
+    });
+    ctx.closePath(); ctx.fill();
+  };
+  /** Level chevrons (one per level above I) whose bottom-left corner is (x, y). */
+  Rn.levelBadge = function (x, y, lvl, ts) {
+    const u = Math.max(1, Math.round(ts / 16)), w = 5 * u, hh = 3 * u;
+    for (let i = 0; i < lvl - 1; i++) {
+      const by = Math.round(y - (i + 1) * (hh + u));
+      ctx.fillStyle = OUT; ctx.fillRect(Math.round(x) - u, by - u, w + 2 * u, hh + 2 * u);
+      ctx.fillStyle = ACC;
+      for (let k = 0; k < 3; k++) { ctx.fillRect(Math.round(x) + k * u, by + (2 - k) * u, u, u); ctx.fillRect(Math.round(x) + (4 - k) * u, by + (2 - k) * u, u, u); }
+    }
+  };
+  /** Should the coverage zones of the power network be shown? (placing / inspecting energy pieces) */
+  Rn.showZones = function (ov) {
+    const ins = CO.input.get().inspected;
+    if (ins && !ins.dead && (ins.kind === 'pole' || ins.kind === 'generator' || ins.kind === 'port')) return true;
+    for (let i = 0; i < ov.ghosts.length; i++) {
+      const d = CO.BUILDINGS[ov.ghosts[i].type];
+      if (d.kind === 'pole' || d.kind === 'generator' || d.power) return true;
+    }
+    return false;
+  };
+  /** Power nodes of the networks (built ones). */
+  Rn.powerNodes = function () {
+    const out = [], nets = CO.power.nets;
+    for (let i = 0; i < nets.length; i++) for (let j = 0; j < nets[i].nodes.length; j++) out.push(nets[i].nodes[j]);
+    return out;
+  };
+  function drawWiresTop() {
+    const L = CO.power.links;
+    if (!L.length) return;
+    const lw = Math.max(1, Math.round(ts / 14));
+    for (let i = 0; i < L.length; i++) {
+      const a = L[i][0], b = L[i][1];
+      const ax = ox + (a.x + a.w / 2) * ts, ay = oy + (a.y + a.h / 2) * ts, bx = ox + (b.x + b.w / 2) * ts, by = oy + (b.y + b.h / 2) * ts;
+      if (Math.max(ax, bx) < 0 || Math.min(ax, bx) > cw || Math.max(ay, by) < 0 || Math.min(ay, by) > ch) continue;
+      ctx.strokeStyle = OUT; ctx.lineWidth = lw + 2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    }
+  }
+  function drawZonesTop(ov) {
+    if (!Rn.showZones(ov)) return;
+    const nodes = Rn.powerNodes(), lw = Math.max(1, Math.round(ts / 16));
+    ctx.save(); ctx.setLineDash([Math.max(2, ts * 0.2), Math.max(2, ts * 0.15)]);
+    const zone = function (z, fill, stroke) {
+      const x = ox + z.x0 * ts, y = oy + z.y0 * ts, w = (z.x1 - z.x0) * ts, hh = (z.y1 - z.y0) * ts;
+      ctx.fillStyle = fill; ctx.fillRect(x, y, w, hh);
+      ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.strokeRect(x + lw / 2, y + lw / 2, w - lw, hh - lw);
+    };
+    for (let i = 0; i < nodes.length; i++) zone(CO.power.zone(nodes[i]), 'rgba(255,211,127,0.05)', 'rgba(255,211,127,0.35)');
+    for (let i = 0; i < ov.ghosts.length; i++) {
+      const g = ov.ghosts[i], d = CO.BUILDINGS[g.type];
+      if (d.kind !== 'pole' && d.kind !== 'generator') continue;
+      zone(CO.power.zone({ x: g.x, y: g.y, w: d.w, h: d.h, def: d }), 'rgba(132,244,145,0.10)', 'rgba(132,244,145,0.8)');
+      if (d.kind !== 'pole') continue;
+      ctx.strokeStyle = 'rgba(132,244,145,0.8)'; ctx.lineWidth = lw;
+      for (let j = 0; j < nodes.length; j++) if (CO.power.reaches(g.type, g.x, g.y, nodes[j])) {
+        const n = nodes[j];
+        ctx.beginPath(); ctx.moveTo(ox + (g.x + 0.5) * ts, oy + (g.y + 0.5) * ts); ctx.lineTo(ox + (n.x + n.w / 2) * ts, oy + (n.y + n.h / 2) * ts); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+  Rn.drawZonesTop = drawZonesTop;
+
+  /** Sides a pipe connects to: 1 E, 2 S, 4 W, 8 N. */
+  Rn.pipeMask = function (b) {
+    let m = 0;
+    for (let d = 0; d < 4; d++) if (CO.fluid.links(b, world.at(b.x + DX[d], b.y + DY[d]))) m |= 1 << d;
+    return m;
   };
   /** Building drawn under a screen point (iso: the tall bodies hide the ground behind them), or null. */
   Rn.pick = function (sx, sy) { return Rn.mode === 'iso' && CO.iso ? CO.iso.pick(sx, sy) : null; };
@@ -198,6 +294,8 @@
       if (b.kind === 'belt') {
         const tier = b.def.tier || 0;
         spr = sprites.belt(tier, b.dir, beltShape(b), Math.floor(time * b.def.speed * 16) % 16);
+      } else if (b.kind === 'pipe') {
+        spr = sprites.pipe(Rn.pipeMask(b), b.fnet && b.fnet.amount > 0 ? b.fnet.fluid : null);
       } else if (b.kind === 'driver') {
         spr = sprites.building(b.type, b.dir, 1);         // base only: the barrel is drawn aimed at the target
       } else {
@@ -207,7 +305,7 @@
         spr = sprites.building(b.type, b.dir, f);
       }
       if (b.site) {                                   // construction site: see-through, filling up as it is built
-        ctx.globalAlpha = 0.25 + 0.45 * (b.site.p / b.site.t);
+        ctx.globalAlpha = b.site.paid ? 0.25 + 0.45 * (b.site.p / b.site.t) : 0.18;
         ctx.drawImage(spr, 0, 0, spr.width, spr.height, px, py, b.w * ts, b.h * ts);
         ctx.globalAlpha = 1;
         drawSite(b, px, py, time);
@@ -265,14 +363,14 @@
           ctx.fillStyle = ACC; ctx.font = 'bold ' + Math.round(ts * 0.8) + 'px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('?', cx, cy);
         }
-        const led = b.status === 'work' ? '#84f491' : b.status === 'blocked' ? '#e55454' : '#ffb347';
+        const led = Rn.ledColor(b);
         const s = Math.max(3, Math.round(ts * 0.16));
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
         ctx.fillStyle = led; ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
       } else if (k === 'lab') {
         const s = Math.max(3, Math.round(ts * 0.16));
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
-        ctx.fillStyle = CO.state.research ? '#84f491' : '#ffb347';
+        ctx.fillStyle = Rn.ledColor(b);
         ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
         if (CO.state.research) {                                  // show what the lab is waiting for
           const need = CO.TECHS[CO.state.research].cost; let n = 0;
@@ -289,7 +387,7 @@
         const f = b.q.length / b.def.capacity;          // stock gauge along the bottom edge
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, b.w * ts - ts * 0.6, Math.max(2, ts * 0.09));
         ctx.fillStyle = f > 0.9 ? '#e55454' : ACC; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, (b.w * ts - ts * 0.6) * f, Math.max(2, ts * 0.09));
-        const led = b.status === 'work' ? '#84f491' : b.status === 'blocked' ? '#e55454' : '#ffb347';
+        const led = Rn.ledColor(b);
         const s = Math.max(3, Math.round(ts * 0.16));
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
         ctx.fillStyle = led; ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
@@ -303,8 +401,21 @@
         const pulse = 0.5 + 0.5 * Math.sin(time * 2);
         ctx.strokeStyle = 'rgba(255,211,127,' + (0.2 + 0.4 * pulse) + ')'; ctx.lineWidth = Math.max(2, ts * 0.1);
         ctx.strokeRect(px + ts * 0.1, py + ts * 0.1, b.w * ts - ts * 0.2, b.h * ts - ts * 0.2);
+      } else if (k === 'generator') {
+        const s = Math.max(3, Math.round(ts * 0.16));
+        ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
+        ctx.fillStyle = Rn.ledColor(b); ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
+        if (b.def.fuel) {                            // fuel gauge along the bottom edge
+          const f = b.fuel / CO.power.FUEL_CAP;
+          ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, b.w * ts - ts * 0.6, Math.max(2, ts * 0.09));
+          ctx.fillStyle = f < 0.2 ? '#e55454' : ACC; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, (b.w * ts - ts * 0.6) * f, Math.max(2, ts * 0.09));
+        }
       }
+      if (Rn.noPower(b)) Rn.bolt(cx, cy, Math.max(8, ts * 0.5), time);
+      if (b.lvl > 1) Rn.levelBadge(px + ts * 0.08, py + b.h * ts - ts * 0.08, b.lvl, ts);
     }
+    drawWiresTop();
+    drawRocketsTop(time);
 
     drawShots(time);
 
@@ -330,6 +441,13 @@
   /** Site frame: dashed yellow outline (marching while a worker builds it) and a progress bar. */
   function drawSite(b, px, py, time) {
     const w = b.w * ts, hh = b.h * ts, lw = Math.max(1, Math.round(ts / 16)), working = !!(b.site.w && b.site.w.building);
+    if (!b.site.paid) {                               // ghost: blue tint and frame, waiting for credits
+      ctx.fillStyle = GHOST_FILL; ctx.fillRect(px, py, w, hh);
+      ctx.save(); ctx.setLineDash([Math.max(2, ts * 0.12), Math.max(2, ts * 0.12)]);
+      ctx.strokeStyle = GHOST_LINE; ctx.lineWidth = lw; ctx.strokeRect(px + lw, py + lw, w - lw * 2, hh - lw * 2);
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.setLineDash([Math.max(2, ts * 0.2), Math.max(2, ts * 0.14)]);
     ctx.lineDashOffset = working ? -time * ts * 0.8 : 0;
@@ -343,7 +461,55 @@
     }
   }
   /** The workers: tiny astronauts with a jetpack, a flame when flying and a welding beam when building. */
+  /** Rockets seen from above: a white disc growing with the parts, then climbing up the screen. */
+  function drawRocketsTop(time) {
+    const list = world.list;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (b.kind !== 'launch_pad' || b.site || (!b.parts && b.phase === 'load')) continue;
+      const full = b.phase !== 'load', alt = CO.orbit.altitude(b);
+      const cx = ox + (b.x + b.w / 2) * ts, cy = oy + (b.y + b.h / 2) * ts - alt * ts * 0.6, r = ts * (0.35 + 0.35 * (full ? 1 : b.parts / b.def.parts));
+      if (alt > 0) {
+        ctx.fillStyle = 'rgba(200,200,210,0.3)';
+        ctx.beginPath(); ctx.arc(ox + (b.x + b.w / 2) * ts, oy + (b.y + b.h / 2) * ts, ts * (0.8 + alt * 0.1), 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = Math.floor(time * 20) % 2 ? '#ffd37f' : '#ff7a3a';
+        ctx.fillRect(cx - r * 0.4, cy + r, r * 0.8, ts * 0.6);
+      }
+      ctx.fillStyle = OUT; ctx.beginPath(); ctx.arc(cx, cy, r + 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#dcdde4'; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e55454'; ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  /** Logistic drones: a small quadcopter, its cargo hanging below. */
+  function drawDrones(time) {
+    const ds = CO.drones.all();
+    const u = Math.max(1, ts / 20);
+    for (let i = 0; i < ds.length; i++) {
+      const d = ds[i], cx = ox + d.x * ts, cy = oy + d.y * ts - ts * 0.4 + Math.sin(time * 6 + i) * u;
+      if (cx < -ts || cy < -ts || cx > cw + ts || cy > ch + ts) continue;
+      if (d.idle) continue;                            // parked drones sit inside the hub
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(cx - u * 3, oy + d.y * ts + u * 2, u * 6, u * 1.5);
+      if (d.item) drawIcon(d.item, cx, cy + u * 4, ts * 0.32);
+      ctx.fillStyle = OUT; ctx.fillRect(cx - u * 3, cy - u * 1.5, u * 6, u * 3);
+      ctx.fillStyle = '#5f616c'; ctx.fillRect(cx - u * 2, cy - u, u * 4, u * 2);
+      const spin = Math.floor(time * 30 + i) % 2;
+      ctx.fillStyle = spin ? '#d8dae2' : '#9a9caa';
+      [[-4, -2.5], [2.5, -2.5], [-4, 1.5], [2.5, 1.5]].forEach(function (p) { ctx.fillRect(cx + p[0] * u, cy + p[1] * u, u * 1.5, u); });
+      ctx.fillStyle = '#84f491'; ctx.fillRect(cx - u * 0.5, cy - u * 0.5, u, u);
+    }
+  }
+  /** Square range of a drone port being placed or inspected. */
+  Rn.hubRange = function (ov) {
+    const ins = CO.input.get().inspected;
+    if (ins && !ins.dead && ins.kind === 'drone_hub') return ins;
+    for (let i = 0; i < ov.ghosts.length; i++) {
+      const g = ov.ghosts[i], d = CO.BUILDINGS[g.type];
+      if (d.kind === 'drone_hub') return { x: g.x, y: g.y, w: d.w, h: d.h, def: d };
+    }
+    return null;
+  };
   function drawWorkers(time) {
+    drawDrones(time);
     const ws = CO.sim.workers;
     if (!ws.length) return;
     const u = Math.max(1, ts / 22);                   // one "pixel" of the little guy
@@ -475,6 +641,14 @@
 
   function drawOverlay(ov, time) {
     const lw = Math.max(2, Math.round(ts / 12));
+    drawZonesTop(ov);
+    const hr = Rn.hubRange(ov);
+    if (hr) {
+      const r = hr.def.range, x0 = hr.x + hr.w / 2 - r, y0 = hr.y + hr.h / 2 - r;
+      ctx.save(); ctx.setLineDash([ts * 0.3, ts * 0.2]); ctx.fillStyle = 'rgba(132,244,145,0.05)'; ctx.strokeStyle = 'rgba(132,244,145,0.7)'; ctx.lineWidth = lw;
+      ctx.fillRect(ox + x0 * ts, oy + y0 * ts, r * 2 * ts, r * 2 * ts); ctx.strokeRect(ox + x0 * ts, oy + y0 * ts, r * 2 * ts, r * 2 * ts);
+      ctx.restore();
+    }
     if (ov.plot >= 0) drawPlotHover(ov.plot);
     if (ov.hover) outline(ov.hover, 'rgba(255,255,255,0.7)', lw);
     for (let i = 0; i < ov.selected.length; i++) outline(ov.selected[i], ACC, lw);
@@ -506,9 +680,9 @@
       ctx.drawImage(spr, 0, 0, spr.width, spr.height, px, py, def.w * ts, def.h * ts);
       ctx.globalAlpha = 1;
       if (def.w * def.h > 1 && def.kind !== 'lab' && def.kind !== 'seller' && def.kind !== 'port') drawArrowOut({ x: g.x, y: g.y, w: def.w, h: def.h, dir: g.dir });
-      ctx.fillStyle = g.valid ? 'rgba(255,211,127,0.12)' : 'rgba(229,84,84,0.45)';
+      ctx.fillStyle = !g.valid ? 'rgba(229,84,84,0.45)' : g.ghost ? 'rgba(110,160,255,0.3)' : 'rgba(255,211,127,0.12)';
       ctx.fillRect(px, py, def.w * ts, def.h * ts);
-      ctx.strokeStyle = g.valid ? 'rgba(255,211,127,0.95)' : 'rgba(229,84,84,0.95)'; ctx.lineWidth = lw;
+      ctx.strokeStyle = !g.valid ? 'rgba(229,84,84,0.95)' : g.ghost ? 'rgba(150,190,255,0.95)' : 'rgba(255,211,127,0.95)'; ctx.lineWidth = lw;
       ctx.strokeRect(px + lw / 2, py + lw / 2, def.w * ts - lw, def.h * ts - lw);
     }
     // underground pieces being placed: the link they will make, or their reach when they find nothing

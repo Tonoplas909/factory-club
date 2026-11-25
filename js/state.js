@@ -5,7 +5,7 @@
 (function (CO) {
   'use strict';
 
-  CO.mods = { machine: 1, drill: 1, chest: 0 };   // research bonuses (speed multipliers, extra chest capacity)
+  CO.mods = { machine: 1, drill: 1, chest: 0, land: 1, power: 1 };   // research bonuses (speed multipliers, extra chest capacity)
   CO.cam = { x: CO.MAP_CX, y: CO.MAP_CY, zoom: 32 };  // camera centre (tiles) and zoom (CSS px per tile)
 
   // --------------------------------------------------------------- land
@@ -27,7 +27,7 @@
   CO.ownsCell = function (x, y) { return CO.state.land[CO.plotOf(x, y)] === 1; };
   /** Price of the next plot (or of the n-th bought one): LAND_BASE × LAND_GROWTH^n, two significant digits. */
   CO.landPrice = function (n) {
-    const p = CO.LAND_BASE * Math.pow(CO.LAND_GROWTH, n == null ? CO.state.landBought : n), m = Math.pow(10, Math.floor(Math.log10(p)) - 1);
+    const p = CO.LAND_BASE * Math.pow(CO.LAND_GROWTH, n == null ? CO.state.landBought : n) * (CO.mods && CO.mods.land || 1), m = Math.pow(10, Math.floor(Math.log10(p)) - 1);
     return Math.round(p / m) * m;
   };
   /** A plot can be bought when it is not owned yet and touches owned land (by a side). */
@@ -89,7 +89,9 @@
       lastRecipe: {},        // remembered recipe per machine type
       land: CO.startLand(),  // 1 per owned plot (index = row * PLOTS_W + column)
       landBought: 0,         // plots bought so far (sets the price of the next one)
-      workers: CO.WORKERS.start   // builders flying out of the Port to build the sites
+      workers: CO.WORKERS.start,  // builders flying out of the Port to build the sites
+      contracts: null,            // Port contracts (contracts.js), created when first needed
+      orbit: { mission: 0, have: {}, launches: 0 }   // orbital program (orbit.js)
     };
   }
   CO.state = freshState(1);
@@ -101,7 +103,10 @@
       const t = CO.TECHS[id];
       if (t && t.effect) { m += t.effect.machineSpeed || 0; d += t.effect.drillSpeed || 0; c += t.effect.chestCap || 0; }
     }
+    const ob = CO.orbitBonus ? CO.orbitBonus() : {};
+    m += ob.machine || 0; d += ob.drill || 0;
     CO.mods.machine = 1 + m; CO.mods.drill = 1 + d; CO.mods.chest = c;
+    CO.mods.land = 1 + (ob.land || 0); CO.mods.power = 1 + (ob.power || 0);
   };
   /** Capacity of a buffer chest with current research. */
   CO.chestCap = function (def) { return def.capacity + CO.mods.chest; };
@@ -131,7 +136,30 @@
   };
 
   /** Items per second mined by a drill (covered tiles / footprint × full-coverage rate × research). */
-  CO.drillRate = function (b) { return b.ore ? b.n / (b.w * b.h) * b.def.rate * CO.mods.drill : 0; };
+  CO.drillRate = function (b) { return b.ore ? b.n / (b.w * b.h) * b.def.rate * CO.mods.drill * CO.lvlSpeed(b) : 0; };
+  // ------------------------------------------------------------ upgrades
+  /** Speed (or output) factor of building `b` from its level. */
+  CO.lvlSpeed = function (b) { return CO.UPGRADE.speed[(b.lvl || 1) - 1]; };
+  /** Power use factor of building `b` from its level. */
+  CO.lvlPower = function (b) { return CO.UPGRADE.power[(b.lvl || 1) - 1]; };
+  /** Credits spent on the levels above I of a `type` building at level `lvl`. */
+  CO.levelSpent = function (type, lvl) {
+    let s = 0;
+    for (let l = 1; l < (lvl || 1); l++) s += CO.UPGRADE.cost[l] * CO.BUILDINGS[type].cost;
+    return s;
+  };
+  /** Full price of a `type` building at level `lvl` (what placing it costs, what removing it refunds). */
+  CO.fullCost = function (type, lvl) { return CO.BUILDINGS[type].cost + CO.levelSpent(type, lvl); };
+  CO.canUpgradeKind = function (b) { return !!CO.UPGRADE.kinds[b.kind] && !b.def.fixed; };
+  /** Next level of `b` if it can be upgraded now (research done), or 0. */
+  CO.nextLevel = function (b) {
+    if (!CO.canUpgradeKind(b) || b.site) return 0;
+    const l = (b.lvl || 1) + 1;
+    if (l > CO.UPGRADE.speed.length) return 0;
+    return CO.state.tech[CO.UPGRADE.tech[l - 1]] ? l : 0;
+  };
+  /** Price of the next level of `b`. */
+  CO.upgradePrice = function (b) { return CO.UPGRADE.cost[b.lvl || 1] * b.def.cost; };
   /** Seconds one craft takes with current research. */
   CO.craftTime = function (rec) { return rec.time / CO.mods.machine; };
 
@@ -255,7 +283,7 @@
   };
 
   // --------------------------------------------------------- persistence
-  const SAVE_REV = 6;          // 6: 480×320 map (older saves are moved to its centre)
+  const SAVE_REV = 7;          // 6: 480×320 map (older saves are moved to its centre); 7: electricity
   let warned = false;
   function snapshot() {
     const st = CO.state;
@@ -266,7 +294,7 @@
         researchBank: st.researchBank, researchQueue: st.researchQueue,
         phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe,
         land: st.land.reduce(function (a, v, i) { if (v) a.push(i); return a; }, []), landBought: st.landBought,
-        startTitanium: st.startTitanium || undefined, workers: st.workers, rev: SAVE_REV
+        startTitanium: st.startTitanium || undefined, workers: st.workers, contracts: st.contracts || undefined, orbit: st.orbit, rev: SAVE_REV
       },
       cam: { x: CO.cam.x, y: CO.cam.y, zoom: CO.cam.zoom },
       buildings: CO.world.serialize()
@@ -334,7 +362,13 @@
     }
     if (!st.startTitanium) CO.world.clearStartTitanium();
     st.workers = CO.clamp(Math.floor(s.workers) || CO.WORKERS.start, CO.WORKERS.start, CO.WORKERS.max);
+    st.contracts = CO.contracts ? CO.contracts.restore(s.contracts) : null;
+    const ob = s.orbit || {};
+    st.orbit = { mission: Math.max(0, ob.mission | 0), have: counts(ob.have), launches: Math.max(0, ob.launches | 0) };
+    CO.recalcMods();                         // mission bonuses
     CO.world.restore(data.buildings);
+    // Saves from before electricity: their machines now need power, tell the player once.
+    CO.save.powerNotice = !(s.rev >= 7) && CO.world.list.some(function (b) { return !!b.def.power; });
     if (data.cam) { CO.cam.x = data.cam.x + ox; CO.cam.y = data.cam.y + oy; CO.cam.zoom = CO.clamp(data.cam.zoom, 4, 72); }
     CO.history.clear();
     CO.emit('loaded');

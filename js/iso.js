@@ -119,6 +119,7 @@
   }
   function heightOf(b) {
     if (b.kind === 'belt') return 0.25;
+    if (b.kind === 'pipe') return 0.5;
     return V.building(b.type, b.dir || 0, 0).top;
   }
   function drawIcon(id, x, y, size) {
@@ -202,7 +203,7 @@
     for (let i = 0; i < list.length; i++) {
       const b = list[i], c = P(b.x + b.w / 2, b.y + b.h / 2), r = (b.w + b.h) * hw;
       if (c[0] < -r - m || c[0] > cw + r + m || c[1] < -r - m * 2 || c[1] > ch + r + m) continue;
-      (b.kind === 'belt' || b.kind === 'tunnel_in' || b.kind === 'tunnel_out' ? flat : tall).push(b);
+      (b.kind === 'belt' || b.kind === 'tunnel_in' || b.kind === 'tunnel_out' || b.kind === 'pipe' ? flat : tall).push(b);
     }
     flat.sort(function (a, b) { return (a.x + a.y) - (b.x + b.y) || a.x - b.x; });
     tall.sort(function (a, b) { return (a.x + a.w + a.y + a.h) - (b.x + b.w + b.y + b.h) || (a.x + a.y) - (b.x + b.y); });
@@ -212,6 +213,7 @@
       const b = flat[i];
       const spr = b.kind === 'belt'
         ? V.belt(b.def.tier || 0, b.dir, beltShape(b), Math.floor(time * b.def.speed * V.VT) % 4)
+        : b.kind === 'pipe' ? V.pipe(CO.render.pipeMask(b), b.fnet && b.fnet.amount > 0 ? b.fnet.fluid : null)
         : V.building(b.type, b.dir, 0);
       drawBody(b, spr, time);
       if (b.items && !b.site) {
@@ -257,10 +259,16 @@
       }
       ctx.globalAlpha = alpha;
       drawBody(b, spr, time);
-      if (!b.site) decorate(b, time);
+      if (!b.site) {
+        decorate(b, time);
+        if (CO.render.noPower(b)) { const q = P(b.x + b.w / 2, b.y + b.h / 2, heightOf(b) + 0.45); CO.render.bolt(q[0], q[1], Math.max(8, ts * 0.5), time); }
+        if (b.lvl > 1) { const q = P(b.x, b.y + b.h, 0.1); CO.render.levelBadge(q[0] + ts * 0.1, q[1] - ts * 0.05, b.lvl, ts); }
+      }
       ctx.globalAlpha = 1;
     }
 
+    drawRockets(time);
+    drawWires();
     drawDriverLinks(ov);
     drawShots(time);
     drawWorkers(time);
@@ -281,12 +289,16 @@
   /** A building body (or a see-through construction site with its frame and progress). */
   function drawBody(b, spr, time) {
     const a = ctx.globalAlpha;
-    if (b.site) ctx.globalAlpha = a * (0.25 + 0.45 * (b.site.p / b.site.t));
+    if (b.site) ctx.globalAlpha = a * (b.site.paid ? 0.25 + 0.45 * (b.site.p / b.site.t) : 0.18);
     const at = blit(spr, b.x, b.y, 0, 0, 0, 0);
     drawn.push({ b: b, s: spr, x: at[0], y: at[1] });
     ctx.globalAlpha = a;
     if (!b.site) return;
     const working = !!(b.site.w && b.site.w.building), lw = Math.max(1, Math.round(ts / 16));
+    if (!b.site.paid) {                                  // ghost: blue tint and frame, waiting for credits
+      foot(b, 'rgba(110,160,255,0.18)', 'rgba(150,190,255,0.85)', lw, [Math.max(2, ts * 0.12), Math.max(2, ts * 0.12)]);
+      return;
+    }
     ctx.save(); ctx.lineDashOffset = working ? -time * ts * 0.8 : 0;
     foot(b, null, working ? ACC : 'rgba(255,211,127,0.55)', lw, [Math.max(2, ts * 0.2), Math.max(2, ts * 0.14)]);
     ctx.restore();
@@ -311,9 +323,9 @@
         ctx.fillStyle = '#2b2c33'; ctx.fillRect(bx - 1, by - 1, bs + 2, bs + 2);
         drawIcon(id, bx + bs / 2, by + bs / 2, bs);
       } else if (k === 'machine') label('?', c[0], by + bs / 2, ACC, ts * 0.7);
-      led(b.status === 'work' ? '#84f491' : b.status === 'blocked' ? RED : '#ffb347', bx + bs + 3, by);
+      led(CO.render.ledColor(b), bx + bs + 3, by);
     } else if (k === 'lab') {
-      led(CO.state.research ? '#84f491' : '#ffb347', Math.round(c[0] - s / 2), Math.round(c[1] - ts * 0.6));
+      led(CO.render.ledColor(b), Math.round(c[0] - s / 2), Math.round(c[1] - ts * 0.6));
       if (CO.state.research) {
         const need = CO.TECHS[CO.state.research].cost; let n = 0;
         for (const id in need) if ((CO.state.researchProg[id] || 0) < need[id]) drawIcon(id, c[0] + (n++ - 1) * ts * 0.42, c[1] - ts * 0.15, ts * 0.36);
@@ -329,7 +341,7 @@
       ctx.strokeStyle = '#868895'; ctx.lineWidth = ts * 0.18; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(e[0], e[1]); ctx.stroke();
       ctx.fillStyle = ACC; ctx.fillRect(Math.round(e[0] - ts * 0.07), Math.round(e[1] - ts * 0.07), Math.round(ts * 0.14), Math.round(ts * 0.14));
       gauge(b, b.q.length / b.def.capacity);
-      led(b.status === 'work' ? '#84f491' : b.status === 'blocked' ? RED : '#ffb347', Math.round(c[0] - s / 2), Math.round(c[1] - ts * 0.55));
+      led(CO.render.ledColor(b), Math.round(c[0] - s / 2), Math.round(c[1] - ts * 0.55));
     } else if (k === 'router' || k === 'unloader') {
       if (b.slot !== null) drawItem(b.slot, b.x + 0.5, b.y + 0.5, top);
       else if (b.filter) drawIcon(b.filter, c[0], c[1] - ts * 0.2, ts * 0.36);
@@ -337,6 +349,10 @@
     } else if (k === 'junction') {
       for (let d = 0; d < 4; d++) if (b.slots[d] !== null) drawItem(b.slots[d], b.x + 0.5 + DX[d] * 0.2, b.y + 0.5 + DY[d] * 0.2, top);
     } else if (k === 'chest') gauge(b, b.q.length / CO.chestCap(b.def));
+    else if (k === 'generator') {
+      led(CO.render.ledColor(b), Math.round(c[0] - s / 2), Math.round(c[1] - ts * 0.55));
+      if (b.def.fuel) gauge(b, b.fuel / CO.power.FUEL_CAP);
+    }
     else if (k === 'port') {
       const pulse = 0.5 + 0.5 * Math.sin(time * 2);
       ctx.strokeStyle = 'rgba(255,211,127,' + (0.2 + 0.4 * pulse) + ')'; ctx.lineWidth = Math.max(2, ts * 0.08);
@@ -391,7 +407,26 @@
     }
   }
   /** Workers: voxel astronauts hovering 1 tile up, with their shadow and a welding beam. */
+  /** Logistic drones flying above everything, with the item they carry. */
+  function drawDrones(time) {
+    const ds = CO.drones.all(), u = Math.max(1, Math.round(ts / 20));
+    for (let i = 0; i < ds.length; i++) {
+      const d = ds[i];
+      if (d.idle) continue;
+      const z = 2.2 + Math.sin(time * 6 + i) * 0.05, p = P(d.x, d.y, z), gnd = P(d.x, d.y, 0);
+      if (p[0] < -ts * 2 || p[0] > cw + ts * 2 || p[1] < -ts * 3 || p[1] > ch + ts) continue;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(gnd[0], gnd[1], ts * 0.18, ts * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+      if (d.item) drawIcon(d.item, p[0], p[1] + u * 5, ts * 0.32);
+      const x = Math.round(p[0]), y = Math.round(p[1]);
+      ctx.fillStyle = OUT; ctx.fillRect(x - u * 3, y - u * 2, u * 6, u * 3);
+      ctx.fillStyle = '#5f616c'; ctx.fillRect(x - u * 2, y - u * 1.5, u * 4, u * 2);
+      ctx.fillStyle = Math.floor(time * 30 + i) % 2 ? '#d8dae2' : '#9a9caa';
+      ctx.fillRect(x - u * 5, y - u * 3, u * 3, u); ctx.fillRect(x + u * 2, y - u * 3, u * 3, u);
+      ctx.fillStyle = '#84f491'; ctx.fillRect(x - Math.ceil(u / 2), y - u, u, u);
+    }
+  }
   function drawWorkers(time) {
+    drawDrones(time);
     const ws = CO.sim.workers;
     for (let i = 0; i < ws.length; i++) {
       const w = ws[i], g = P(w.x, w.y, 0);
@@ -427,8 +462,77 @@
     ctx.strokeStyle = valid === false ? 'rgba(229,84,84,0.7)' : 'rgba(255,211,127,0.6)'; ctx.stroke();
     ctx.restore();
   }
+  /** Rockets standing on launch pads, and the ones taking off (flame and a trail of smoke). */
+  function drawRockets(time) {
+    const list = world.list;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (b.kind !== 'launch_pad' || b.site || (!b.parts && b.phase === 'load')) continue;
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2, alt = CO.orbit.altitude(b), full = b.phase !== 'load';
+      const spr = V.rocket(full ? b.def.parts : b.parts, b.def.parts);
+      if (alt > 0) {
+        for (let k = 0; k < 6; k++) {                   // smoke trail
+          const p = P(cx + Math.sin(k * 2.1 + time) * 0.25, cy, alt * (k / 6) + 0.3), r = ts * (0.25 + k * 0.06);
+          ctx.fillStyle = 'rgba(200,200,210,' + (0.35 - k * 0.04) + ')';
+          ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fill();
+        }
+        const f = P(cx, cy, alt + 0.1);
+        ctx.fillStyle = Math.floor(time * 20) % 2 ? '#ffd37f' : '#ff7a3a';
+        ctx.beginPath(); ctx.moveTo(f[0] - ts * 0.2, f[1]); ctx.lineTo(f[0] + ts * 0.2, f[1]); ctx.lineTo(f[0], f[1] + ts * 0.9); ctx.closePath(); ctx.fill();
+      }
+      blit(spr, cx - 0.5, cy - 0.5, 0.25 + alt, 0, 0, 0);
+    }
+  }
+  /** Height (tiles) where wires hook on a power node. */
+  function hookZ(b) { return b.type === 'pole' ? 1.5 : b.type === 'pylon' ? 2.15 : heightOf(b) * 0.85; }
+  /** Power wires, sagging a little between their two ends. */
+  function drawWires() {
+    const L = CO.power.links;
+    if (!L.length) return;
+    const lw = Math.max(1, Math.round(ts / 16));
+    for (let i = 0; i < L.length; i++) {
+      const a = L[i][0], b = L[i][1], za = hookZ(a), zb = hookZ(b);
+      const ax = a.x + a.w / 2, ay = a.y + a.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2;
+      const p = P(ax, ay, za), q = P(bx, by, zb);
+      if (Math.max(p[0], q[0]) < 0 || Math.min(p[0], q[0]) > cw || Math.max(p[1], q[1]) < 0 || Math.min(p[1], q[1]) > ch) continue;
+      const sag = Math.min(0.6, 0.06 * Math.hypot(bx - ax, by - ay)), m = P((ax + bx) / 2, (ay + by) / 2, (za + zb) / 2 - sag * 2);
+      ctx.strokeStyle = OUT; ctx.lineWidth = lw + 1.5;
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.quadraticCurveTo(m[0], m[1], q[0], q[1]); ctx.stroke();
+      ctx.strokeStyle = '#8a6a4a'; ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.quadraticCurveTo(m[0], m[1], q[0], q[1]); ctx.stroke();
+    }
+  }
+  /** Coverage zones of the power nodes, and what a pole being placed would connect to. */
+  function drawZones(ov) {
+    if (!CO.render.showZones(ov)) return;
+    const nodes = CO.render.powerNodes(), lw = Math.max(1, Math.round(ts / 16)), dash = [Math.max(2, ts * 0.2), Math.max(2, ts * 0.15)];
+    for (let i = 0; i < nodes.length; i++) {
+      const z = CO.power.zone(nodes[i]);
+      foot({ x: z.x0, y: z.y0, w: z.x1 - z.x0, h: z.y1 - z.y0 }, 'rgba(255,211,127,0.05)', 'rgba(255,211,127,0.35)', lw, dash);
+    }
+    for (let i = 0; i < ov.ghosts.length; i++) {
+      const g = ov.ghosts[i], d = CO.BUILDINGS[g.type];
+      if (d.kind !== 'pole' && d.kind !== 'generator') continue;
+      const z = CO.power.zone({ x: g.x, y: g.y, w: d.w, h: d.h, def: d });
+      foot({ x: z.x0, y: z.y0, w: z.x1 - z.x0, h: z.y1 - z.y0 }, 'rgba(132,244,145,0.10)', 'rgba(132,244,145,0.8)', lw, dash);
+      if (d.kind !== 'pole') continue;
+      ctx.save(); ctx.setLineDash(dash); ctx.strokeStyle = 'rgba(132,244,145,0.85)'; ctx.lineWidth = lw;
+      const a = P(g.x + 0.5, g.y + 0.5, d.reach > 10 ? 2.15 : 1.5);
+      for (let j = 0; j < nodes.length; j++) if (CO.power.reaches(g.type, g.x, g.y, nodes[j])) {
+        const n = nodes[j], e = P(n.x + n.w / 2, n.y + n.h / 2, hookZ(n));
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(e[0], e[1]); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
   function drawOverlay(ov, time) {
     const lw = Math.max(2, Math.round(ts / 14));
+    drawZones(ov);
+    const hr = CO.render.hubRange(ov);
+    if (hr) {
+      const r = hr.def.range, x0 = hr.x + hr.w / 2 - r, y0 = hr.y + hr.h / 2 - r;
+      foot({ x: x0, y: y0, w: r * 2, h: r * 2 }, 'rgba(132,244,145,0.05)', 'rgba(132,244,145,0.7)', lw, [ts * 0.3, ts * 0.2]);
+    }
     if (ov.plot >= 0) drawPlotHover(ov.plot);
     if (ov.hover) wire(ov.hover, 'rgba(255,255,255,0.75)', lw);
     for (let i = 0; i < ov.selected.length; i++) wire(ov.selected[i], ACC, lw);
@@ -449,7 +553,8 @@
     for (let i = 0; i < gh.length; i++) {
       const g = gh[i], def = CO.BUILDINGS[g.type], box = { x: g.x, y: g.y, w: def.w, h: def.h, dir: g.dir };
       if (def.kind === 'driver' && gh.length === 1) rangeEllipse({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
-      foot(box, g.valid ? 'rgba(255,211,127,0.14)' : 'rgba(229,84,84,0.45)', g.valid ? 'rgba(255,211,127,0.95)' : 'rgba(229,84,84,0.95)', lw);
+      foot(box, !g.valid ? 'rgba(229,84,84,0.45)' : g.ghost ? 'rgba(110,160,255,0.3)' : 'rgba(255,211,127,0.14)',
+        !g.valid ? 'rgba(229,84,84,0.95)' : g.ghost ? 'rgba(150,190,255,0.95)' : 'rgba(255,211,127,0.95)', lw);
       const spr = def.kind === 'belt' ? V.belt(def.tier || 0, g.dir, 0, 0) : V.building(g.type, g.dir, 0);
       ctx.globalAlpha = g.valid ? 0.75 : 0.5;
       blit(spr, g.x, g.y, 0, 0, 0, 0);

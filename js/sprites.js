@@ -63,6 +63,7 @@
     chip:    ['o.o.o.o.', 'oooooooo', 'obbbbbbo', 'ohbaabbo', 'obbaahbo', 'obbbbsbo', 'oooooooo', 'o.o.o.o.'],
     tank:    ['..oooo..', '.ohhbbo.', 'ohhbbbso', 'oaaaaaao', 'obhbbbso', 'obbbbsso', '.osssso.', '..oooo..'],
     orb:     ['..oooo..', '.ohhhho.', 'ohhaabbo', 'ohabbbbo', 'obbbbbso', 'obbbbsso', '.osssso.', '..oooo..'],
+    drop:    ['...oo...', '..ohbo..', '.ohbbbo.', '.ohbbbo.', 'ohabbbso', 'obbbbsso', '.osssso.', '..oooo..'],
     probe:   ['...oo...', '..oaao..', '.oabbao.', 'oobhbboo', '..obbo..', '.oobboo.', 'o..oo..o', '........']
   };
 
@@ -348,14 +349,114 @@
     arrow(g, ACC, 6, 8, 0);
   }
 
-  const BIG = { drill: [2, drawDrill], drill_heavy: [3, drawDrill], smelter: [2, drawSmelter], assembler: [2, drawAssembler],
+  // ---- energy
+  function drawPole(g) {                                              // post seen from above: base, crossbar, insulators
+    R(g, OUT, 5, 5, 6, 6); R(g, M1, 6, 6, 4, 4); R(g, M3, 6, 6, 4, 1);
+    R(g, OUT, 1, 7, 14, 3); R(g, '#7a5a3a', 2, 8, 12, 1);
+    R(g, OUT, 1, 6, 3, 3); R(g, '#8fdcec', 2, 7, 1, 1); R(g, OUT, 12, 6, 3, 3); R(g, '#8fdcec', 13, 7, 1, 1);
+    R(g, ACC, 7, 7, 2, 2);
+  }
+  function drawPylon(g) {                                             // lattice tower
+    R(g, OUT, 2, 2, 12, 12); R(g, M0, 3, 3, 10, 10);
+    line(g, M2, 3, 3, 12, 12, 1); line(g, M2, 12, 3, 3, 12, 1);
+    R(g, M3, 3, 3, 2, 2); R(g, M3, 11, 3, 2, 2); R(g, M3, 3, 11, 2, 2); R(g, M3, 11, 11, 2, 2);
+    R(g, OUT, 6, 6, 4, 4); R(g, ACC, 7, 7, 2, 2);
+  }
+  function drawGenerator(g, f) {                                      // coal boiler: firebox, chimney, coal hopper
+    block(g, 32, 32, { base: '#5a5550', cornerColor: '#8a8078' });
+    R(g, OUT, 5, 5, 14, 14); R(g, '#3a2a26', 6, 6, 12, 12);
+    R(g, HOT[f % 3], 8, 8, 8, 8); R(g, HOT[(f + 1) % 3], 10, 10, 4, 4); R(g, '#fff0c8', 11, 11, 2, 2);
+    for (let x = 8; x < 16; x += 3) R(g, '#3a2a26', x, 8, 1, 8);
+    disc(g, OUT, 24, 9, 5); disc(g, M0, 24, 9, 4); disc(g, '#1a1a1e', 24, 9, 2);
+    R(g, OUT, 20, 19, 9, 9); R(g, '#2a2a30', 21, 20, 7, 7); R(g, '#464656', 22, 21, 2, 2); R(g, '#464656', 25, 23, 2, 2); R(g, '#8a8aa0', 23, 24, 1, 1);
+    hazard(g, 5, 25, 12, 2);
+  }
+  function drawSolarPlant(g) {                                        // four panels on a frame
+    block(g, 32, 32, { base: '#4a4c56', cornerColor: '#6a6d78' });
+    [[4, 4], [17, 4], [4, 17], [17, 17]].forEach(function (p) {
+      R(g, OUT, p[0], p[1], 11, 11); R(g, '#1c3f8a', p[0] + 1, p[1] + 1, 9, 9); R(g, '#2f6fe0', p[0] + 1, p[1] + 1, 9, 8);
+      R(g, '#9fd0ff', p[0] + 5, p[1] + 1, 1, 9); R(g, '#9fd0ff', p[0] + 1, p[1] + 5, 9, 1); R(g, '#6fa8ff', p[0] + 2, p[1] + 2, 2, 1);
+    });
+  }
+
+  // ---- orbital program
+  function drawLaunchPad(g, f) {                                      // concrete pad, flame trench, service tower
+    block(g, 64, 64, { base: '#5a5c66', margin: 3, cornerColor: ACC_D });
+    hazard(g, 6, 6, 52, 3); hazard(g, 6, 55, 52, 3);
+    disc(g, OUT, 32, 32, 16); disc(g, '#3a3b42', 32, 32, 15); disc(g, '#26272e', 32, 32, 9);
+    R(g, OUT, 48, 14, 10, 36); R(g, M1, 49, 15, 8, 34);
+    for (let y = 17; y < 48; y += 5) R(g, M3, 49, y, 8, 1);
+    R(g, (f % 2) ? '#e55454' : '#7a2a2a', 52, 12, 2, 2);
+  }
+
+  // ---- drones
+  function drawDroneHub(g, f) {                                       // landing pad with corner lights and a mast
+    block(g, 32, 32, { base: '#4a4c56', cornerColor: ACC_D });
+    R(g, OUT, 5, 5, 22, 22); R(g, '#2b2c33', 6, 6, 20, 20);
+    R(g, ACC, 9, 15, 14, 2); R(g, ACC, 15, 9, 2, 14);                 // cross marking
+    ring(g, ACC_D, 16, 16, 8, 1);
+    [[3, 3], [27, 3], [3, 27], [27, 27]].forEach(function (p, i) { R(g, (f + i) % 2 ? '#84f491' : '#2f6a3a', p[0], p[1], 2, 2); });
+  }
+  function drawDroneProvider(g) {                                     // blue crate, arrow up (items leave)
+    small(g, '#3f6fb8');
+    R(g, OUT, 4, 4, 8, 8); R(g, '#2a4a80', 5, 5, 6, 6);
+    R(g, '#bfe6ff', 7, 6, 2, 5); R(g, '#bfe6ff', 6, 7, 4, 1); R(g, '#bfe6ff', 5, 8, 6, 1);
+  }
+  function drawDroneRequester(g) {                                    // orange crate, output arrow
+    small(g, '#c8783a');
+    R(g, OUT, 4, 4, 8, 8); R(g, '#8a4a20', 5, 5, 6, 6);
+    R(g, '#ffe0c0', 7, 5, 2, 5); R(g, '#ffe0c0', 6, 9, 4, 1); R(g, '#ffe0c0', 5, 8, 6, 1);
+    arrow(g, ACC, 13, 8, 0);
+  }
+
+  // ---- fluids
+  function drawPump(g, f) {                                           // pump on a lake: blue well, motor, outlet flanges
+    block(g, 32, 32, { base: '#4f5a6a', cornerColor: '#7f8fa8' });
+    disc(g, OUT, 16, 16, 9); disc(g, '#2c5fa8', 16, 16, 8); ring(g, '#5f9fe8', 16, 16, 8, 1);
+    disc(g, OUT, 16, 16, 5); disc(g, M2, 16, 16, 4); R(g, ACC, 15, 12 + (f % 2) * 2, 2, 2);
+    [[1, 14], [27, 14], [14, 1], [14, 27]].forEach(function (p) { R(g, OUT, p[0], p[1], 4, 4); R(g, M3, p[0] + 1, p[1] + 1, 2, 2); });
+  }
+  function drawOilWell(g, f) {                                        // pumpjack seen from above
+    block(g, 32, 32, { base: '#4a4450', cornerColor: '#6a6070' });
+    disc(g, OUT, 9, 23, 5); disc(g, '#1d1824', 9, 23, 4);
+    const hx = 6 + (f % 2) * 2;
+    R(g, OUT, hx, 7, 22, 6); R(g, M1, hx + 1, 8, 20, 4); R(g, ACC, hx + 1, 8, 4, 4);
+    R(g, OUT, 20, 12, 6, 14); R(g, M2, 21, 13, 4, 12);
+    hazard(g, 4, 28, 24, 2);
+  }
+  function drawFluidTank(g) {                                         // round tank
+    block(g, 32, 32, { base: '#4f5a6a', margin: 2 });
+    disc(g, OUT, 16, 16, 13); disc(g, '#9aa6c0', 16, 16, 12); ring(g, '#c8d2e8', 16, 16, 12, 1);
+    disc(g, '#7f8aa4', 16, 16, 7); ring(g, ACC_D, 16, 16, 9, 1); R(g, OUT, 15, 4, 2, 6);
+  }
+  function drawSteamPlant(g, f) {                                     // boiler (left) and cooling tower (right)
+    block(g, 48, 48, { base: '#5a5550', cornerColor: '#8a8078' });
+    R(g, OUT, 4, 6, 18, 36); R(g, '#6b5a52', 5, 7, 16, 34);
+    for (let y = 9; y < 40; y += 4) R(g, '#5a4a44', 5, y, 16, 1);
+    R(g, OUT, 8, 18, 10, 12); R(g, HOT[f % 3], 9, 19, 8, 10); R(g, '#fff0c8', 12, 23, 2, 2);
+    disc(g, OUT, 33, 24, 12); disc(g, '#c8ccd8', 33, 24, 11); disc(g, '#9aa0b0', 33, 24, 7); disc(g, '#2a2b31', 33, 24, 5);
+    ring(g, '#e8ecf4', 33, 24, 11, 1);
+  }
+  function drawRefinery(g, f) {                                       // distillation columns, tank, flare
+    block(g, 48, 48, { base: '#55505e', cornerColor: '#7a7088' });
+    disc(g, OUT, 13, 13, 7); disc(g, M3, 13, 13, 6); disc(g, M2, 13, 13, 3);
+    disc(g, OUT, 30, 12, 5); disc(g, M3, 30, 12, 4); disc(g, M2, 30, 12, 2);
+    disc(g, OUT, 31, 32, 10); disc(g, '#d8d2ea', 31, 32, 9); ring(g, '#ffffff', 31, 32, 9, 1); disc(g, '#b8b0cc', 31, 32, 4);
+    R(g, OUT, 6, 26, 12, 4); R(g, M2, 7, 27, 10, 2); R(g, OUT, 6, 34, 12, 4); R(g, M2, 7, 35, 10, 2);
+    disc(g, OUT, 10, 42, 3); disc(g, HOT[f % 3], 10, 42, 2);
+  }
+
+  const BIG = { launch_pad: [4, drawLaunchPad], drone_hub: [2, drawDroneHub], pump: [2, drawPump], oil_well: [2, drawOilWell], fluid_tank: [2, drawFluidTank], steam_plant: [3, drawSteamPlant], refinery: [3, drawRefinery],
+    generator: [2, drawGenerator], solar_plant: [2, drawSolarPlant], drill: [2, drawDrill], drill_heavy: [3, drawDrill], smelter: [2, drawSmelter], assembler: [2, drawAssembler],
     steelmill: [3, drawSteelmill], fabricator: [3, drawFabricator], spaceyard: [4, drawSpaceyard], lab: [2, drawLab], seller: [2, drawSeller], port: [4, drawPort], driver: [2, drawDriver] };
   const SMALL = { splitter: drawSplitter, merger: drawMerger, chest: drawChest, underground_in: drawTunnelIn, underground_out: drawTunnelOut,
-    overflow: drawOverflow, underflow: drawUnderflow, junction: drawJunction, sorter_inv: drawSorterInv, unloader: drawUnloader };
+    overflow: drawOverflow, underflow: drawUnderflow, junction: drawJunction, sorter_inv: drawSorterInv, unloader: drawUnloader,
+    pole: drawPole, pylon: drawPylon, drone_provider: drawDroneProvider, drone_requester: drawDroneRequester };
 
   function buildingSprite(type, dir, f) {
     const def = BUILDINGS[type];
     if (def.kind === 'belt') return beltSprite(def.tier || 0, dir, 0, f | 0);
+    if (def.kind === 'pipe') return pipeSprite(dir & 1 ? 10 : 5, null);     // palette / ghost: a straight piece
     if (SMALL[type]) {
       const key = 's' + type + dir;
       return cache[key] || (cache[key] = orient(SMALL[type], dir, false));
@@ -388,6 +489,16 @@
     }
   }
   function oreTile(g, px, py, id, x, y, seed) {
+    if (CO.isFluidOre(id)) {                                          // lake / oil pool: flat liquid with ripples
+      const water = CO.ORE_IDS[id] === 'water';
+      R(g, water ? '#2c5fa8' : '#1d1824', px, py, T, T);
+      const hi = water ? '#5f9fe8' : '#4a3d5e';
+      for (let k = 0; k < 2; k++) {
+        const bx = px + 1 + Math.floor(CO.hash2(x, y, seed + 70 + k) * 10), by = py + 2 + Math.floor(CO.hash2(x, y, seed + 80 + k) * 11);
+        R(g, hi, bx, by, 4, 1);
+      }
+      return;
+    }
     const col = ITEMS[CO.ORE_IDS[id]].color, dk = shade(col, -0.6);
     const n = 3 + Math.floor(CO.hash2(x, y, seed + 31) * 2);
     for (let k = 0; k < n; k++) {
@@ -413,6 +524,20 @@
     return c;
   }
 
-  CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrainChunk: terrainChunk, barrel: barrelSprite,
-    frames: { drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
+  /** Pipe tile: a hub and an arm towards each connected side (mask bits: 1 E, 2 S, 4 W, 8 N); the hub shows the fluid. */
+  function pipeSprite(mask, fluid) {
+    const key = 'p' + mask + (fluid || '');
+    if (cache[key]) return cache[key];
+    const c = mk(T, T), g = c.getContext('2d');
+    if (mask & 1) { R(g, OUT, 8, 4, 8, 8); R(g, M2, 8, 5, 8, 6); R(g, M3, 8, 5, 8, 1); R(g, M0, 14, 4, 1, 8); }
+    if (mask & 2) { R(g, OUT, 4, 8, 8, 8); R(g, M2, 5, 8, 6, 8); R(g, M3, 5, 8, 1, 8); R(g, M0, 4, 14, 8, 1); }
+    if (mask & 4) { R(g, OUT, 0, 4, 8, 8); R(g, M2, 0, 5, 8, 6); R(g, M3, 0, 5, 8, 1); R(g, M0, 1, 4, 1, 8); }
+    if (mask & 8) { R(g, OUT, 4, 0, 8, 8); R(g, M2, 5, 0, 6, 8); R(g, M3, 5, 0, 1, 8); R(g, M0, 4, 1, 8, 1); }
+    R(g, OUT, 3, 3, 10, 10); R(g, M1, 4, 4, 8, 8); R(g, M3, 4, 4, 8, 1);
+    R(g, fluid ? ITEMS[fluid].color : '#2a2b31', 6, 6, 4, 4);
+    return (cache[key] = c);
+  }
+
+  CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrainChunk: terrainChunk, barrel: barrelSprite, pipe: pipeSprite,
+    frames: { launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 3, refinery: 3, generator: 3, drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
 })(window.CO = window.CO || {});
