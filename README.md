@@ -44,7 +44,9 @@ Aucune étape de build : le site est statique. Les chemins sont relatifs, donc i
 | Action | Commande |
 | --- | --- |
 | Utiliser l'outil actif | Clic gauche |
-| Poser plusieurs éléments | Glisser (les convoyeurs suivent le tracé, les autres bâtiments se posent en ligne) |
+| Poser plusieurs éléments | Glisser : ligne droite depuis le point de départ (les convoyeurs sur un seul axe) |
+| Convoyeurs en L | Ctrl + glisser : jusqu'au curseur sur les deux axes, en sautant les bâtiments déjà posés sur le chemin |
+| Convoyeurs à main levée | Alt + glisser : les convoyeurs suivent le tracé de la souris |
 | Construire par-dessus des convoyeurs | Poser le bâtiment dessus : convoyeurs, séparateurs et souterrains sont remplacés et remboursés (annulable) |
 | Désélectionner le bâtiment en cours de pose | Clic droit |
 | Supprimer (remboursement intégral) | Clic droit (glisser) ou outil Supprimer (`X`) : un rectangle rouge supprime tout ce qu'il touche |
@@ -94,6 +96,7 @@ Toutes les cadences de base sont **deux fois plus lentes** qu'à la première ve
 
 - 16 étapes de station (armature, cabine, réseau, coque, quai, ailes, module scientifique, anneau, antenne, radiateurs, propulseurs, soute, réacteur, bouclier, serre, mise en orbite), puis des extensions sans fin.
 - Une carte de 240×160 cases (6 fois plus grande qu'avant) : le Port est au centre, les gisements proches suffisent pour démarrer, les autres sont éparpillés sur toute la carte (le titane le plus loin). Les anciennes parties sont recentrées automatiquement.
+- **Vue isométrique en voxels** (par défaut) : la carte est vue en diagonale, en losanges, et tout est fait de petits cubes en relief (« pixels 3D ») — bâtiments animés, gisements, objets sur les convoyeurs, ouvriers. Un bâtiment haut devient transparent quand la souris passe derrière lui, et on peut cliquer sur sa silhouette pour l'inspecter. `Tab` (ou le bouton « Vue ») revient à la vue de dessus, pratique pour les grands plans de convoyeurs ; le choix est retenu.
 - **Ouvriers** : un bâtiment posé n'apparaît plus tout de suite, c'est un chantier (payé à la pose, remboursé si on l'annule ou le supprime). Un petit ouvrier à jetpack part du Port, vole en ligne droite jusqu'au chantier le plus proche (8 cases/s), le construit puis enchaîne sur le suivant : 0,2 s pour un convoyeur, 0,75 s pour une foreuse, 1 s pour une fonderie… jusqu'à 6 s pour un Chantier spatial. On démarre avec 3 ouvriers ; l'onglet Station en recrute d'autres (2 500 ¢, puis le double à chaque recrue, 12 au plus). Le compteur en haut indique combien travaillent et combien de chantiers attendent.
 - **Terrain à acheter** : la carte est découpée en parcelles de 16×16 cases. On démarre avec les 3×3 parcelles autour du Port (les 5 minerais de base, pas de titane). Un clic sur une parcelle assombrie qui touche ton terrain l'achète, après confirmation : 400 ¢ la première, puis 25 % de plus à chaque achat (≈ 3 700 ¢ la 10e, 35 000 ¢ la 20e, 320 000 ¢ la 30e). La bulle de survol donne le prix et les gisements de la parcelle ; on ne construit que sur son terrain. Les anciennes parties gardent gratuitement toutes les parcelles où elles avaient déjà construit.
 - 28 recherches (dont les *Catapultes magnétiques* pour les gisements lointains), avec une chaîne **titane** (minerai bleu clair, loin du Port) : lingot de titane, alliage, batterie, processeur, réservoir, puis le **Chantier spatial** pour les cœurs de réacteur et les sondes profondes.
@@ -122,7 +125,9 @@ js/sim.js           simulation : convoyeurs, séparateurs, fusions, souterrains,
 js/history.js       annuler / rétablir (toute modification passe par ici)
 js/sprites.js       pixel art procédural : objets, bâtiments, convoyeurs animés, terrain
 js/station.js       dessin de la station à partir de l'avancement
-js/render.js        rendu canvas (zone visible seulement, tuiles entières pour garder les pixels nets)
+js/render.js        rendu canvas de la vue de dessus (zone visible seulement, tuiles entières pour garder les pixels nets)
+js/voxel.js         modèles en voxels (pixels 3D) : bâtiments, convoyeurs, objets, ouvriers, sol
+js/iso.js           rendu isométrique (sol en morceaux mis en cache, ordre de dessin, sélection par silhouette)
 js/input.js         souris, tactile, clavier, glisser-poser, sélection, copier-coller
 js/ui.js            palette, barre d'outils, panneaux (station, recherche, production, infos), dialogues
 js/main.js          démarrage et boucle principale (simulation à pas fixe de 60 Hz)

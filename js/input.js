@@ -105,11 +105,39 @@
     }
   }
 
+  // Belt drag modes (read live from the modifier keys):
+  //   plain  straight line from the press point, on the dominant axis only
+  //   Ctrl   L-shaped path to the cursor (first along the axis the drag started on); cells holding a
+  //          building other than a belt are skipped instead of replaced
+  //   Alt    free-hand: the belts follow the pointer's track
+  const mods = { ctrl: false, alt: false };
+  function readMods(e) { mods.ctrl = !!(e.ctrlKey || e.metaKey); mods.alt = !!e.altKey; }
+  function beltPath(d) {
+    if (mods.alt) return d.path;
+    const a = d.path[0], c = cellOf(cur), dx = c.x - a.x, dy = c.y - a.y, out = [{ x: a.x, y: a.y }];
+    const walk = function (axis, to) {
+      let p = out[out.length - 1];
+      while ((axis === 'h' ? p.x : p.y) !== to) {
+        p = axis === 'h' ? { x: p.x + Math.sign(to - p.x), y: p.y } : { x: p.x, y: p.y + Math.sign(to - p.y) };
+        out.push(p);
+      }
+    };
+    if (mods.ctrl) {
+      const first = d.axis || (Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v');
+      if (first === 'h') { walk('h', c.x); walk('v', c.y); } else { walk('v', c.y); walk('h', c.x); }
+    } else if (Math.abs(dx) >= Math.abs(dy)) walk('h', c.x);
+    else walk('v', c.y);
+    return out;
+  }
   function beltPlacements(path) {
     const out = [], n = path.length;
     for (let i = 0; i < n; i++) {
       let d = rot;
       if (i < n - 1) d = dirTo(path[i], path[i + 1]); else if (n > 1) d = dirTo(path[n - 2], path[n - 1]);
+      if (mods.ctrl && !mods.alt && drag) {                     // Ctrl: go around nothing, just leave buildings alone
+        const o = world.at(path[i].x, path[i].y);
+        if (o && o.kind !== 'belt') continue;
+      }
       out.push({ type: buildType, x: path[i].x, y: path[i].y, dir: d });
     }
     return out;
@@ -136,7 +164,7 @@
     if (!cur) return [];
     const def = BUILDINGS[buildType];
     if (drag && drag.kind === 'build') {
-      if (def.kind === 'belt') return beltPlacements(drag.path);
+      if (def.kind === 'belt') return beltPlacements(beltPath(drag));
       return linePlacements(def, drag.startAnchor, anchor(def, cur.x, cur.y));
     }
     const a = anchor(def, cur.x, cur.y);
@@ -242,7 +270,7 @@
     o.selected = selection.blds.slice();
     if (inspected && !inspected.dead && o.selected.indexOf(inspected) < 0) o.selected.push(inspected);
     if (cur) {
-      const c = cellOf(cur), hb = world.at(c.x, c.y);
+      const c = cellOf(cur), hb = (tool === 'inspect' || tool === 'delete') ? under(c) : world.at(c.x, c.y);
       if (tool === 'inspect') o.hover = hb;
       if (!drag && world.inBounds(c.x, c.y) && !CO.ownsCell(c.x, c.y)) o.plot = CO.plotOf(c.x, c.y);
       if (tool === 'delete' && !drag && hb && !hb.def.fixed) o.deleting = [hb];
@@ -265,10 +293,12 @@
     else if (selection.rect) o.selRect = selection.rect;
     return o;
   };
+  /** Building under the pointer: in the isometric view a tall body is picked by its drawn pixels. */
+  function under(c) { return CO.render.pick(lastCanvas.x, lastCanvas.y) || world.at(c.x, c.y); }
   I.hoverInfo = function () {
     if (!cur) return null;
     const c = cellOf(cur);
-    return { x: c.x, y: c.y, b: world.at(c.x, c.y), ore: world.oreAt(c.x, c.y), sx: lastClient.x, sy: lastClient.y, mouse: lastClient.mouse };
+    return { x: c.x, y: c.y, b: under(c), ore: world.oreAt(c.x, c.y), sx: lastClient.x, sy: lastClient.y, mouse: lastClient.mouse };
   };
 
   function rectOf(a, b) { return { x0: Math.min(a.x, b.x), y0: Math.min(a.y, b.y), x1: Math.max(a.x, b.x), y1: Math.max(a.y, b.y) }; }
@@ -300,14 +330,15 @@
 
   // --------------------------------------------------------------- pointers
   function pos(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
-  let lastClient = { x: 0, y: 0, mouse: false };
+  let lastClient = { x: 0, y: 0, mouse: false }, lastCanvas = { x: 0, y: 0 };
   function updateCursor(e) {
-    const p = pos(e); cur = CO.render.screenToWorld(p.x, p.y);
+    const p = pos(e); cur = CO.render.screenToWorld(p.x, p.y); lastCanvas = p;
     lastClient = { x: e.clientX, y: e.clientY, mouse: e.pointerType === 'mouse' };
   }
 
   function onDown(e) {
     e.preventDefault();
+    readMods(e);
     if (CO.ui && CO.ui.closeMenus) CO.ui.closeMenus();
     try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
     const p = pos(e);
@@ -345,10 +376,13 @@
   }
   /** Start a deletion marquee: everything touched by the dragged rectangle is removed on release. */
   function startDelete(cell) {
+    const b = under(cell);                       // iso: start on the building actually under the pointer
+    if (b && !b.def.fixed && world.at(cell.x, cell.y) !== b) cell = { x: b.x, y: b.y };
     drag = { kind: 'delete', start: cell, end: cell, moved: false };
   }
 
   function onMove(e) {
+    readMods(e);
     const p = pos(e);
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: p.x, y: p.y });
     if (gesture && pointers.size >= 2) { updateGesture(); return; }
@@ -368,13 +402,17 @@
         if (cell.x !== drag.start.x || cell.y !== drag.start.y) drag.moved = true;
         break;
       case 'build':
-        if (BUILDINGS[buildType].kind === 'belt') extendPath(drag.path, cell);
+        if (BUILDINGS[buildType].kind === 'belt') {
+          extendPath(drag.path, cell);                  // free-hand track (Alt), kept up to date in every mode
+          if (!drag.axis && (cell.x !== drag.path[0].x || cell.y !== drag.path[0].y))
+            drag.axis = Math.abs(cell.x - drag.path[0].x) >= Math.abs(cell.y - drag.path[0].y) ? 'h' : 'v';
+        }
         break;
     }
   }
   function doPan(p) {
     const ts = CO.cam.zoom;
-    CO.cam.x -= (p.x - drag.lx) / ts; CO.cam.y -= (p.y - drag.ly) / ts;
+    CO.render.pan(p.x - drag.lx, p.y - drag.ly);
     drag.lx = p.x; drag.ly = p.y; clampCam();
   }
 
@@ -387,7 +425,7 @@
     switch (d.kind) {
       case 'panclick':
         if (!d.moved) {
-          const c = cellOf(cur || CO.render.screenToWorld(d.sx, d.sy)), b = world.at(c.x, c.y);
+          const c = cellOf(cur || CO.render.screenToWorld(d.sx, d.sy)), b = under(c);
           if (!b && world.inBounds(c.x, c.y) && !CO.ownsCell(c.x, c.y)) { CO.ui.askBuyPlot(CO.plotOf(c.x, c.y)); break; }
           inspected = b; CO.emit('inspect');
         }
@@ -439,7 +477,7 @@
     const pts = Array.from(pointers.values());
     const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
     const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
-    CO.cam.x -= (mx - gesture.mx) / CO.cam.zoom; CO.cam.y -= (my - gesture.my) / CO.cam.zoom;
+    CO.render.pan(mx - gesture.mx, my - gesture.my);
     zoomAt(mx, my, gesture.z0 * d / gesture.d0);
     gesture.mx = mx; gesture.my = my;
   }
@@ -451,6 +489,8 @@
 
   function onKeyDown(e) {
     if (isTyping(e)) return;
+    if (e.key === 'Control' || e.key === 'Meta') mods.ctrl = true;
+    if (e.key === 'Alt') { mods.alt = true; e.preventDefault(); }
     const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
     if (CO.ui && CO.ui.modalOpen()) { if (k === 'escape') CO.ui.closeModal(); return; }
     if (mod) {
@@ -469,6 +509,7 @@
       case 'e': setTool('select'); break;
       case 'x': setTool('delete'); break;
       case 'i': CO.ui.showGuide(); break;
+      case 'tab': e.preventDefault(); CO.render.toggleMode(); break;
       case 'escape':
         if (tool === 'link') endLink();
         else if (tool !== 'inspect') setTool('inspect');
@@ -490,6 +531,8 @@
     }
   }
   function onKeyUp(e) {
+    if (e.key === 'Control' || e.key === 'Meta') mods.ctrl = false;
+    if (e.key === 'Alt') { mods.alt = false; e.preventDefault(); }
     const k = e.key.toLowerCase();
     if (k === ' ') space = false;
     if (PAN_KEYS[k]) held[PAN_KEYS[k]] = false;
@@ -498,9 +541,9 @@
   I.hotbar = function () { return CO.BUILD_ORDER.filter(CO.isBuildingUnlocked); };
 
   I.update = function (dt) {
-    const sp = 700 / CO.cam.zoom * dt;
-    if (held.l) CO.cam.x -= sp; if (held.r) CO.cam.x += sp;
-    if (held.u) CO.cam.y -= sp; if (held.d) CO.cam.y += sp;
+    const sp = 700 * dt;                           // CSS pixels per frame, whatever the view
+    if (held.l) CO.render.pan(sp, 0); if (held.r) CO.render.pan(-sp, 0);
+    if (held.u) CO.render.pan(0, sp); if (held.d) CO.render.pan(0, -sp);
     if (held.l || held.r || held.u || held.d) clampCam();
   };
 
@@ -519,7 +562,7 @@
     }, { passive: false });
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('blur', function () { for (const k in held) held[k] = false; space = false; });
+    window.addEventListener('blur', function () { for (const k in held) held[k] = false; space = false; mods.ctrl = mods.alt = false; });
     CO.on('loaded', function () { inspected = null; selection = { rect: null, blds: [] }; drag = null; CO.emit('inspect'); CO.emit('selection'); });
   };
 })(window.CO = window.CO || {});

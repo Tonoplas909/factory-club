@@ -23,6 +23,24 @@
     canvas.width = cw; canvas.height = ch;
   };
   Rn.dpr = function () { return dpr; };
+
+  // View mode: 'iso' (isometric voxel view, see iso.js) or 'top' (flat top-down pixel art below).
+  const VIEW_KEY = 'chantier-orbital-view';
+  Rn.mode = 'iso';
+  try { if (localStorage.getItem(VIEW_KEY) === 'top') Rn.mode = 'top'; } catch (e) { /* storage unavailable */ }
+  Rn.toggleMode = function () {
+    Rn.mode = Rn.mode === 'iso' ? 'top' : 'iso';
+    try { localStorage.setItem(VIEW_KEY, Rn.mode); } catch (e) { /* ignore */ }
+    CO.emit('view', Rn.mode);
+  };
+  Rn.surface = function () { return { ctx: ctx, cw: cw, ch: ch, dpr: dpr }; };
+  /** Move the camera as if the map had been dragged by (dx, dy) CSS pixels. */
+  Rn.pan = function (dx, dy) {
+    if (Rn.mode === 'iso' && CO.iso) { CO.iso.pan(dx, dy); return; }
+    CO.cam.x -= dx / CO.cam.zoom; CO.cam.y -= dy / CO.cam.zoom;
+  };
+  /** Building drawn under a screen point (iso: the tall bodies hide the ground behind them), or null. */
+  Rn.pick = function (sx, sy) { return Rn.mode === 'iso' && CO.iso ? CO.iso.pick(sx, sy) : null; };
   function geom() {
     const cam = CO.cam;
     ts = Math.max(4, Math.round(cam.zoom * dpr));
@@ -31,6 +49,7 @@
   }
   /** CSS pixel position (relative to the canvas) → fractional tile coordinates. */
   Rn.screenToWorld = function (sx, sy) {
+    if (Rn.mode === 'iso' && CO.iso) return CO.iso.screenToWorld(sx, sy);
     geom();
     return { x: (sx * dpr - ox) / ts, y: (sy * dpr - oy) / ts };
   };
@@ -88,6 +107,7 @@
     terrain = sprites.terrain(); terrainKey = key;
   }
 
+  Rn.drawStars = function () { drawStars(); };
   function drawStars() {
     if (!starPat) {
       const c = document.createElement('canvas'); c.width = c.height = 200;
@@ -104,6 +124,7 @@
 
   // --------------------------------------------------------------- frame
   Rn.draw = function (time, dt) {
+    if (Rn.mode === 'iso' && CO.iso) { CO.iso.draw(time, dt); return; }
     geom();
     ensureTerrain();
     ctx.imageSmoothingEnabled = false;

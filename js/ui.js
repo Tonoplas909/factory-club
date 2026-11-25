@@ -92,7 +92,9 @@
     const row = function (k, t) { return h('tr', null, h('td', null, h('kbd', { text: k })), h('td', { text: t })); };
     const tbl = h('table', { class: 'keys' },
       row('Clic gauche', 'Utiliser l’outil actif (poser, inspecter…)'),
-      row('Glisser', 'Poser plusieurs éléments d’un coup (les convoyeurs suivent ton tracé)'),
+      row('Glisser', 'Poser plusieurs éléments d’un coup, en ligne droite (convoyeurs : sur un seul axe)'),
+      row('Ctrl + glisser', 'Convoyeurs en L jusqu’au curseur, sans toucher aux bâtiments sur le chemin'),
+      row('Alt + glisser', 'Convoyeurs à main levée : ils suivent ton tracé'),
       row('Poser sur des convoyeurs', 'Un bâtiment posé sur des convoyeurs, séparateurs ou souterrains les remplace (remboursés)'),
       row('Clic droit', 'Désélectionner le bâtiment en cours de pose'),
       row('Clic droit (glisser)', 'Rectangle rouge : supprime tout ce qu’il touche — remboursement intégral'),
@@ -108,6 +110,7 @@
       row('Clic molette + glisser', 'Sélection rectangulaire (puis retour à l’outil Inspecter)'),
       row('Catapulte magnétique', 'Inspecte la catapulte de départ, « Choisir la cible », puis clique sur celle d’arrivée (48 cases max)'),
       row('Recherche', '« + File d’attente » enchaîne les recherches ; les laboratoires mettent en réserve ce qui servira plus tard'),
+      row('Tab', 'Changer de vue : isométrique (voxels) ou vue de dessus — un bâtiment haut devient transparent quand la souris passe derrière'),
       row('Ouvriers', 'Un bâtiment posé est un chantier : un ouvrier part du Port le construire. Recrute-en d’autres dans l’onglet Station'),
       row('Terrain', 'Clic sur une parcelle assombrie qui touche ton terrain pour l’acheter (chaque achat coûte 25 % de plus que le précédent)'),
       row('Tablette', 'Un doigt : outil actif · deux doigts : déplacer et zoomer'));
@@ -223,6 +226,7 @@
     mk('zoomin', ['＋', 'Zoom'], 'Zoom avant (+)', function () { CO.input.zoomBy(1.25); });
     mk('zoomout', ['－', 'Zoom'], 'Zoom arrière (-)', function () { CO.input.zoomBy(0.8); });
     mk('home', ['⌖', 'Port'], 'Recentrer sur le Port', function () { CO.input.centerOnPort(); });
+    mk('view', ['◇', 'Vue'], 'Changer de vue (Tab) : isométrique en voxels ou vue de dessus', function () { CO.render.toggleMode(); });
     mk('guide', ['📖', 'Recettes'], 'Ressources et recettes (I)', function () { showGuide(); });
   }
   function updateToolbar() {
@@ -233,6 +237,7 @@
     toolBtns.paste.disabled = !st.clipboard;
     toolBtns.copy.disabled = !st.selection.length && !st.inspected;
     toolBtns.cut.disabled = toolBtns.copy.disabled;
+    toolBtns.view.querySelector('.tico').textContent = CO.render.mode === 'iso' ? '◇' : '□';
   }
 
   // ------------------------------------------------------------------ topbar
@@ -285,7 +290,7 @@
     let txt = '';
     if (st.tool === 'build') {
       const def = BUILDINGS[st.buildType];
-      txt = def.name + ' · ' + CO.DIR_ARROWS[st.rot] + ' · coût ' + CO.input.getCost() + ' ¢ · R pour tourner · glisser pour en poser plusieurs';
+      txt = def.name + ' · ' + CO.DIR_ARROWS[st.rot] + ' · coût ' + CO.input.getCost() + ' ¢ · R pour tourner · glisser pour en poser plusieurs' + (def.kind === 'belt' ? ' (Ctrl : en L, Alt : à main levée)' : '');
     } else if (st.tool === 'paste') txt = 'Coller : clique pour poser la disposition · R pour tourner · Échap pour annuler · coût ' + CO.input.getCost() + ' ¢';
     else if (st.tool === 'select') txt = 'Sélection : tire un rectangle, puis Ctrl+C (copier), Suppr (supprimer)' + (st.selection.length ? ' · ' + st.selection.length + ' sélectionné(s)' : '');
     else if (st.tool === 'delete') txt = 'Suppression : tire un rectangle sur les bâtiments à détruire (remboursement intégral)';
