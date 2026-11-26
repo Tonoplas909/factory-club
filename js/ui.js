@@ -139,7 +139,7 @@
       row('Contrats', 'Après ta première livraison, le Port propose des contrats (onglet Station) : livre une quantité d’un objet avant la fin du temps pour une grosse récompense. Deux à la fois ; les livraisons au Port les remplissent avant la station'),
       row('Améliorations', 'Recherches Améliorations I et II : dans Infos, un bouton fait passer foreuses, machines, pompes et générateurs au niveau II (×1,5, coûte 2× le bâtiment) puis III (×2, 4× le bâtiment). Ils consomment plus de courant. Marche aussi sur toute une sélection'),
       row('Fluides', 'Recherche Hydraulique : une Pompe à eau posée sur un lac remplit les tuyaux qui la touchent. Les tuyaux qui se touchent partagent leur contenu (un seul fluide par réseau). La Centrale à vapeur (eau + charbon) donne 400 kW ; la Raffinerie transforme le pétrole en plastique et carburant'),
-      row('Énergie', 'Foreuses, machines, laboratoires et catapultes ont besoin de courant. Le Port fournit 150 kW autour de lui ; les Poteaux électriques alimentent ce qui touche leur zone et se relient tout seuls ; les Générateurs thermiques brûlent du charbon. Un réseau trop chargé ralentit toutes ses machines'),
+      row('Énergie', 'Foreuses, machines et laboratoires ont besoin de courant. Le Port fournit 150 kW autour de lui ; les Poteaux électriques alimentent ce qui touche leur zone et se relient tout seuls ; les Générateurs thermiques brûlent du charbon. Un réseau trop chargé ralentit toutes ses machines'),
       row('F', 'Pendant un collage ou la pose d’un plan : retourner la disposition (miroir gauche ↔ droite)'),
       row('Plans', 'Onglet Plans : garde une sélection comme plan nommé (commun à toutes tes parties) et repose-la quand tu veux'),
       row('Fantômes', 'Sans assez de crédits, ce que tu poses devient un fantôme bleu : un ouvrier le paie et le construit dès que les crédits arrivent. Le supprimer ne rembourse rien (il n’a rien coûté)'),
@@ -1171,7 +1171,7 @@
       CO.save.powerNotice = false;
       setTimeout(function () { UI.whenFree(function () {
         openModal('Nouveau : l’électricité', h('div', null,
-          h('p', { text: 'Les foreuses, machines, laboratoires et catapultes ont maintenant besoin de courant pour fonctionner.' }),
+          h('p', { text: 'Les foreuses, machines et laboratoires ont maintenant besoin de courant pour fonctionner.' }),
           h('p', { text: 'Le Port fournit 150 kW autour de lui. Plus loin, pose des Poteaux électriques (4 ¢, catégorie Énergie de la palette) : chacun alimente les bâtiments qui touchent sa zone et se relie tout seul aux poteaux voisins.' }),
           h('p', { text: 'Pour produire plus, construis des Générateurs thermiques et nourris-les de charbon par convoyeur. Le compteur ⚡ en haut indique la production et la demande.' })),
           [{ label: 'Compris', primary: true }]);

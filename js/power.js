@@ -1,5 +1,5 @@
 /*
- * power.js — electricity. Machines, drills, labs and linked mass drivers only work when a power
+ * power.js — electricity. Machines, drills and labs only work when a power
  * network reaches them, and they slow down when the network is short.
  *
  * Nodes are the Port (a built-in plant), generators and poles. Each node has a coverage zone (its

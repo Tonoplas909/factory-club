@@ -483,9 +483,8 @@
   };
 
   function updateDriver(b, dt) {
-    const tg = driverTarget(b), pw = b.pw || 0;
-    b.wants = !!tg && b.q.length > 0;                 // only a launcher needs power (to reload and shoot)
-    if (b.cd > 0) b.cd = Math.max(0, b.cd - dt * (tg ? pw : 1));
+    const tg = driverTarget(b);
+    if (b.cd > 0) b.cd = Math.max(0, b.cd - dt);
     if (!tg) {                                        // receiver: unload through the front, like a chest
       b.aim = null;
       if (b.target) { b.status = 'blocked'; return; } // linked to something that is gone or out of range
@@ -494,7 +493,6 @@
       return;
     }
     b.aim = Math.atan2(tg.y + tg.h / 2 - b.y - b.h / 2, tg.x + tg.w / 2 - b.x - b.w / 2);
-    if (b.wants && pw <= 0) { b.status = 'nopower'; return; }
     if (b.cd > 0) { b.status = 'work'; return; }
     if (!b.q.length) { b.status = 'idle'; return; }
     // Never shoot more than the target can still store: space is reserved until the volley lands.
