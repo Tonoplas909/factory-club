@@ -144,46 +144,169 @@
     R(g, '#8da1e3', x + 3, y + 3, 4, 3); R(g, '#8da1e3', x + 9, y + 3, 4, 3);
   }
 
-  // FUNCS[i] is drawn for phase i (same order as CO.PHASES); ORDER = painting order, back to front.
-  const FUNCS = [partFrame, partHabitat, partPower, partHull, partDock, partSolar, partLab, partRing,
-    partAntenna, partRadiator, partEngines, partCargo, partReactor, partShield, partGarden, partLaunch];
-  const ORDER = [15, 13, 7, 5, 10, 0, 1, 2, 3, 4, 6, 8, 9, 11, 12, 14];
-  let tmp = null;
-  let stars = null;
-
-  function background(g) {
-    if (!stars) {
-      stars = document.createElement('canvas'); stars.width = W; stars.height = H;
-      const s = stars.getContext('2d');
-      R(s, '#09090c', 0, 0, W, H);
-      R(s, '#0d0d12', 0, 0, W, 50);
-      const rnd = CO.rng(42);
-      for (let i = 0; i < 90; i++) {
-        const b = rnd(); R(s, b > 0.85 ? '#ffffff' : b > 0.5 ? '#9a9aa6' : '#45454f', Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1);
-      }
-      disc(s, '#1d3a66', 12, 128, 54); disc(s, '#2b5d8a', 12, 128, 50); disc(s, '#3f86b0', 14, 130, 44);
-      disc(s, '#5aa0c8', 20, 134, 34);
-      R(s, '#d8ecf5', 6, 92, 14, 2); R(s, '#d8ecf5', 26, 98, 10, 2); R(s, '#d8ecf5', 14, 104, 18, 2);
-      R(s, '#3a8a5a', 34, 112, 10, 4); R(s, '#3a8a5a', 20, 118, 14, 3);
+  // ---- Kéora: the stellar portal (a double ring over a colony platform)
+  const PX = 96, PY = 58;                      // centre of the portal rings
+  function ring(g, c, cx, cy, r0, r1) {
+    g.fillStyle = c;
+    for (let y = -r1; y <= r1; y++) for (let x = -r1; x <= r1; x++) {
+      const d = x * x + y * y;
+      if (d <= r1 * r1 && d >= r0 * r0) g.fillRect(cx + x, cy + y, 1, 1);
     }
-    g.drawImage(stars, 0, 0);
+  }
+  function kAnchor(g) {                        // platform under the portal
+    R(g, '#3a3550', 44, 102, 104, 7); R(g, '#8a84b0', 44, 102, 104, 2);
+    for (let x = 48; x < 146; x += 10) { line(g, '#2a2540', x, 104, x + 5, 108); line(g, '#2a2540', x + 5, 104, x + 10, 108); }
+    R(g, '#5a5480', PX - 3, 96, 7, 6); R(g, '#8a84b0', PX - 3, 96, 7, 1);
+  }
+  function kDorms(g) {                         // two pressurised blocks at the ends of the platform
+    for (const x of [28, 138]) {
+      R(g, '#3a3550', x, 90, 26, 12); R(g, '#d8d0f0', x + 1, 91, 24, 5); R(g, '#a89ed0', x + 1, 96, 24, 5);
+      for (let i = 0; i < 4; i++) R(g, '#7ff0e0', x + 3 + i * 6, 93, 3, 2);
+    }
+  }
+  function kGrid(g, solid, t) {                // light conduits running up to the ring
+    const pts = [[PX - 40, PY], [PX + 40, PY], [PX - 28, PY + 28], [PX + 28, PY + 28]];
+    pts.forEach(function (p, i) {
+      line(g, '#4fd8e8', PX, 100, p[0], p[1], 1);
+      const k = solid ? ((t * 0.8 + i * 0.25) % 1) : 0.5;
+      R(g, '#e0ffff', Math.round(PX + (p[0] - PX) * k), Math.round(100 + (p[1] - 100) * k), 2, 2);
+    });
+  }
+  function kFrame(g) {                         // outer ring, superalloy segments
+    ring(g, '#2a2540', PX, PY, 35, 41); ring(g, '#6a6a9a', PX, PY, 36, 40); ring(g, '#9a98c8', PX, PY, 38, 39);
+    for (let a = 0; a < 360; a += 30) {
+      const r = a * Math.PI / 180;
+      R(g, '#2a2540', Math.round(PX + Math.cos(r) * 38) - 1, Math.round(PY + Math.sin(r) * 38) - 1, 3, 3);
+    }
+  }
+  function kMirrors(g, solid, t) {             // four mirrors on the diagonals
+    for (let k = 0; k < 4; k++) {
+      const a = (45 + k * 90) * Math.PI / 180, x = Math.round(PX + Math.cos(a) * 56), y = Math.round(PY + Math.sin(a) * 46);
+      line(g, '#5a5480', x, y, Math.round(PX + Math.cos(a) * 41), Math.round(PY + Math.sin(a) * 41), 1);
+      R(g, '#2a2540', x - 7, y - 5, 14, 10); R(g, '#c060f0', x - 6, y - 4, 12, 8); R(g, '#f0c8ff', x - 6, y - 4, 5, 2);
+      if (solid && Math.floor(t * 2 + k) % 4 === 0) R(g, '#ffffff', x + 2, y - 2, 2, 2);
+    }
+  }
+  function kDomes(g) {                         // glass domes on the blocks
+    for (const x of [41, 151]) {
+      disc(g, '#3a3550', x, 90, 10); disc(g, '#9fe8f0', x, 90, 9); disc(g, '#e0ffff', x - 3, 86, 3);
+      R(g, '#3a3550', x - 11, 90, 23, 2);
+    }
+  }
+  function kQuarter(g) {                       // small modules along the platform
+    const cols = ['#5fd0c0', '#c060f0', '#7f9cf0', '#e6d040'];
+    for (let i = 0; i < 8; i++) {
+      const x = 58 + i * 10 + (i > 3 ? 8 : 0);
+      R(g, '#2a2540', x, 110, 8, 7); R(g, cols[i % 4], x + 1, 111, 6, 5); R(g, '#ffffff', x + 1, 111, 6, 1);
+    }
+  }
+  function kIring(g) {                         // inner iridium ring
+    ring(g, '#2a2540', PX, PY, 29, 33); ring(g, '#d0c8f0', PX, PY, 30, 32); ring(g, '#ffffff', PX, PY, 31, 31);
+  }
+  function kEngines(g, solid, t) {             // ion engines on both sides, blue plumes
+    for (const s of [-1, 1]) {
+      const x = PX + s * 46;
+      R(g, '#3a3550', x - 4, PY - 8, 8, 16); R(g, '#7f9cf0', x - 3, PY - 7, 6, 14);
+      if (solid) {
+        const L = 6 + Math.floor((Math.sin(t * 8 + s) + 1) * 3);
+        R(g, '#5ef0ff', s > 0 ? x + 4 : x - 4 - L, PY - 3, L, 6); R(g, '#e0ffff', s > 0 ? x + 4 : x - 4 - L + 3, PY - 1, L - 3, 2);
+      }
+    }
+  }
+  function kBrain(g, solid, t) {               // quantum computer on top of the ring
+    R(g, '#2a2540', PX - 7, 8, 14, 12); R(g, '#4a2fa0', PX - 6, 9, 12, 10);
+    const p = solid ? Math.floor(t * 4) % 3 : 1;
+    R(g, ['#5ef0ff', '#c060f0', '#ff6ad8'][p], PX - 3, 12, 6, 4);
+    line(g, '#8a84b0', PX, 20, PX, 24, 1);
+  }
+  function kCore(g, solid, t) {                // fusion core at the bottom of the rings
+    const p = solid ? Math.floor((Math.sin(t * 5) + 1) * 1.5) : 1;
+    disc(g, '#2a2540', PX, 90, 7); disc(g, '#5ef0ff', PX, 90, 5 + (p > 1 ? 1 : 0)); disc(g, '#ffffff', PX, 90, 2);
+  }
+  function kOpen(g, solid, t) {                // the portal itself: a swirl inside the rings
+    if (solid) disc(g, '#1a0f30', PX, PY, 29);
+    for (let i = 0; i < 70; i++) {
+      const a = i * 0.55 + (solid ? t * 1.6 : 0), r = (i * 0.41) % 28;
+      R(g, i % 3 === 0 ? '#ff6ad8' : i % 3 === 1 ? '#5ef0ff' : '#c060f0', Math.round(PX + Math.cos(a) * r), Math.round(PY + Math.sin(a) * r), 2, 2);
+    }
+    disc(g, '#ffffff', PX, PY, 2);
+  }
+  const K_SPOTS = [[4, 20], [172, 20], [4, 56], [172, 56], [22, 4], [154, 4], [22, 70], [154, 70]];
+  function kExtension(g, n) {
+    const s = K_SPOTS[(n - 1) % K_SPOTS.length], x = s[0], y = s[1];
+    line(g, '#5a5480', x + 8, y + 7, PX, PY, 1);
+    R(g, '#2a2540', x, y, 16, 14); R(g, '#5fd0c0', x + 1, y + 1, 14, 12); R(g, '#2f8a80', x + 1, y + 8, 14, 5);
+    R(g, '#e0ffff', x + 3, y + 3, 4, 3); R(g, '#e0ffff', x + 9, y + 3, 4, 3);
   }
 
-  /** Draw the station. `phase` = current phase index, `prog` = 0..1 completion of that phase. */
-  CO.drawStation = function (cv, phase, prog, time) {
+  function terreBackground(s) {
+    R(s, '#09090c', 0, 0, W, H);
+    R(s, '#0d0d12', 0, 0, W, 50);
+    const rnd = CO.rng(42);
+    for (let i = 0; i < 90; i++) {
+      const b = rnd(); R(s, b > 0.85 ? '#ffffff' : b > 0.5 ? '#9a9aa6' : '#45454f', Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1);
+    }
+    disc(s, '#1d3a66', 12, 128, 54); disc(s, '#2b5d8a', 12, 128, 50); disc(s, '#3f86b0', 14, 130, 44);
+    disc(s, '#5aa0c8', 20, 134, 34);
+    R(s, '#d8ecf5', 6, 92, 14, 2); R(s, '#d8ecf5', 26, 98, 10, 2); R(s, '#d8ecf5', 14, 104, 18, 2);
+    R(s, '#3a8a5a', 34, 112, 10, 4); R(s, '#3a8a5a', 20, 118, 14, 3);
+  }
+  function keoraBackground(s) {                // violet sky, a crystal planet with a ring, a small moon
+    R(s, '#0b0812', 0, 0, W, H);
+    R(s, '#100c1a', 0, 0, W, 50);
+    const rnd = CO.rng(77);
+    for (let i = 0; i < 100; i++) {
+      const b = rnd(); R(s, b > 0.85 ? '#ffffff' : b > 0.5 ? '#a89ec0' : '#4a4260', Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1);
+    }
+    disc(s, '#2a1f4a', 186, 132, 52); disc(s, '#3d2f6e', 186, 132, 48); disc(s, '#5a4a9a', 184, 134, 40); disc(s, '#7a6ac0', 180, 138, 28);
+    R(s, '#c8f0ff', 150, 100, 10, 2); R(s, '#c8f0ff', 160, 108, 14, 2); R(s, '#5fd0c0', 146, 116, 12, 3);
+    for (let a = 0; a < 360; a += 2) {
+      const r = a * Math.PI / 180, x = Math.round(186 + Math.cos(r) * 70), y = Math.round(132 + Math.sin(r) * 12);
+      if (y < 128) R(s, '#8a7ad8', x, y, 1, 1);
+    }
+    disc(s, '#4a4260', 18, 18, 7); disc(s, '#6a6088', 17, 17, 5);
+  }
+
+  // Per planet: FUNCS[i] is drawn for phase i (same order as the planet's phases); ORDER = painting order,
+  // back to front; ext = module of the n-th extension; maxExt = how many extensions are drawn at most.
+  const SETS = [
+    { funcs: [partFrame, partHabitat, partPower, partHull, partDock, partSolar, partLab, partRing,
+      partAntenna, partRadiator, partEngines, partCargo, partReactor, partShield, partGarden, partLaunch],
+      order: [15, 13, 7, 5, 10, 0, 1, 2, 3, 4, 6, 8, 9, 11, 12, 14], ext: partExtension, spots: SPOTS.length, bg: terreBackground, bob: true },
+    { funcs: [kAnchor, kDorms, kGrid, kFrame, kMirrors, kDomes, kQuarter, kIring, kEngines, kBrain, kCore, kOpen],
+      order: [4, 11, 3, 7, 2, 0, 1, 5, 6, 8, 9, 10], ext: kExtension, spots: K_SPOTS.length, bg: keoraBackground, bob: false }
+  ];
+  let tmp = null;
+  const backs = [];
+
+  function background(g, k) {
+    if (!backs[k]) {
+      const c = backs[k] = document.createElement('canvas'); c.width = W; c.height = H;
+      SETS[k].bg(c.getContext('2d'));
+    }
+    g.drawImage(backs[k], 0, 0);
+  }
+
+  /**
+   * Draw the goal of planet `k` (default: the current one): the station of the Terre, the portal of Kéora.
+   * `phase` = current phase index, `prog` = 0..1 completion of that phase.
+   */
+  CO.drawStation = function (cv, phase, prog, time, k) {
+    if (k == null) k = CO.planetIndex();
+    const S = SETS[k] || SETS[0], P = CO.planet(k);
     if (cv.width !== W) { cv.width = W; cv.height = H; }
     const g = cv.getContext('2d');
     g.imageSmoothingEnabled = false;
-    background(g);
-    const last = CO.PHASES.length - 1, launched = phase > last;
-    const bob = launched ? Math.round(Math.sin(time * 0.9) * 2) : 0;
+    background(g, SETS[k] ? k : 0);
+    const last = P.phases.length - 1, launched = phase > last;
+    const bob = launched && S.bob ? Math.round(Math.sin(time * 0.9) * 2) : 0;
     if (!tmp) { tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H; }
     const t = tmp.getContext('2d');
 
     function part(i, n) {                                   // i: part index (or -1 for extension n)
       const state = n ? (phase > last + n ? 2 : phase === last + n ? 1 : 0) : (i < phase ? 2 : i === phase ? 1 : 0);
       if (state === 0 && n) return;
-      function paint(ctx, solid) { if (n) partExtension(ctx, n); else FUNCS[i](ctx, solid, time); }
+      function paint(ctx, solid) { if (n) S.ext(ctx, n); else S.funcs[i](ctx, solid, time); }
       if (state === 2) { g.save(); g.translate(0, bob); paint(g, true); g.restore(); return; }
       // blueprint silhouette
       t.clearRect(0, 0, W, H); paint(t, false);
@@ -195,8 +318,8 @@
       }
       g.restore();
     }
-    for (let k = 0; k < ORDER.length; k++) part(ORDER[k], 0);
-    const exts = Math.max(0, phase - last);
+    for (let j = 0; j < S.order.length; j++) part(S.order[j], 0);
+    const exts = Math.min(Math.max(0, phase - last), P.maxExt);
     for (let n = 1; n <= exts; n++) part(-1, n);
   };
 })(window.CO = window.CO || {});

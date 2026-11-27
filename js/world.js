@@ -21,6 +21,7 @@
     version: 0,        // bumped on every structural change (invalidates cached links)
     seed: 1,
     port: null,
+    planet: 0,         // planet this map belongs to (see reset)
 
     inBounds: function (x, y) { return x >= 0 && y >= 0 && x < W && y < H; },
     at: function (x, y) { return (x >= 0 && y >= 0 && x < W && y < H) ? this.cells[y * W + x] : null; },
@@ -29,11 +30,51 @@
     /** Remove everything, regenerate ore patches from `seed` and drop the station port. */
     sites: [],         // buildings waiting for (or under) construction, see makeSite
 
-    reset: function (seed) {
+    /** `planet`: index in CO.PLANETS (the Terre keeps the game seed itself, so its map never changes). */
+    reset: function (seed, planet) {
       this.cells.fill(null); this.list.length = 0; this.sites.length = 0; this.nextId = 1; this.version++;
-      this.seed = seed;
-      this.generateOre(seed);
+      this.planet = planet || 0;
+      this.seed = this.planet ? (seed * 31 + 7919 * this.planet) % 2147483647 : seed;
+      if (this.planet === 1) this.generateKeora(this.seed); else this.generateOre(seed);
       this.port = this.create('port', CO.MAP_CX - 2, CO.MAP_CY - 2, 0, null);
+    },
+
+    /**
+     * Kéora: five small patches of the common ores around the Port (inside the land owned at the start),
+     * then patches everywhere, bigger and richer far away; iridium and methane only far from the Port.
+     */
+    generateKeora: function (seed) {
+      this.ore.fill(0); this.oreRev = (this.oreRev || 0) + 1;
+      const id = function (name) { return CO.ORE_IDS.indexOf(name); };
+      const rnd = CO.rng(seed * 7919 + 13), placed = [];
+      const start = ['cobalt_ore', 'quartz', 'lithium_ore', 'sulfur', 'lava_rock'], a0 = rnd() * Math.PI * 2;
+      for (let i = 0; i < start.length; i++) {
+        const a = a0 + i / start.length * Math.PI * 2 + (rnd() - 0.5) * 0.4, d = 12 + rnd() * 5, r = 3.6 + rnd() * 0.8;
+        const cx = CO.MAP_CX + Math.cos(a) * d, cy = CO.MAP_CY + Math.sin(a) * d;
+        placed.push([cx, cy, r]);
+        this.stamp(id(start[i]), cx, cy, r, Math.floor(rnd() * 1000), 0, 0);
+      }
+      // [ore, how many, min radius, max radius, min distance to the Port, max distance]
+      const spread = [['ammonia', 1, 3.2, 4, 18, 26], ['cobalt_ore', 60, 3.4, 7.5, 26, 9999], ['quartz', 50, 3.4, 7, 26, 9999],
+        ['lithium_ore', 50, 3.4, 7, 26, 9999], ['sulfur', 48, 3.2, 6.5, 26, 9999], ['lava_rock', 40, 3.2, 6.5, 26, 9999],
+        ['iridium_ore', 50, 3.6, 6.5, 60, 9999], ['ammonia', 44, 3.5, 7.5, 32, 9999], ['methane', 34, 2.6, 4.2, 70, 9999]];
+      for (let k = 0; k < spread.length; k++) {
+        const e = spread[k], ore = id(e[0]);
+        for (let n = 0; n < e[1]; n++) {
+          for (let tries = 0; tries < 300; tries++) {
+            const r = e[2] + rnd() * (e[3] - e[2]);
+            const cx = 8 + rnd() * (W - 16), cy = 8 + rnd() * (H - 16), d = Math.hypot(cx - CO.MAP_CX, cy - CO.MAP_CY);
+            if (d < e[4] || d > e[5]) continue;
+            let ok = true;
+            for (let q = 0; q < placed.length && ok; q++) if (Math.hypot(cx - placed[q][0], cy - placed[q][1]) < r + placed[q][2] + 3) ok = false;
+            if (!ok) continue;
+            placed.push([cx, cy, r]);
+            this.stamp(ore, cx, cy, r, Math.floor(rnd() * 1000), 0, 0);
+            break;
+          }
+        }
+      }
+      for (let y = CO.MAP_CY - 4; y < CO.MAP_CY + 4; y++) for (let x = CO.MAP_CX - 4; x < CO.MAP_CX + 4; x++) this.ore[y * W + x] = 0;
     },
 
     /** Remove titanium from the plots owned at the start (it must be bought; see state.js). */
@@ -167,6 +208,7 @@
      */
     check: function (type, x, y, dir) {
       const def = BUILDINGS[type];
+      if (!CO.onPlanet(def, this.planet)) return { ok: false, reason: 'N’existe pas sur ' + CO.planet(this.planet).name };
       const replaces = [];
       for (let j = 0; j < def.h; j++) {
         for (let i = 0; i < def.w; i++) {
@@ -184,7 +226,7 @@
       }
       if (def.kind === 'drill' && this.countOre(x, y, def.w, def.h).n === 0) return { ok: false, reason: 'Doit couvrir un gisement' };
       if (def.kind === 'pump' && this.countOre(x, y, def.w, def.h, CO.ORE_IDS.indexOf(def.fluid)).n === 0)
-        return { ok: false, reason: def.fluid === 'water' ? 'Doit couvrir un lac' : 'Doit couvrir une nappe de pétrole' };
+        return { ok: false, reason: 'Doit couvrir ' + CO.ITEMS[def.fluid].where };
       const replace = replaces[0] || null;
       if (replaces.length === 1 && def.w === 1 && def.h === 1 && replace.type === type && replace.dir === dir) return { ok: false, same: true, reason: 'Déjà posé' };
       return { ok: true, replace: replace, replaces: replaces };

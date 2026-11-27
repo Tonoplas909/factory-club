@@ -422,16 +422,23 @@
     }
   };
   V.frames = { launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 4, refinery: 4, generator: 4, drill: 2, drill_heavy: 2, smelter: 4, assembler: 4, steelmill: 4, fabricator: 4, spaceyard: 2, lab: 4, port: 2 };
+  for (const t in BUILDINGS) if (BUILDINGS[t].art && V.frames[BUILDINGS[t].art]) V.frames[t] = V.frames[BUILDINGS[t].art];
 
   const cache = new Map();
   V.building = function (type, dir, frame) {
     if (type === 'pipe') return V.pipe(dir & 1 ? 10 : 5, null);
-    const nf = V.frames[type] || 1, f = (frame || 0) % nf, d = BUILDINGS[type].fixed ? 0 : dir || 0;
+    const def = BUILDINGS[type], nf = V.frames[type] || 1, f = (frame || 0) % nf, d = def.fixed ? 0 : dir || 0;
     const k = 'b' + type + d + ':' + f;
     let s = cache.get(k);
     if (!s) {
-      const fn = type === 'drill_heavy' ? function (fr) { return MODELS.drill(fr, true); } : MODELS[type];
-      s = raster(rotated(fn(f), d));
+      const base = def.art || type;                               // another planet's version: the Terre model, recoloured
+      const fn = base === 'drill_heavy' ? function (fr) { return MODELS.drill(fr, true); } : MODELS[base];
+      const m = fn(f);
+      if (def.art) {
+        const art = CO.planet(def.planet).art, pal = new Map();
+        m.m.forEach(function (c, key) { let v = pal.get(c); if (!v) { v = CO.recolorHex(c, art); pal.set(c, v); } m.m.set(key, v); });
+      }
+      s = raster(rotated(m, d));
       cache.set(k, s);
     }
     return s;
@@ -517,13 +524,12 @@
   };
 
   // --------------------------------------------------------------- ground
-  const BASALT = ['#34343b', '#313138', '#37373e'], SAND = ['#433f3b', '#403c38', '#46423d'];
   /**
    * Ground of an n×n-tile chunk whose back corner is tile (tx, ty): one flat layer of floor voxels
    * (tile edges a shade darker, so the grid reads) with ore rocks and the odd boulder lying on it.
    */
   V.chunk = function (tx, ty, n) {
-    const world = CO.world, seed = world.seed, W = CO.MAP_W, H = CO.MAP_H;
+    const world = CO.world, seed = world.seed, W = CO.MAP_W, H = CO.MAP_H, P = CO.planet(world.planet);
     const N = n * VT, zmax = 3;
     const ox = 2 * N + 1, oy = 2 * zmax + 1, w = 4 * N + 2, h = 2 * N + oy + 4;
     const buf = new Uint32Array(w * h);
@@ -532,11 +538,11 @@
       if (gx >= W || gy >= H) continue;
       const fo = world.ore[gy * W + gx];
       if (fo && CO.isFluidOre(fo)) {                          // lake / oil pool: flat liquid with a few ripples
-        const water = CO.ORE_IDS[fo] === 'water', rip = CO.hash2(gx * 8 + x, gy * 8 + y, seed + 77) > 0.93;
-        paintVoxel(buf, w, x, y, -1, water ? (rip ? '#5f9fe8' : '#2c5fa8') : (rip ? '#4a3d5e' : '#1d1824'), ox, oy);
+        const pool = ITEMS[CO.ORE_IDS[fo]].pool, rip = CO.hash2(gx * 8 + x, gy * 8 + y, seed + 77) > 0.93;
+        paintVoxel(buf, w, x, y, -1, rip ? pool[1] : pool[0], ox, oy);
         continue;
       }
-      const pal = CO.vnoise(gx * 0.06, gy * 0.06, seed + 5) > 0.55 ? SAND : BASALT;
+      const pal = CO.vnoise(gx * 0.06, gy * 0.06, seed + 5) > 0.55 ? P.ground[1] : P.ground[0];
       const base = pal[Math.floor(CO.hash2(gx, gy, seed) * 3)];
       const edge = (x & 7) === 0 || (y & 7) === 0;
       paintVoxel(buf, w, x, y, -1, edge ? CO.shade(base, -0.1) : base, ox, oy);
@@ -557,7 +563,7 @@
         }
       } else if (CO.hash2(gx, gy, seed + 99) > 0.93) {
         const rx = i * 8 + 2 + Math.floor(CO.hash2(gx, gy, seed + 7) * 3), ry = j * 8 + 2 + Math.floor(CO.hash2(gx, gy, seed + 8) * 3);
-        m.box(rx, ry, 0, 2 + (CO.hash2(gx, gy, seed + 9) > 0.5 ? 1 : 0), 2, 1, '#4a4a52');
+        m.box(rx, ry, 0, 2 + (CO.hash2(gx, gy, seed + 9) > 0.5 ? 1 : 0), 2, 1, P.boulder);
       }
     }
     const list = [];

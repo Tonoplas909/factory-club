@@ -136,6 +136,7 @@
       row('Recherche', '« + File d’attente » enchaîne les recherches ; les laboratoires mettent en réserve ce qui servira plus tard'),
       row('Programme orbital', 'Recherche Astronautique : le Pas de tir reçoit 10 Modules de fusée et un Satellite ou une Sonde profonde, assemble la fusée et la lance. Les missions (onglet Station) donnent des bonus permanents : machines, foreuses, terrains moins chers, générateurs'),
       row('Drones', 'Recherche Drones logistiques : un Port de drones (portée 24 cases) envoie ses 4 drones chercher les objets des Coffres d’envoi (remplis par convoyeur) pour les porter aux Coffres de demande (objet choisi dans Infos, jusqu’à 40), qui les sortent par leur flèche'),
+      row('Planètes', 'Les 8 extensions de la station terminées, la flèche ▶ au-dessus de l’image (onglet Station) emmène sur Kéora : autre carte, autres minerais et liquides, autres machines et recherches, avec un portail stellaire à construire. La flèche ◀ ramène sur la Terre ; la planète quittée est en pause. Argent, ouvriers et recherches acquises suivent'),
       row('Contrats', 'Après ta première livraison, le Port propose des contrats (onglet Station) : livre une quantité d’un objet avant la fin du temps pour une grosse récompense. Deux à la fois ; les livraisons au Port les remplissent avant la station'),
       row('Améliorations', 'Recherches Améliorations I et II : dans Infos, un bouton fait passer foreuses, machines, pompes et générateurs au niveau II (×1,5, coûte 2× le bâtiment) puis III (×2, 4× le bâtiment). Ils consomment plus de courant. Marche aussi sur toute une sélection'),
       row('Fluides', 'Recherche Hydraulique : une Pompe à eau posée sur un lac remplit les tuyaux qui la touchent. Les tuyaux qui se touchent partagent leur contenu (un seul fluide par réseau). La Centrale à vapeur (eau + charbon) donne 400 kW ; la Raffinerie transforme le pétrole en plastique et carburant'),
@@ -184,8 +185,9 @@
         if (!recOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
         else if (!machOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Machine à débloquer : ' + TECHS[mach.tech].name }));
       } else {
-        right.appendChild(h('div', { class: 'gline' }, h('span', { class: 'garrow', 'data-bld': 'drill' }, thumb('drill', 30), h('small', { text: 'Foreuse' })), h('span', { class: 'gop', text: '➜' }), chip(id, 1)));
-        right.appendChild(h('div', { class: 'small', text: 'Se récolte sur un gisement de ce minerai : ' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill / 4) + ' par case couverte (' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill) + ' pour une foreuse 2×2 entière).' }));
+        const dr = CO.planet().drill, rate = BUILDINGS[dr].rate * CO.mods.drill;
+        right.appendChild(h('div', { class: 'gline' }, h('span', { class: 'garrow', 'data-bld': dr }, thumb(dr, 30), h('small', { text: BUILDINGS[dr].name })), h('span', { class: 'gop', text: '➜' }), chip(id, 1)));
+        right.appendChild(h('div', { class: 'small', text: 'Se récolte sur un gisement de ce minerai : ' + fmtRate(rate / 4) + ' par case couverte (' + fmtRate(rate) + ' pour une foreuse 2×2 entière).' }));
       }
       if (used[id]) {
         const u = h('div', { class: 'guse' }, h('span', { class: 'small', text: 'Sert à :' }));
@@ -196,16 +198,16 @@
     }
 
     const body = h('div', { class: 'guide' },
-      h('p', { class: 'small', text: 'Toutes les ressources du jeu et leur cycle de transformation. Les cadences tiennent compte de tes recherches. ★ = demandé par la station. Les éléments grisés sont à débloquer.' }));
+      h('p', { class: 'small', text: 'Les ressources de ' + CO.planet().name + ' et leur cycle de transformation. Les cadences tiennent compte de tes recherches. ★ = demandé ' + CO.planet().goalOf + '. Les éléments grisés sont à débloquer.' }));
     const sec = function (title, ids) {
       body.appendChild(h('div', { class: 'tier', text: title }));
       ids.forEach(function (id) { body.appendChild(card(id)); });
     };
     sec('Matières premières (gisements)', CO.ITEM_ORDER.filter(function (id) { return !RECIPES[id]; }));
-    ['smelter', 'assembler', 'steelmill', 'fabricator', 'spaceyard', 'refinery'].forEach(function (m) {
+    CO.planet().machines.forEach(function (m) {
       sec(BUILDINGS[m].name, CO.ITEM_ORDER.filter(function (id) { return RECIPES[id] && RECIPES[id].machine === m; }));
     });
-    openModal('Ressources et recettes', body, [{ label: 'Fermer', primary: true }], 'wide');
+    openModal('Ressources et recettes · ' + CO.planet().name, body, [{ label: 'Fermer', primary: true }], 'wide');
   }
   UI.showGuide = function () { showGuide(); };
 
@@ -297,10 +299,11 @@
     $('power-warn').textContent = PWR.unpowered ? PWR.unpowered + ' sans courant' : '';
     const gs = CO.ghostStats(), paidWait = wait - gs.n;
     $('workers-wait').textContent = [paidWait > 0 ? paidWait + ' en attente' : '', gs.n ? gs.n + ' fantôme(s)' : ''].filter(Boolean).join(' · ');
-    const total = CO.PHASES.length;
-    const label = st.phase < total ? 'Station · étape ' + (st.phase + 1) + '/' + total + ' · ' + p.name : 'Station en orbite · ' + p.name;
-    $('phase-label').textContent = label + ' · ' + Math.floor(pr * 100) + ' %';
-    $('phase-bar').style.width = (pr * 100) + '%';
+    const P = CO.planet(), total = CO.PHASES.length;
+    const label = P.name + ' · ' + (p.done ? p.name : st.phase < total ? P.goal + ' · étape ' + (st.phase + 1) + '/' + total + ' · ' + p.name
+      : P.goal + ' · ' + p.name + (isFinite(P.maxExt) ? ' / ' + P.maxExt : ''));
+    $('phase-label').textContent = p.done ? label : label + ' · ' + Math.floor(pr * 100) + ' %';
+    $('phase-bar').style.width = (p.done ? 100 : pr * 100) + '%';
   }
 
   // -------------------------------------------------------- hint + status line
@@ -308,7 +311,7 @@
     const st = CO.state;
     // The tutorial ends with the first delivery to the Port (or on any save already past step 1):
     // deleting every drill later on must not bring the beginner hints back.
-    if (st.phase > 0 || st.stats.delivered > 0) return '';
+    if (st.planet > 0 || st.phase > 0 || st.stats.delivered > 0) return '';
     let drills = 0, belts = 0, smelters = 0, labs = 0;
     for (let i = 0; i < CO.world.list.length; i++) {
       const k = CO.world.list[i].kind;
@@ -422,12 +425,31 @@
     box.appendChild(h('div', { class: 'small', text: 'Livre au Port : les contrats acceptés passent avant la station. Nouvelles offres dans ' + fmtClock(c.next - st.time) + ' · ' + c.done + ' rempli(s), ' + CO.fmt(c.earned) + ' ¢ gagnés.' }));
     body.appendChild(section('Contrats du Port (' + c.active.length + ' / ' + C.MAX_ACTIVE + ')', box));
   }
+  /** Arrow next to the station picture towards planet `k` (`dir` −1 / +1), or nothing past the last planet. */
+  function planetArrow(k, dir) {
+    const Q = CO.PLANETS[k];
+    if (!Q) return null;
+    const open = CO.planetOpen(k), cur = CO.planet();
+    const tip = open ? Q.name + '|' + Q.desc + '|' + (CO.planetVisited(k) ? 'Clique pour y retourner : ton usine t’y attend telle que tu l’as laissée.' : 'Clique pour t’y poser : une nouvelle carte, de nouveaux minerais et de nouvelles recherches.')
+      : Q.name + ' 🔒|Termine les ' + cur.maxExt + ' extensions ' + cur.goalOf + ' pour y voyager.';
+    return h('button', { class: 'planet-arrow ' + (dir < 0 ? 'left' : 'right') + (open ? '' : ' locked') + (open && !CO.planetVisited(k) ? ' new' : ''),
+      'data-tip': tip, disabled: !open, onclick: function () { UI.travel(k); } }, h('span', { text: dir < 0 ? '◀' : '▶' }), h('small', { text: open ? Q.name : '🔒' }));
+  }
   function renderStation(body) {
-    const st = CO.state, p = CO.getPhase(st.phase), total = CO.PHASES.length;
+    const st = CO.state, p = CO.getPhase(st.phase), total = CO.PHASES.length, P = CO.planet();
     stationCv = h('canvas', { class: 'station-cv', width: 192, height: 128 });
-    body.appendChild(stationCv);
-    body.appendChild(h('div', { class: 'phase-title', text: (st.phase < total ? 'Étape ' + (st.phase + 1) + ' sur ' + total + ' — ' : 'Agrandissement — ') + p.name }));
-    body.appendChild(h('p', { class: 'small', text: p.desc }));
+    body.appendChild(h('div', { class: 'station-wrap' }, stationCv,
+      h('div', { class: 'planet-name', text: P.name + (CO.PLANETS.length > 1 ? ' · ' + (st.planet + 1) + '/' + CO.PLANETS.length : '') }),
+      planetArrow(st.planet - 1, -1), planetArrow(st.planet + 1, 1)));
+    if (p.done) {
+      const next = CO.PLANETS[st.planet + 1];
+      body.appendChild(h('div', { class: 'phase-title', text: p.name }));
+      body.appendChild(h('p', { class: 'small', text: 'Toutes les étapes et les ' + P.maxExt + ' extensions sont livrées. Le Port continue d’acheter ce que tu lui apportes.' }));
+      if (next && CO.planetOpen(st.planet + 1)) body.appendChild(h('button', { class: 'btn primary travel-btn', text: (CO.planetVisited(st.planet + 1) ? 'Retourner sur ' : 'Voyager vers ') + next.name + ' ▶', onclick: function () { UI.travel(st.planet + 1); } }));
+    } else {
+      body.appendChild(h('div', { class: 'phase-title', text: (st.phase < total ? 'Étape ' + (st.phase + 1) + ' sur ' + total + ' — ' : 'Agrandissement — ') + p.name + (p.extension && isFinite(P.maxExt) ? ' / ' + P.maxExt : '') }));
+      body.appendChild(h('p', { class: 'small', text: p.desc }));
+    }
     for (const id in p.need) {
       const have = Math.min(st.phaseHave[id] || 0, p.need[id]), pct = have / p.need[id] * 100, hint = craftHint(id);
       body.appendChild(h('div', { class: 'need' + (have >= p.need[id] ? ' done' : '') },
@@ -437,13 +459,13 @@
           h('div', { class: 'bar small' }, h('i', { style: 'width:' + pct + '%' })),
           hint ? h('div', { class: 'lock', text: '🔒 ' + hint }) : null)));
     }
-    body.appendChild(h('p', { class: 'small', text: 'Récompense : ' + CO.fmt(p.reward) + ' ¢. Livre les objets au Port (4×4 au centre de la carte) ; le surplus est revendu.' }));
-    orbitSection(body);
+    if (!p.done) body.appendChild(h('p', { class: 'small', text: 'Récompense : ' + CO.fmt(p.reward) + ' ¢. Livre les objets au Port (4×4 au centre de la carte) ; le surplus est revendu.' }));
+    if (st.planet === 0) orbitSection(body);
     contractsSection(body);
     const owned = st.land.reduce(function (a, v) { return a + v; }, 0);
-    body.appendChild(section('Terrain', h('div', null,
+    body.appendChild(section('Terrain · ' + P.name, h('div', null,
       h('div', { class: 'need-top' }, h('span', { text: owned + ' parcelles sur ' + st.land.length }), h('b', { text: 'Prochaine : ' + CO.fmt(CO.landPrice()) + ' ¢' })),
-      h('p', { class: 'small', text: 'Clique sur une parcelle assombrie qui touche ton terrain pour l’acheter. Chaque achat coûte 25 % de plus que le précédent ; le titane se trouve loin du Port.' }))));
+      h('p', { class: 'small', text: 'Clique sur une parcelle assombrie qui touche ton terrain pour l’acheter. Chaque achat coûte 25 % de plus que le précédent. ' + P.far }))));
     const wp = CO.workerPrice();
     body.appendChild(section('Ouvriers', h('div', null,
       h('div', { class: 'need-top' }, h('span', { text: st.workers + ' ouvrier(s) sur ' + CO.WORKERS.max }), h('b', { text: wp == null ? 'Équipe au complet' : 'Recrue : ' + CO.fmt(wp) + ' ¢' })),
@@ -459,9 +481,76 @@
     for (let i = 0; i < total; i++) {
       list.appendChild(h('div', { class: 'phase-row' + (i < st.phase ? ' done' : i === st.phase ? ' cur' : '') }, h('span', { text: i < st.phase ? '✔' : String(i + 1) }), h('span', { text: CO.PHASES[i].name })));
     }
-    if (st.phase >= total) list.appendChild(h('div', { class: 'phase-row done' }, h('span', { text: '∞' }), h('span', { text: (st.phase - total) + ' extension(s) terminée(s)' })));
+    if (st.phase >= total) {
+      const n = Math.min(st.phase - total, P.maxExt);
+      list.appendChild(h('div', { class: 'phase-row done' }, h('span', { text: isFinite(P.maxExt) ? '✚' : '∞' }),
+        h('span', { text: isFinite(P.maxExt) ? n + ' extension(s) sur ' + P.maxExt : n + ' extension(s) terminée(s)' })));
+    }
     body.appendChild(list);
   }
+
+  // ------------------------------------------------------------ planets
+  /**
+   * Travel to planet `k` with a short warp: the screen fills with streaking stars, the planet changes
+   * under cover, then the new planet fades in with its name.
+   */
+  let warping = false;
+  UI.travel = function (k) {
+    if (warping || !CO.planetOpen(k) || k === CO.state.planet) return;
+    warping = true;
+    UI.closeModal();
+    const Q = CO.PLANETS[k], el = h('div', { id: 'warp' }), cv = h('canvas'), title = h('div', { class: 'warp-title' }, h('small', { text: 'Cap sur' }), h('b', { text: Q.name }));
+    el.appendChild(cv); el.appendChild(title); $('app').appendChild(el);
+    const g = cv.getContext('2d'), rnd = CO.rng(k * 97 + 5), stars = [];
+    for (let i = 0; i < 180; i++) stars.push({ a: rnd() * Math.PI * 2, d: rnd() * 0.2 + 0.02, v: 0.4 + rnd() * 1.4, c: rnd() });
+    const T = 2.2, SWITCH = 0.9, t0 = performance.now();
+    let switched = false;
+    function frame(now) {
+      const t = (now - t0) / 1000;
+      if (!switched && t >= SWITCH) {
+        switched = true;
+        CO.travel(k);
+        CO.save.save();
+      }
+      const w = cv.width = el.clientWidth, hh = cv.height = el.clientHeight, cx = w / 2, cy = hh / 2, R0 = Math.hypot(cx, cy);
+      const fadeIn = Math.min(1, t / 0.45), fadeOut = t > T - 0.6 ? Math.max(0, (T - t) / 0.6) : 1;
+      el.style.opacity = String(Math.min(fadeIn, fadeOut));
+      g.fillStyle = '#05040a'; g.fillRect(0, 0, w, hh);
+      const speed = t < SWITCH ? 0.4 + t * 2.4 : Math.max(0.3, 2.6 - (t - SWITCH) * 2.2);
+      stars.forEach(function (s) {
+        s.d += s.v * speed * 0.012 * (0.2 + s.d);
+        if (s.d > 1.2) s.d = 0.02 + rnd() * 0.05;
+        const r0 = s.d * R0, r1 = Math.max(r0 - speed * 18 * (0.3 + s.d), 0);
+        g.strokeStyle = s.c > 0.7 ? '#9fe8ff' : s.c > 0.4 ? '#d8c8ff' : '#ffffff';
+        g.globalAlpha = Math.min(1, s.d * 2.5);
+        g.lineWidth = 1 + s.d * 2;
+        g.beginPath(); g.moveTo(cx + Math.cos(s.a) * r1, cy + Math.sin(s.a) * r1); g.lineTo(cx + Math.cos(s.a) * r0, cy + Math.sin(s.a) * r0); g.stroke();
+      });
+      g.globalAlpha = 1;
+      title.style.opacity = String(t < SWITCH ? Math.min(1, t / 0.5) : 1);
+      if (t < T) requestAnimationFrame(frame);
+      else { el.remove(); warping = false; }
+    }
+    requestAnimationFrame(frame);
+  };
+  CO.on('travel', function (k, first) {
+    CO.input.setTool('inspect');
+    if (tab !== 'station') setTab('station');
+    const Q = CO.PLANETS[k];
+    CO.emit('toast', 'Bienvenue sur ' + Q.the + '.', 'good');
+    if (!first) return;
+    setTimeout(function () { UI.whenFree(function () {
+      const cv = h('canvas', { class: 'station-cv big', width: 192, height: 128 });
+      CO.drawStation(cv, 0, 0, 0, k);
+      openModal('Bienvenue sur ' + Q.name, h('div', null, cv,
+        h('p', { text: Q.desc }),
+        h('p', { class: 'small', text: 'Nouvelle carte, nouveaux minerais, nouveaux liquides et nouvelles machines : la palette ne montre que ce qui existe ici. L’onglet Recherche a ses propres technologies ; ce que tu as appris sur ' + CO.PLANETS[k - 1].the + ' (convoyeurs, aiguillages, coffres, poteaux, améliorations) reste acquis.' }),
+        h('p', { class: 'small', text: 'Objectif : ' + Q.phases.length + ' étapes ' + Q.goalOf + ', à livrer au Port. Ton argent et tes ouvriers t’ont suivi ; pendant ton absence, l’usine de ' + CO.PLANETS[k - 1].the + ' est en pause et reprend à ton retour (flèche ◀ au-dessus de l’image).' }),
+        h('p', { class: 'small', text: 'Pour commencer : ' + BUILDINGS[Q.drill].name + ' sur un gisement près du Port, des convoyeurs, ' + BUILDINGS[Q.smelter].name + ', puis ' + BUILDINGS[Q.gen].name + ' (' + ITEMS[BUILDINGS[Q.gen].fuel].name.toLowerCase() + ' par convoyeur) quand le courant du Port ne suffit plus.' })),
+        [{ label: 'C’est parti !', primary: true }]);
+      UI.modalAnim = { cv: cv, phase: 0, planet: k };
+    }); }, 200);
+  });
 
   // ------------------------------------------------------------ land purchase
   /** Confirmation dialog to buy plot `p` (or a toast explaining why it cannot be bought). */
@@ -526,10 +615,11 @@
     let labs = 0; CO.world.list.forEach(function (b) { if (b.kind === 'lab') labs++; });
     if (!labs) body.appendChild(h('p', { class: 'note', text: 'Construis un Laboratoire (palette, « Autres ») et amène-lui, par convoyeur, les objets demandés par la recherche active.' }));
     else if (!st.research) body.appendChild(h('p', { class: 'note', text: 'Choisis une recherche : tes laboratoires consommeront les objets demandés. Ce qui servira plus tard est mis en réserve.' }));
+    if (st.planet > 0) body.appendChild(h('p', { class: 'small', text: 'Recherches de ' + CO.planet().name + ', avec ses propres objets. Ce que tu as appris sur ' + CO.PLANETS[0].the + ' reste acquis.' }));
     const qb = queueBlock(), bb = bankBlock();
     if (qb) body.appendChild(qb);
     if (bb) body.appendChild(bb);
-    const ids = Object.keys(TECHS).sort(function (a, b) { return depthOf(a, memo) - depthOf(b, memo); });
+    const ids = Object.keys(TECHS).filter(function (id) { return CO.onPlanet(TECHS[id]); }).sort(function (a, b) { return depthOf(a, memo) - depthOf(b, memo); });
     let lastDepth = -1;
     ids.forEach(function (id) {
       const t = TECHS[id], d = memo[id];
@@ -689,7 +779,7 @@
   function fmtTime(t) { return fmtNum(t, 2) + ' s'; }
   function oreLabel(ore) {
     const id = CO.ORE_IDS[ore];
-    return id === 'water' ? 'Lac' : id === 'oil' ? 'Nappe de pétrole' : 'Gisement : ' + itemName(id);
+    return ITEMS[id].place || 'Gisement : ' + itemName(id);
   }
   function pill(cls, text) { return h('span', { class: 'pill ' + cls }, h('i'), text); }
 
@@ -700,8 +790,8 @@
     switch (b.kind) {
       case 'generator':
         if (!b.def.fuel) return b.status === 'work' ? pill('good', 'Produit') : pill('info', 'Prête (aucune demande)');
-        return b.status === 'work' ? pill('good', 'Brûle du charbon') : b.status === 'nofuel' ? pill('bad', 'Plus de charbon')
-          : b.status === 'nowater' ? pill('bad', 'Pas d’eau') : pill('info', 'En veille (aucune demande)');
+        return b.status === 'work' ? pill('good', 'Brûle : ' + itemName(b.def.fuel).toLowerCase()) : b.status === 'nofuel' ? pill('bad', 'Plus de ' + itemName(b.def.fuel).toLowerCase())
+          : b.status === 'nowater' ? pill('bad', 'Manque : ' + itemName(b.def.cool || 'water').toLowerCase()) : pill('info', 'En veille (aucune demande)');
       case 'launch_pad':
         if (b.phase === 'flight') return pill('good', 'Décollage');
         if (b.phase === 'build') return pill('good', 'Assemblage de la fusée');
@@ -714,7 +804,7 @@
       case 'drone_requester':
         return b.filter ? pill('info', 'Demande : ' + itemName(b.filter) + ' (' + b.q.length + ' / ' + b.def.want + ')') : pill('warn', 'Objet à choisir');
       case 'pump':
-        if (!b.n) return pill('bad', b.def.fluid === 'water' ? 'Hors lac' : 'Hors nappe');
+        if (!b.n) return pill('bad', 'Hors ' + ITEMS[b.def.fluid].place.toLowerCase());
         return b.status === 'nopipe' ? pill('warn', 'Aucun tuyau') : b.status === 'blocked' ? pill('bad', 'Tuyaux pleins') : pill('good', 'Pompe');
       case 'pipe': case 'fluid_tank': {
         const n = b.fnet;
@@ -754,9 +844,9 @@
   function statusHelp(b) {
     if (b.site && !b.site.paid) return 'Posé sans assez de crédits : un ouvrier viendra le payer (' + CO.fmt(b.def.cost) + ' ¢) et le construire dès que tu les auras.';
     if (b.site) return b.site.w ? 'Un ouvrier s’en occupe : ' + fmtTime(b.site.t) + ' de travail une fois sur place.' : 'Tous les ouvriers sont occupés : il sera construit dès qu’un se libère (recrute-en d’autres dans l’onglet Station).';
-    if (CO.render.noPower(b)) return b.net ? 'Son réseau ne produit rien : ajoute un générateur (et du charbon), ou relie le réseau au Port avec des poteaux.'
+    if (CO.render.noPower(b)) return b.net ? 'Son réseau ne produit rien : ajoute un générateur (et son combustible), ou relie le réseau au Port avec des poteaux.'
       : 'Aucun réseau électrique ne l’atteint : pose un Poteau électrique à moins de 2 cases de lui, relié au Port ou à un générateur.';
-    if (b.kind === 'generator' && b.status === 'nofuel') return 'Amène du charbon par convoyeur, sur n’importe quel côté.';
+    if (b.kind === 'generator' && b.status === 'nofuel') return 'Amène du ' + itemName(b.def.fuel).toLowerCase() + ' par convoyeur, sur n’importe quel côté.';
     if (b.kind === 'generator' && b.status === 'nowater') return 'Relie la centrale à une pompe à eau par des tuyaux (un tuyau doit toucher la centrale).';
     if (b.kind === 'launch_pad' && b.phase === 'load') {
       const m = CO.getMission(CO.state.orbit.mission), need = Object.keys(m.need).filter(function (k) { return CO.orbit.missing(k) > 0; });
@@ -927,11 +1017,11 @@
         body.appendChild(h('div', { class: 'two' }, section('Stock entrant', stockChips(b.inBuf)), section('Prêt à sortir', stockChips(countBy(b.outBuf)))));
       }
     } else if (b.kind === 'drill') {
-      const total = b.w * b.h, eq = CO.drillRate(b) * CO.craftTime(RECIPES.ingot_iron);   // how many smelters (current research) it can feed
+      const total = b.w * b.h, P = CO.planet(), eq = CO.drillRate(b) * CO.craftTime(RECIPES[P.refRecipe]);   // how many smelters (current research) it can feed
       body.appendChild(section('Extraction', h('div', { class: 'icard flat' },
         b.ore ? h('div', { class: 'ore-row' }, itemIcon(b.ore, 4), h('div', null, h('b', { text: itemName(b.ore) }), h('div', { class: 'small', text: fmtRate(CO.drillRate(b)) + ' · ' + b.n + '/' + total + ' cases' }))) : h('div', { class: 'small', text: 'Aucun gisement sous la foreuse.' }),
         kv('Couverture', Math.round(b.n / total * 100) + ' %'),
-        kv('Alimente', fmtNum(eq, 2) + ' fonderie(s)'),
+        kv('Alimente', fmtNum(eq, 2) + ' × ' + BUILDINGS[P.smelter].name),
         progressBar(b, function () { return Math.min(1, b.acc); }))));
     } else if (b.kind === 'chest') {
       const f = b.q.length / CO.chestCap(b.def);
@@ -1076,7 +1166,7 @@
     } else if (b.kind === 'generator' || b.kind === 'pole' || b.kind === 'port') {
       const rows = [];
       if (b.def.gen) rows.push(kv('Puissance', CO.fmt(Math.round(b.def.gen * (b.kind === 'port' ? 1 : CO.lvlSpeed(b)))) + ' kW'));
-      if (b.def.fuel) rows.push(kv('Charbon', b.fuel + ' / ' + CO.power.FUEL_CAP + (b.burn > 0 ? ' · en cours : ' + fmtNum(b.burn, 1) + ' s' : '')));
+      if (b.def.fuel) rows.push(kv(itemName(b.def.fuel), b.fuel + ' / ' + CO.power.FUEL_CAP + (b.burn > 0 ? ' · en cours : ' + fmtNum(b.burn, 1) + ' s' : '')));
       if (b.kind === 'pole') rows.push(kv('Portée', 'zone ' + (b.def.cover * 2 + 1) + '×' + (b.def.cover * 2 + 1) + ' · liaisons ' + b.def.reach + ' cases'));
       body.appendChild(section('Réseau électrique', h('div', { class: 'icard flat' }, rows.concat(net ? netRows(net) : []))));
     }
@@ -1120,7 +1210,7 @@
   function signature() {
     const st = CO.state;
     switch (tab) {
-      case 'station': return JSON.stringify(st.orbit) + st.phase + ':' + JSON.stringify(st.phaseHave) + ':' + JSON.stringify(st.tech) + ':' + CO.ghostStats().cost + ':' + contractSig();
+      case 'station': return st.planet + ':' + st.reached + ':' + JSON.stringify(st.orbit) + st.phase + ':' + JSON.stringify(st.phaseHave) + ':' + JSON.stringify(st.tech) + ':' + CO.ghostStats().cost + ':' + contractSig();
       case 'research': return st.research + JSON.stringify(st.researchProg) + JSON.stringify(st.tech) + JSON.stringify(st.researchBank) + st.researchQueue.join() + CO.world.list.length;
       case 'stats': return Math.floor(simTime) + ':' + st.phase;
       case 'plans': return CO.plans.rev + ':' + !!CO.input.blueprintOfSelection() + ':' + JSON.stringify(st.tech);
@@ -1152,16 +1242,31 @@
 
   // ----------------------------------------------------------- phase dialogs
   CO.on('phase', function (index, p) {
-    const total = CO.PHASES.length, last = index === total - 1;
+    const st = CO.state, P = CO.planet(), total = CO.PHASES.length, last = index === total - 1, k = st.planet;
     const cv = h('canvas', { class: 'station-cv big', width: 192, height: 128 });
     CO.drawStation(cv, index + 1, 0, 0);
-    const next = CO.getPhase(index + 1);
-    const body = h('div', null, cv,
-      h('p', { text: last ? 'La station est lancée et en orbite. Ce que tu as bâti de tes mains brille là-haut. Merci d’avoir pris ton temps !' : p.name + ' est installée sur la station.' }),
-      h('p', { class: 'small', text: 'Récompense : +' + CO.fmt(p.reward) + ' ¢' }),
-      h('p', { class: 'small', text: (last ? 'Tu peux continuer : de nouvelles extensions seront demandées, de plus en plus grandes. ' : '') + 'Prochaine étape : ' + next.name + '.' }));
-    openModal(last ? 'La station est en orbite !' : 'Étape terminée : ' + p.name, body, [{ label: 'Continuer', primary: true }]);
-    UI.modalAnim = { cv: cv, phase: index + 1 };
+    const next = CO.getPhase(index + 1), Q = CO.PLANETS[k + 1];
+    const ext = isFinite(P.maxExt) ? ' (' + P.maxExt + ' en tout)' : '';
+    let title, lines, buttons = [{ label: 'Continuer', primary: true }];
+    if (next.done) {                                  // the last extension: the goal is complete
+      title = P.done + ' !';
+      lines = [k === 0 ? 'La station est complète : tous ses modules brillent en orbite. Elle est prête pour le grand voyage.' : 'Le portail est complet.'];
+      if (Q) {
+        lines.push('Un nouveau monde t’attend : ' + Q.name + '. ' + Q.desc + ' Flèche ▶ au-dessus de l’image ' + P.goalOf + ' (onglet Station) pour y aller, et ◀ pour revenir.');
+        buttons = [{ label: 'Plus tard' }, { label: 'Voyager vers ' + Q.name + ' ▶', primary: true, run: function () { UI.travel(k + 1); } }];
+      }
+    } else if (last) {
+      title = k === 0 ? 'La station est en orbite !' : 'Le portail est ouvert !';
+      lines = [k === 0 ? 'La station est lancée et en orbite. Ce que tu as bâti de tes mains brille là-haut. Merci d’avoir pris ton temps !' : 'Le portail stellaire s’allume : un passage vers les étoiles. Merci d’avoir pris ton temps !',
+        'Tu peux continuer : de nouvelles extensions seront demandées, de plus en plus grandes' + ext + '. Prochaine étape : ' + next.name + '.'];
+    } else {
+      title = 'Étape terminée : ' + p.name;
+      lines = [p.name + (k === 0 ? ' est installée sur la station.' : ' : c’est fait.'), 'Prochaine étape : ' + next.name + (next.extension ? ext : '') + '.'];
+    }
+    const body = h('div', null, cv, h('p', { text: lines[0] }), h('p', { class: 'small', text: 'Récompense : +' + CO.fmt(p.reward) + ' ¢' }),
+      lines.slice(1).map(function (t) { return h('p', { class: 'small', text: t }); }));
+    openModal(title, body, buttons);
+    UI.modalAnim = { cv: cv, phase: index + 1, planet: k };
     CO.save.save();
   });
   CO.on('unlock', function () { buildPalette(); });
@@ -1204,7 +1309,7 @@
     renderSide(false);
     if (live && tab === 'info' && !live.b.dead) live.bar.style.width = (CO.clamp(live.pct(), 0, 1) * 100) + '%';
     if (stationCv && tab === 'station') CO.drawStation(stationCv, CO.state.phase, UI.phaseProgress(), performance.now() / 1000);
-    if (UI.modalAnim && !modalEl.hidden) CO.drawStation(UI.modalAnim.cv, UI.modalAnim.phase, 0, performance.now() / 1000);
+    if (UI.modalAnim && !modalEl.hidden) CO.drawStation(UI.modalAnim.cv, UI.modalAnim.phase, 0, performance.now() / 1000, UI.modalAnim.planet);
   };
 
   // ------------------------------------------------- ore tooltip next to the mouse
@@ -1219,11 +1324,12 @@
       const id = CO.ORE_IDS[hv.ore];
       tipEl.innerHTML = '';
       tipEl.appendChild(itemIcon(id, 3));
+      const P = CO.planet(), pump = CO.BUILD_ORDER.filter(function (t) { return BUILDINGS[t].fluid === id; })[0];
       tipEl.appendChild(CO.isFluidOre(hv.ore)
-        ? h('span', null, h('b', { text: oreLabel(hv.ore) }), h('small', { text: id === 'water'
-          ? 'Pompe à eau : ' + fmtNum(BUILDINGS.pump.rate, 0) + ' eau/s (pleine couverture), à relier par des tuyaux'
-          : 'Puits de pétrole : ' + fmtNum(BUILDINGS.oil_well.rate, 0) + ' pétrole/s (pleine couverture) · recherche Pétrochimie' }))
-        : h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · Foreuse : ' + fmtRate(BUILDINGS.drill.rate * CO.mods.drill) + ', Foreuse lourde : ' + fmtRate(BUILDINGS.drill_heavy.rate * CO.mods.drill) + ' (pleine couverture)' })));
+        ? h('span', null, h('b', { text: oreLabel(hv.ore) }), h('small', { text: pump
+          ? BUILDINGS[pump].name + ' : ' + fmtNum(BUILDINGS[pump].rate, 0) + ' ' + itemName(id).toLowerCase() + '/s (pleine couverture), à relier par des tuyaux · recherche ' + TECHS[BUILDINGS[pump].tech].name
+          : 'Liquide : à pomper' }))
+        : h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · ' + BUILDINGS[P.drill].name + ' : ' + fmtRate(BUILDINGS[P.drill].rate * CO.mods.drill) + ', ' + BUILDINGS[P.drillHeavy].name + ' : ' + fmtRate(BUILDINGS[P.drillHeavy].rate * CO.mods.drill) + ' (pleine couverture)' })));
     }
     tipEl.hidden = false;
     const w = tipEl.offsetWidth, hh = tipEl.offsetHeight;
@@ -1274,8 +1380,8 @@
       lines.push('Fabriqué : ' + BUILDINGS[rec.machine].name + ' · ' + fmtRate(rec.out[id] / t) + ' par machine (cycle ' + fmtTime(t) + ')');
       if (!CO.isRecipeUnlocked(id)) lines.push(h('small', { class: 'tip-lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
     } else {
-      const r = BUILDINGS.drill.rate * CO.mods.drill;
-      lines.push('Matière première · Foreuse : ' + fmtRate(r) + ' (Foreuse lourde : ' + fmtRate(BUILDINGS.drill_heavy.rate * CO.mods.drill) + ')');
+      const P = CO.planet(it.planet || 0), r = BUILDINGS[P.drill].rate * CO.mods.drill;
+      lines.push('Matière première · ' + BUILDINGS[P.drill].name + ' : ' + fmtRate(r) + ' (' + BUILDINGS[P.drillHeavy].name + ' : ' + fmtRate(BUILDINGS[P.drillHeavy].rate * CO.mods.drill) + ')');
     }
     return tipBody(itemIcon(id, 3), it.name, lines);
   }
@@ -1302,7 +1408,8 @@
       case 'drill': {
         const r = def.rate * CO.mods.drill;
         out.push('Extraction : ' + fmtRate(r) + ' à pleine couverture (' + fmtRate(r / (def.w * def.h)) + ' par case)');
-        out.push('Alimente ' + fmtNum(r * CO.craftTime(RECIPES.ingot_iron), 2) + ' fonderie(s) à pleine couverture');
+        const P = CO.planet(def.planet || 0);
+        out.push('Alimente ' + fmtNum(r * CO.craftTime(RECIPES[P.refRecipe]), 2) + ' × ' + BUILDINGS[P.smelter].name + ' à pleine couverture');
         break;
       }
       case 'machine':

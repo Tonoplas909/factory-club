@@ -27,7 +27,7 @@
   CO.ownsCell = function (x, y) { return CO.state.land[CO.plotOf(x, y)] === 1; };
   /** Price of the next plot (or of the n-th bought one): LAND_BASE × LAND_GROWTH^n, two significant digits. */
   CO.landPrice = function (n) {
-    const p = CO.LAND_BASE * Math.pow(CO.LAND_GROWTH, n == null ? CO.state.landBought : n) * (CO.mods && CO.mods.land || 1), m = Math.pow(10, Math.floor(Math.log10(p)) - 1);
+    const p = CO.planet().landBase * Math.pow(CO.LAND_GROWTH, n == null ? CO.state.landBought : n) * (CO.mods && CO.mods.land || 1), m = Math.pow(10, Math.floor(Math.log10(p)) - 1);
     return Math.round(p / m) * m;
   };
   /** A plot can be bought when it is not owned yet and touches owned land (by a side). */
@@ -91,7 +91,12 @@
       landBought: 0,         // plots bought so far (sets the price of the next one)
       workers: CO.WORKERS.start,  // builders flying out of the Port to build the sites
       contracts: null,            // Port contracts (contracts.js), created when first needed
-      orbit: { mission: 0, have: {}, launches: 0 }   // orbital program (orbit.js)
+      orbit: { mission: 0, have: {}, launches: 0 },  // orbital program (orbit.js)
+      // Planets: the fields above that belong to a place (land, phase, factory, contracts, research under
+      // way) describe the planet being played; the others wait in `planets[k]` (see packPlanet).
+      planet: 0,             // index in CO.PLANETS
+      planets: [],           // packed state of the planets not being played (null: never visited)
+      reached: 0             // highest planet index the player may travel to
     };
   }
   CO.state = freshState(1);
@@ -111,8 +116,8 @@
   /** Capacity of a buffer chest with current research. */
   CO.chestCap = function (def) { return def.capacity + CO.mods.chest; };
   CO.isBuildingUnlocked = function (type) {
-    const t = CO.BUILDINGS[type].tech;
-    return !t || !!CO.state.tech[t];
+    const def = CO.BUILDINGS[type], t = def.tech;
+    return !t || !!CO.state.tech[t] || (!!def.techAlt && !!CO.state.tech[def.techAlt]);
   };
   CO.isRecipeUnlocked = function (id) {
     const t = CO.RECIPES[id].tech;
@@ -176,7 +181,7 @@
    */
   CO.setResearch = function (id) {
     const st = CO.state;
-    if (id && (!CO.TECHS[id] || st.tech[id] || !CO.isTechAvailable(id))) return false;
+    if (id && (!CO.TECHS[id] || st.tech[id] || !CO.isTechAvailable(id) || !CO.onPlanet(CO.TECHS[id]))) return false;
     if (st.research !== id) {
       for (const k in st.researchProg) st.researchBank[k] = (st.researchBank[k] || 0) + st.researchProg[k];
       st.research = id; st.researchProg = {};
@@ -219,7 +224,7 @@
   /** Can `id` be appended to the queue (prerequisites done, active or queued)? */
   CO.canQueue = function (id) {
     const st = CO.state, t = CO.TECHS[id];
-    if (st.tech[id] || st.research === id || st.researchQueue.indexOf(id) >= 0) return false;
+    if (!t || !CO.onPlanet(t) || st.tech[id] || st.research === id || st.researchQueue.indexOf(id) >= 0) return false;
     for (let i = 0; i < t.req.length; i++) {
       const r = t.req[i];
       if (!st.tech[r] && st.research !== r && st.researchQueue.indexOf(r) < 0) return false;
@@ -279,11 +284,78 @@
     const st = CO.state, p = CO.getPhase(st.phase);
     st.money += p.reward;            // bonus is not counted as sales income (keeps the income/min gauge honest)
     st.phase++; st.phaseHave = {};
+    if (st.phase >= CO.goalEnd() && st.planet + 1 < CO.PLANETS.length) st.reached = Math.max(st.reached, st.planet + 1);
     CO.emit('phase', st.phase - 1, p);
   };
 
+  // ------------------------------------------------------------ planets
+  /** May the player go to planet `k`? */
+  CO.planetOpen = function (k) { return k >= 0 && k < CO.PLANETS.length && k <= CO.state.reached; };
+  /** Has planet `k` been played at least once? */
+  CO.planetVisited = function (k) { const st = CO.state; return k === st.planet || !!st.planets[k]; };
+  /** Station phase reached on planet `k`. */
+  CO.planetPhase = function (k) { const st = CO.state; return k === st.planet ? st.phase : st.planets[k] ? st.planets[k].phase || 0 : 0; };
+
+  /** What stays behind on the planet being left (all plain data, saved as is). */
+  function packPlanet() {
+    const st = CO.state;
+    return {
+      buildings: CO.world.serialize(), cam: { x: CO.cam.x, y: CO.cam.y, zoom: CO.cam.zoom },
+      land: st.land.reduce(function (a, v, i) { if (v) a.push(i); return a; }, []), landBought: st.landBought,
+      phase: st.phase, phaseHave: st.phaseHave, research: st.research, researchQueue: st.researchQueue,
+      contracts: st.contracts || null, leftAt: st.time
+    };
+  }
+  /**
+   * Make planet `k` the one being played, from its packed state `pk` (null: first landing, an empty map
+   * with only its Port). The map is regenerated from the game seed, then the factory is rebuilt.
+   */
+  function unpackPlanet(k, pk) {
+    const st = CO.state;
+    pk = pk && typeof pk === 'object' ? pk : {};
+    st.planet = k;
+    st.land = CO.startLand();
+    if (Array.isArray(pk.land)) pk.land.forEach(function (p) { p = p | 0; if (p >= 0 && p < st.land.length) st.land[p] = 1; });
+    st.landBought = Math.max(0, Math.floor(pk.landBought) || 0);
+    st.phase = Math.max(0, Math.floor(pk.phase) || 0);
+    st.phaseHave = counts(pk.phaseHave);
+    st.research = null; st.researchProg = {};
+    st.researchQueue = Array.isArray(pk.researchQueue) ? pk.researchQueue.filter(function (id) { return CO.TECHS[id] && CO.onPlanet(CO.TECHS[id], k); }) : [];
+    st.contracts = CO.contracts.restore(pk.contracts);
+    const away = isFinite(pk.leftAt) ? Math.max(0, st.time - pk.leftAt) : 0;      // contract clocks stop while away
+    if (away) { st.contracts.next += away; st.contracts.active.forEach(function (a) { a.deadline += away; }); }
+    CO.world.reset(st.seed, k);
+    if (k === 0 && !st.startTitanium) CO.world.clearStartTitanium();
+    CO.world.restore(Array.isArray(pk.buildings) ? pk.buildings : []);
+    const port = CO.world.port, cam = pk.cam;
+    if (cam && isFinite(cam.x) && isFinite(cam.y)) { CO.cam.x = cam.x; CO.cam.y = cam.y; CO.cam.zoom = CO.clamp(cam.zoom || 32, 4, 72); }
+    else { CO.cam.x = port.x + port.w / 2; CO.cam.y = port.y + port.h / 2; CO.cam.zoom = 32; }
+    CO.sanitizeQueue();
+    if (pk.research && CO.TECHS[pk.research] && !st.tech[pk.research] && CO.onPlanet(CO.TECHS[pk.research], k)) CO.setResearch(pk.research);
+  }
+  /**
+   * Travel to planet `k`. The planet being left is frozen as it is (machines, belts, stocks, sites); the
+   * research under way goes back to the lab reserve and starts again on return. Returns true on success.
+   */
+  CO.travel = function (k) {
+    const st = CO.state;
+    if (k === st.planet || !CO.planetOpen(k)) return false;
+    const paused = st.research;
+    CO.setResearch(null);
+    const pk = packPlanet();
+    pk.research = paused;
+    st.planets[st.planet] = pk;
+    const arriving = st.planets[k] || null, first = !arriving;
+    st.planets[k] = null;
+    unpackPlanet(k, arriving);
+    CO.history.clear();
+    CO.emit('loaded');
+    CO.emit('travel', k, first);
+    return true;
+  };
+
   // --------------------------------------------------------- persistence
-  const SAVE_REV = 7;          // 6: 480×320 map (older saves are moved to its centre); 7: electricity
+  const SAVE_REV = 8;          // 6: 480×320 map (older saves are moved to its centre); 7: electricity; 8: planets
   let warned = false;
   function snapshot() {
     const st = CO.state;
@@ -294,7 +366,8 @@
         researchBank: st.researchBank, researchQueue: st.researchQueue,
         phase: st.phase, phaseHave: st.phaseHave, stats: st.stats, time: st.time, lastRecipe: st.lastRecipe,
         land: st.land.reduce(function (a, v, i) { if (v) a.push(i); return a; }, []), landBought: st.landBought,
-        startTitanium: st.startTitanium || undefined, workers: st.workers, contracts: st.contracts || undefined, orbit: st.orbit, rev: SAVE_REV
+        startTitanium: st.startTitanium || undefined, workers: st.workers, contracts: st.contracts || undefined, orbit: st.orbit,
+        planet: st.planet, planets: st.planets, reached: st.reached, rev: SAVE_REV
       },
       cam: { x: CO.cam.x, y: CO.cam.y, zoom: CO.cam.zoom },
       buildings: CO.world.serialize()
@@ -326,10 +399,27 @@
     st.stats = { produced: (s.stats && s.stats.produced) || {}, sold: (s.stats && s.stats.sold) || 0, delivered: (s.stats && s.stats.delivered) || 0 };
     st.time = Number(s.time) || 0;
     st.lastRecipe = s.lastRecipe || {};
+    // rev 8: planets. The top-level land, phase, research, contracts, camera and buildings are those of the
+    // planet being played; the other planets are kept packed as they were saved.
+    const pl = Math.floor(s.planet) || 0;
+    st.planet = pl > 0 && pl < CO.PLANETS.length ? pl : 0;
+    st.planets = [];
+    for (let k = 0; k < CO.PLANETS.length; k++) {
+      const pk = Array.isArray(s.planets) ? s.planets[k] : null;
+      st.planets[k] = k !== st.planet && pk && typeof pk === 'object' ? pk : null;
+    }
+    st.reached = CO.clamp(Math.floor(s.reached) || 0, st.planet, CO.PLANETS.length - 1);
+    if (st.research && !CO.onPlanet(CO.TECHS[st.research], st.planet)) {
+      for (const k in st.researchProg) st.researchBank[k] = (st.researchBank[k] || 0) + st.researchProg[k];
+      st.research = null; st.researchProg = {};
+    }
+    st.researchQueue = st.researchQueue.filter(function (id) { return CO.onPlanet(CO.TECHS[id], st.planet); });
     CO.state = st;
+    // A goal complete from before the planets (endless extensions) opens the next planet.
+    for (let k = 0; k + 1 < CO.PLANETS.length; k++) if (CO.planetPhase(k) >= CO.goalEnd(k)) st.reached = Math.max(st.reached, k + 1);
     CO.recalcMods();
     CO.sanitizeQueue();
-    CO.world.reset(st.seed);
+    CO.world.reset(st.seed, st.planet);
     // Older maps are centred in this one: the 96×64 map (rev < 3), then the 240×160 map (rev 3 to 5).
     const prevMap = !legacyMap && !(s.rev >= 6);
     const ox = legacyMap ? CO.LEGACY_OX : prevMap ? CO.PREV_OX : 0, oy = legacyMap ? CO.LEGACY_OY : prevMap ? CO.PREV_OY : 0;
@@ -360,7 +450,7 @@
         }
       });
     }
-    if (!st.startTitanium) CO.world.clearStartTitanium();
+    if (!st.startTitanium && st.planet === 0) CO.world.clearStartTitanium();
     st.workers = CO.clamp(Math.floor(s.workers) || CO.WORKERS.start, CO.WORKERS.start, CO.WORKERS.max);
     st.contracts = CO.contracts ? CO.contracts.restore(s.contracts) : null;
     const ob = s.orbit || {};
@@ -398,7 +488,7 @@
     newGame: function (seed) {
       CO.state = freshState(seed || (1 + Math.floor(Math.random() * 99999)));
       CO.recalcMods();
-      CO.world.reset(CO.state.seed);
+      CO.world.reset(CO.state.seed, 0);
       CO.world.clearStartTitanium();
       CO.cam.x = CO.MAP_CX; CO.cam.y = CO.MAP_CY; CO.cam.zoom = 32;
       CO.history.clear();

@@ -67,16 +67,48 @@
     // ---- oil chain
     plastic:      { name: 'Plastique',         price: 25,  shape: 'plate',   color: '#d8d2ea', accent: '#ffffff' },
     fuel:         { name: 'Carburant',         price: 70,  shape: 'tank',    color: '#e0663a', accent: '#ffd37f' },
-    // ---- fluids: never on belts, they flow in pipes (see fluid.js)
-    water:        { name: 'Eau',               price: 0,   shape: 'drop',    color: '#3f8fe0', accent: '#bfe6ff', fluid: true },
-    oil:          { name: 'Pétrole',           price: 0,   shape: 'drop',    color: '#3a3045', accent: '#a08ac0', fluid: true }
-  };
-  /** Items that travel on belts (fluids excluded). */
-  CO.ITEM_ORDER = Object.keys(CO.ITEMS).filter(function (id) { return !CO.ITEMS[id].fluid; });
-  CO.FLUIDS = Object.keys(CO.ITEMS).filter(function (id) { return CO.ITEMS[id].fluid; });
+    // ---- fluids: never on belts, they flow in pipes (see fluid.js). place / where: how the map names the
+    // pool; pool: its colours on the ground (liquid, ripples).
+    water:        { name: 'Eau',               price: 0,   shape: 'drop',    color: '#3f8fe0', accent: '#bfe6ff', fluid: true, place: 'Lac', where: 'un lac', pool: ['#2c5fa8', '#5f9fe8'] },
+    oil:          { name: 'Pétrole',           price: 0,   shape: 'drop',    color: '#3a3045', accent: '#a08ac0', fluid: true, place: 'Nappe de pétrole', where: 'une nappe de pétrole', pool: ['#1d1824', '#4a3d5e'] },
 
-  // Ore tile ids used in the ore layer (0 = none).
-  CO.ORE_IDS = ['', 'iron_ore', 'copper_ore', 'stone', 'coal', 'sand', 'titanium_ore', 'water', 'oil'];
+    // ================= Kéora (planet 1): a crystal world, none of the items above exist there
+    quartz:        { name: 'Quartz',                price: 2,   shape: 'crystal', color: '#e8c6f2', accent: '#ffffff', planet: 1 },
+    cobalt_ore:    { name: 'Minerai de cobalt',     price: 2,   shape: 'rock',    color: '#4a6ad8', accent: '#aebfff', planet: 1 },
+    lithium_ore:   { name: 'Minerai de lithium',    price: 2,   shape: 'rock',    color: '#8fe0b8', accent: '#e8fff2', planet: 1 },
+    sulfur:        { name: 'Soufre',                price: 2,   shape: 'rock',    color: '#e6d040', accent: '#fff7a8', planet: 1 },
+    lava_rock:     { name: 'Roche volcanique',      price: 2,   shape: 'rock',    color: '#c45a3c', accent: '#ffb08a', planet: 1 },
+    iridium_ore:   { name: 'Minerai d’iridium',     price: 4,   shape: 'rock',    color: '#d0c8f0', accent: '#ffffff', planet: 1 },
+    ingot_cobalt:  { name: 'Lingot de cobalt',      price: 6,   shape: 'bar',     color: '#5f7fe8', accent: '#d0dcff', planet: 1 },
+    lithium:       { name: 'Lithium raffiné',       price: 6,   shape: 'bar',     color: '#a8f0cc', accent: '#ffffff', planet: 1 },
+    quartz_glass:  { name: 'Verre de quartz',       price: 6,   shape: 'glass',   color: '#f0d0ff', accent: '#ffffff', planet: 1 },
+    ceramic:       { name: 'Céramique',             price: 6,   shape: 'brick',   color: '#e08a5a', accent: '#ffd8b8', planet: 1 },
+    cobalt_sheet:  { name: 'Tôle de cobalt',        price: 10,  shape: 'plate',   color: '#7f9cf0', accent: '#e8eeff', planet: 1 },
+    rotor:         { name: 'Rotor magnétique',      price: 16,  shape: 'gear',    color: '#6a7fd0', accent: '#ff8ae0', planet: 1 },
+    fiber:         { name: 'Fibre optique',         price: 4,   shape: 'coil',    color: '#e0b8ff', accent: '#ffffff', planet: 1 },
+    photonic:      { name: 'Puce photonique',       price: 36,  shape: 'board',   color: '#7a3fd0', accent: '#5ef0ff', planet: 1 },
+    cell:          { name: 'Cellule au lithium',    price: 60,  shape: 'battery', color: '#5fe0a8', accent: '#e0fff0', planet: 1 },
+    superalloy:    { name: 'Superalliage',          price: 30,  shape: 'bar',     color: '#5a6a9a', accent: '#ff9ae8', planet: 1 },
+    resonator:     { name: 'Cristal résonant',      price: 28,  shape: 'crystal', color: '#e070ff', accent: '#ffe0ff', planet: 1 },
+    ingot_iridium: { name: 'Lingot d’iridium',      price: 12,  shape: 'bar',     color: '#e0dcff', accent: '#ffffff', planet: 1 },
+    iridium_alloy: { name: 'Iridium trempé',        price: 60,  shape: 'plate',   color: '#b0a8e8', accent: '#ffffff', planet: 1 },
+    polymer:       { name: 'Polymère',              price: 50,  shape: 'plate',   color: '#f0e070', accent: '#ffffff', planet: 1 },
+    hydrazine:     { name: 'Hydrazine',             price: 140, shape: 'tank',    color: '#5ad0e0', accent: '#e8ffff', planet: 1 },
+    dome:          { name: 'Panneau de dôme',       price: 80,  shape: 'hull',    color: '#9aa8e0', accent: '#f0e8ff', planet: 1 },
+    lens:          { name: 'Lentille photonique',   price: 140, shape: 'panel',   color: '#c060f0', accent: '#a0f8ff', planet: 1 },
+    habitat:       { name: 'Module de colonie',     price: 240, shape: 'cube',    color: '#5fd0c0', accent: '#e0fff8', planet: 1 },
+    qprocessor:    { name: 'Processeur quantique',  price: 180, shape: 'chip',    color: '#4a2fa0', accent: '#5ef0ff', planet: 1 },
+    capacitor:     { name: 'Condensateur à plasma', price: 160, shape: 'tank',    color: '#d0c8f0', accent: '#ff6ad8', planet: 1 },
+    ion_engine:    { name: 'Moteur ionique',        price: 300, shape: 'nozzle',  color: '#5a6ad0', accent: '#5ef0ff', planet: 1 },
+    fusion_core:   { name: 'Noyau de fusion',       price: 360, shape: 'orb',     color: '#5ef0ff', accent: '#ffffff', planet: 1 },
+    gate_ring:     { name: 'Segment de portail',    price: 800, shape: 'probe',   color: '#ff6ad8', accent: '#ffffff', planet: 1 },
+    ammonia:       { name: 'Ammoniac',              price: 0,   shape: 'drop',    color: '#7fe0c8', accent: '#e0fff8', fluid: true, planet: 1, place: 'Lac d’ammoniac', where: 'un lac d’ammoniac', pool: ['#1f5a52', '#5fc8b0'] },
+    methane:       { name: 'Méthane liquide',       price: 0,   shape: 'drop',    color: '#c8903a', accent: '#ffe0a0', fluid: true, planet: 1, place: 'Poche de méthane', where: 'une poche de méthane', pool: ['#2e2210', '#8a6a30'] }
+  };
+
+  // Ore tile ids used in the ore layer (0 = none). Kéora's ores come after the ones of the Terre.
+  CO.ORE_IDS = ['', 'iron_ore', 'copper_ore', 'stone', 'coal', 'sand', 'titanium_ore', 'water', 'oil',
+    'quartz', 'cobalt_ore', 'lithium_ore', 'sulfur', 'lava_rock', 'iridium_ore', 'ammonia', 'methane'];
   /** Ore ids that are fluids (lakes, oil pools): pumped, never drilled. */
   CO.isFluidOre = function (id) { return id > 0 && !!CO.ITEMS[CO.ORE_IDS[id]].fluid; };
 
@@ -111,7 +143,32 @@
     satellite:    { machine: 'spaceyard',  in: { solar: 4, processor: 4, battery: 4, alloy: 4 }, out: { satellite: 1 }, time: 32, tech: 'rocketry' },
     // `fin`: fluids taken from the pipes touching the machine, per cycle
     plastic:      { machine: 'refinery',   in: { coal: 1 }, fin: { oil: 10 }, out: { plastic: 2 }, time: 4, tech: 'oil' },
-    fuel:         { machine: 'refinery',   in: {},          fin: { oil: 20 }, out: { fuel: 1 },    time: 4, tech: 'oil' }
+    fuel:         { machine: 'refinery',   in: {},          fin: { oil: 20 }, out: { fuel: 1 },    time: 4, tech: 'oil' },
+
+    // ================= Kéora: same ratios as the Terre (1 drill = 2 forges, 1 fiber + 1 sheet workshop = 1 photonic chip workshop...)
+    ingot_cobalt:  { machine: 'k_forge',       in: { cobalt_ore: 1 },  out: { ingot_cobalt: 1 },  time: 4, tech: null },
+    lithium:       { machine: 'k_forge',       in: { lithium_ore: 1 }, out: { lithium: 1 },       time: 4, tech: null },
+    quartz_glass:  { machine: 'k_forge',       in: { quartz: 1 },      out: { quartz_glass: 1 },  time: 4, tech: null },
+    ceramic:       { machine: 'k_forge',       in: { lava_rock: 1 },   out: { ceramic: 1 },       time: 4, tech: null },
+    ingot_iridium: { machine: 'k_forge',       in: { iridium_ore: 1 }, out: { ingot_iridium: 1 }, time: 4, tech: 'k_iridium' },
+    cobalt_sheet:  { machine: 'k_workshop',    in: { ingot_cobalt: 1 }, out: { cobalt_sheet: 1 }, time: 4, tech: null },
+    rotor:         { machine: 'k_workshop',    in: { ingot_cobalt: 2 }, out: { rotor: 1 },        time: 8, tech: null },
+    fiber:         { machine: 'k_workshop',    in: { quartz_glass: 1 }, out: { fiber: 2 },        time: 4, tech: null },
+    photonic:      { machine: 'k_workshop',    in: { fiber: 2, cobalt_sheet: 1 }, out: { photonic: 1 }, time: 4, tech: 'k_photonics' },
+    cell:          { machine: 'k_workshop',    in: { lithium: 2, cobalt_sheet: 2 }, out: { cell: 1 }, time: 8, tech: 'k_cells' },
+    superalloy:    { machine: 'k_plasma_oven', in: { ingot_cobalt: 2, sulfur: 1 }, out: { superalloy: 1 }, time: 8, tech: 'k_plasma' },
+    resonator:     { machine: 'k_plasma_oven', in: { quartz: 2, sulfur: 1 },       out: { resonator: 1 }, time: 8, tech: 'k_plasma' },
+    iridium_alloy: { machine: 'k_plasma_oven', in: { ingot_iridium: 2, lithium: 1 }, out: { iridium_alloy: 1 }, time: 8, tech: 'k_iridium_alloy' },
+    dome:          { machine: 'k_synth',       in: { superalloy: 2, ceramic: 1 },  out: { dome: 1 }, time: 8, tech: 'k_synth' },
+    lens:          { machine: 'k_synth',       in: { resonator: 2, quartz_glass: 1, photonic: 1 }, out: { lens: 1 }, time: 16, tech: 'k_lens' },
+    habitat:       { machine: 'k_synth',       in: { dome: 2, photonic: 1, rotor: 1 }, out: { habitat: 1 }, time: 16, tech: 'k_habitat' },
+    qprocessor:    { machine: 'k_synth',       in: { photonic: 2, resonator: 2 }, out: { qprocessor: 1 }, time: 8, tech: 'k_quantum' },
+    capacitor:     { machine: 'k_synth',       in: { iridium_alloy: 2, polymer: 2 }, out: { capacitor: 1 }, time: 16, tech: 'k_capacitor' },
+    ion_engine:    { machine: 'k_synth',       in: { superalloy: 3, photonic: 2, hydrazine: 2 }, out: { ion_engine: 1 }, time: 16, tech: 'k_ion' },
+    fusion_core:   { machine: 'k_stellar',     in: { iridium_alloy: 2, qprocessor: 1, cell: 2 }, out: { fusion_core: 1 }, time: 16, tech: 'k_stellar' },
+    gate_ring:     { machine: 'k_stellar',     in: { ion_engine: 1, qprocessor: 2, capacitor: 1 }, out: { gate_ring: 1 }, time: 32, tech: 'k_gate' },
+    polymer:       { machine: 'k_chem',        in: { sulfur: 1 }, fin: { methane: 10 }, out: { polymer: 2 }, time: 4, tech: 'k_methane' },
+    hydrazine:     { machine: 'k_chem',        in: {},            fin: { ammonia: 20 }, out: { hydrazine: 1 }, time: 4, tech: 'k_methane' }
   };
   for (const id in CO.RECIPES) CO.RECIPES[id].id = id;
 
@@ -186,23 +243,54 @@
     steam_plant:     { name: 'Centrale à vapeur',    cat: 'Énergie',    kind: 'generator',   w: 3, h: 3, cost: 900, tech: 'steam_power', gen: 400, fuel: 'coal', burn: 4, water: 10, cover: 1, fluidIO: true,
                        desc: 'Chaudière et turbine : 400 kW. Brûle du charbon (convoyeur, n’importe quel côté) et consomme 10 eau/s à pleine charge, amenée par un tuyau.' },
     // ---- fluids
-    pipe:            { name: 'Tuyau',                cat: 'Fluides',    kind: 'pipe',        w: 1, h: 1, cost: 2,   tech: 'fluids',
+    pipe:            { name: 'Tuyau',                cat: 'Fluides',    kind: 'pipe',        w: 1, h: 1, cost: 2,   tech: 'fluids', techAlt: 'k_cryo',
                        desc: 'Les tuyaux qui se touchent forment un réseau qui partage son contenu (100 unités par tuyau, un seul fluide). Relie pompes, cuves et machines à fluides.' },
     pump:            { name: 'Pompe à eau',          cat: 'Fluides',    kind: 'pump',        w: 2, h: 2, cost: 80,  tech: 'fluids', fluid: 'water', rate: 20, power: 15, fluidIO: true,
                        desc: 'À poser sur un lac : 20 eau/s à pleine couverture, envoyée dans les tuyaux qui la touchent.' },
     oil_well:        { name: 'Puits de pétrole',     cat: 'Fluides',    kind: 'pump',        w: 2, h: 2, cost: 400, tech: 'oil', fluid: 'oil', rate: 5, power: 40, fluidIO: true,
                        desc: 'À poser sur une nappe de pétrole (taches sombres, loin du Port) : 5 pétrole/s à pleine couverture.' },
-    fluid_tank:      { name: 'Cuve',                 cat: 'Fluides',    kind: 'fluid_tank',  w: 2, h: 2, cost: 120, tech: 'fluids', capacity: 2000, fluidIO: true,
+    fluid_tank:      { name: 'Cuve',                 cat: 'Fluides',    kind: 'fluid_tank',  w: 2, h: 2, cost: 120, tech: 'fluids', techAlt: 'k_cryo', capacity: 2000, fluidIO: true,
                        desc: 'Réserve de 2 000 unités, reliée comme un tuyau : elle amortit les à-coups entre pompes et machines.' },
     lab:             { name: 'Laboratoire',          cat: 'Autres',     kind: 'lab',         w: 2, h: 2, cost: 80,  tech: null, power: 25,
                        desc: 'Consomme les objets de la recherche en cours (onglet Recherche) et met en réserve ceux qui serviront à une recherche future.' },
     seller:          { name: 'Comptoir de vente',    cat: 'Autres',     kind: 'seller',      w: 2, h: 2, cost: 25,  tech: null,
                        desc: 'Achète tout ce qu’on lui apporte, à prix fixe.' },
     port:            { name: 'Port de la station',   cat: 'Autres',     kind: 'port',        w: 4, h: 4, cost: 0,   tech: null, fixed: true, hidden: true, gen: 150, cover: 6,
-                       desc: 'Reçoit les pièces de la station. Le surplus est revendu.' }
+                       desc: 'Reçoit les pièces de la station. Le surplus est revendu.' },
+
+    // ================= Kéora (planet 1). `art`: the Terre building whose pixel art is reused, recoloured
+    // with the planet's palette (see CO.PLANETS[].art). Logistics, poles, pipes, labs and sellers are shared.
+    k_drill:         { name: 'Foreuse à plasma',     cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 120, tech: null, rate: 0.5, power: 15, planet: 1, art: 'drill',
+                       desc: 'À poser sur un gisement de Kéora : 0,5 minerai/s à pleine couverture (0,125 par case). Équivaut à 2 forges. Sort par la flèche.' },
+    k_drill_heavy:   { name: 'Foreuse sismique',     cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 500, tech: 'k_seismic', rate: 2, power: 45, planet: 1, art: 'drill_heavy',
+                       desc: 'Grande foreuse 3×3 : 2 minerais/s à pleine couverture (9 cases). Équivaut à 8 forges.' },
+    k_forge:         { name: 'Forge à induction',    cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 150, tech: null, power: 20, planet: 1, art: 'smelter',
+                       desc: 'Fond cobalt, lithium, quartz et roche volcanique en lingots, lithium raffiné, verre et céramique. La recette se choisit seule.' },
+    k_workshop:      { name: 'Atelier de précision', cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 220, tech: null, power: 30, planet: 1, art: 'assembler',
+                       desc: 'Tôles, rotors, fibre optique, puces photoniques et cellules. Clique dessus pour choisir la recette.' },
+    k_plasma_oven:   { name: 'Four à plasma',        cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 600, tech: 'k_plasma', power: 80, planet: 1, art: 'steelmill',
+                       desc: 'Superalliage et cristal résonant (au soufre), iridium trempé (au lithium).' },
+    k_synth:         { name: 'Synthétiseur',         cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 1000, tech: 'k_synth', power: 120, planet: 1, art: 'fabricator',
+                       desc: 'Assemble les pièces avancées du portail.' },
+    k_stellar:       { name: 'Forge stellaire',      cat: 'Production', kind: 'machine',     w: 4, h: 4, cost: 2500, tech: 'k_stellar', power: 300, planet: 1, art: 'spaceyard',
+                       desc: 'Géant 4×4 : noyaux de fusion et segments de portail, les pièces les plus complexes.' },
+    k_chem:          { name: 'Réacteur chimique',    cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 1500, tech: 'k_methane', power: 100, fluidIO: true, planet: 1, art: 'refinery',
+                       desc: 'Polymère (méthane + soufre) et hydrazine (ammoniac). Relie les tuyaux à n’importe quel côté.' },
+    k_gen:           { name: 'Générateur au soufre', cat: 'Énergie',    kind: 'generator',   w: 2, h: 2, cost: 150, tech: null, gen: 150, fuel: 'sulfur', burn: 6, cover: 1, planet: 1, art: 'generator',
+                       desc: 'Brûle du soufre amené par convoyeur (n’importe quel côté) : 150 kW. À pleine charge, un soufre dure 6 s ; il brûle moins vite quand le réseau demande moins.' },
+    k_collector:     { name: 'Collecteur photonique', cat: 'Énergie',   kind: 'generator',   w: 2, h: 2, cost: 1200, tech: 'k_lens', gen: 100, cover: 1, planet: 1, art: 'solar_plant',
+                       desc: 'Concentre la lumière de l’étoile : 100 kW en continu, sans carburant.' },
+    k_turbine:       { name: 'Turbine à ammoniac',   cat: 'Énergie',    kind: 'generator',   w: 3, h: 3, cost: 2000, tech: 'k_cryo', gen: 500, fuel: 'sulfur', burn: 4, water: 10, cool: 'ammonia', cover: 1, fluidIO: true, planet: 1, art: 'steam_plant',
+                       desc: 'Turbine cryogénique : 500 kW. Brûle du soufre (convoyeur, n’importe quel côté) et consomme 10 ammoniac/s à pleine charge, amené par un tuyau.' },
+    k_pump:          { name: 'Pompe à ammoniac',     cat: 'Fluides',    kind: 'pump',        w: 2, h: 2, cost: 200, tech: 'k_cryo', fluid: 'ammonia', rate: 20, power: 20, fluidIO: true, planet: 1, art: 'pump',
+                       desc: 'À poser sur un lac d’ammoniac : 20 ammoniac/s à pleine couverture, envoyé dans les tuyaux qui la touchent.' },
+    k_well:          { name: 'Puits de méthane',     cat: 'Fluides',    kind: 'pump',        w: 2, h: 2, cost: 1000, tech: 'k_methane', fluid: 'methane', rate: 5, power: 50, fluidIO: true, planet: 1, art: 'oil_well',
+                       desc: 'À poser sur une poche de méthane (taches brunes, loin du Port) : 5 méthane/s à pleine couverture.' }
   };
   for (const id in CO.BUILDINGS) CO.BUILDINGS[id].id = id;
-  CO.BUILD_ORDER = Object.keys(CO.BUILDINGS).filter(function (k) { return !CO.BUILDINGS[k].hidden; });
+  // Production, energy and fluid buildings of the Terre do not exist on Kéora (and the other way round).
+  ['drill', 'drill_heavy', 'smelter', 'assembler', 'steelmill', 'fabricator', 'spaceyard', 'launch_pad', 'refinery',
+    'generator', 'solar_plant', 'steam_plant', 'pump', 'oil_well'].forEach(function (id) { CO.BUILDINGS[id].planet = 0; });
 
   // ------------------------------------------------------------ research
   // effect.machineSpeed / drillSpeed are additive bonuses (+0.25 = +25 % of the base speed);
@@ -248,13 +336,34 @@
     automation3:   { name: 'Automatisation III',    desc: 'Machines 25 % plus rapides de plus.',        cost: { alloy: 30, battery: 30 }, req: ['automation2', 'alloys', 'batteries'], effect: { machineSpeed: 0.25 } },
     automation4:   { name: 'Automatisation IV',     desc: 'Machines 25 % plus rapides de plus (retour aux cadences d’origine).', cost: { processor: 20, alloy: 40 }, req: ['automation3', 'processors'], effect: { machineSpeed: 0.25 } },
     drilling3:     { name: 'Forage au titane',      desc: 'Foreuses 25 % plus rapides de plus.',        cost: { alloy: 25, circuit: 40 }, req: ['drilling2', 'alloys'], effect: { drillSpeed: 0.25 } },
-    drilling4:     { name: 'Forage laser',          desc: 'Foreuses 25 % plus rapides de plus (retour aux cadences d’origine).', cost: { processor: 15, alloy: 30 }, req: ['drilling3', 'processors'], effect: { drillSpeed: 0.25 } }
+    drilling4:     { name: 'Forage laser',          desc: 'Foreuses 25 % plus rapides de plus (retour aux cadences d’origine).', cost: { processor: 15, alloy: 30 }, req: ['drilling3', 'processors'], effect: { drillSpeed: 0.25 } },
+
+    // ================= Kéora: researched there, with its own items (what the Terre taught stays known)
+    k_photonics:     { planet: 1, name: 'Photonique',            desc: 'Recette de la puce photonique (atelier de précision).', cost: { fiber: 30, cobalt_sheet: 15 }, req: [] },
+    k_plasma:        { planet: 1, name: 'Fusion au plasma',      desc: 'Four à plasma : superalliage et cristal résonant.', cost: { cobalt_sheet: 30, ceramic: 30, rotor: 15, lithium: 20 }, req: [] },
+    k_overclock:     { planet: 1, name: 'Surcadençage',          desc: 'Machines 25 % plus rapides.', cost: { rotor: 30, photonic: 20 }, req: ['k_photonics'], effect: { machineSpeed: 0.25 } },
+    k_seismic:       { planet: 1, name: 'Forage sismique',       desc: 'Foreuse sismique 3×3 pour les grands gisements.', cost: { photonic: 15, cobalt_sheet: 40 }, req: ['k_photonics'] },
+    k_cells:         { planet: 1, name: 'Cellules au lithium',   desc: 'Recette de la cellule au lithium (atelier de précision).', cost: { lithium: 60, cobalt_sheet: 40, photonic: 20 }, req: ['k_photonics', 'k_plasma'] },
+    k_cryo:          { planet: 1, name: 'Cryogénie',             desc: 'Tuyaux, pompe à ammoniac et turbine à ammoniac (soufre + ammoniac → 500 kW).', cost: { superalloy: 30, photonic: 20 }, req: ['k_plasma', 'k_photonics'] },
+    k_synth:         { planet: 1, name: 'Synthèse avancée',      desc: 'Synthétiseur et panneaux de dôme.', cost: { superalloy: 20, photonic: 20 }, req: ['k_plasma', 'k_photonics'] },
+    k_deepcore:      { planet: 1, name: 'Forage du manteau',     desc: 'Foreuses 25 % plus rapides.', cost: { superalloy: 30, photonic: 30 }, req: ['k_seismic', 'k_plasma'], effect: { drillSpeed: 0.25 } },
+    k_lens:          { planet: 1, name: 'Optique stellaire',     desc: 'Lentille photonique et Collecteur photonique (100 kW sans carburant).', cost: { resonator: 30, quartz_glass: 30 }, req: ['k_synth'] },
+    k_habitat:       { planet: 1, name: 'Habitats de colonie',   desc: 'Recette du module de colonie (synthétiseur).', cost: { dome: 20, photonic: 30 }, req: ['k_synth'] },
+    k_methane:       { planet: 1, name: 'Chimie du méthane',     desc: 'Puits de méthane et réacteur chimique : polymère et hydrazine.', cost: { superalloy: 40, photonic: 30, quartz_glass: 30 }, req: ['k_cryo'] },
+    k_quantum:       { planet: 1, name: 'Calcul quantique',      desc: 'Recette du processeur quantique (synthétiseur).', cost: { photonic: 60, resonator: 40, cell: 20 }, req: ['k_synth', 'k_cells'] },
+    k_iridium:       { planet: 1, name: 'Prospection de l’iridium', desc: 'Fondre le minerai d’iridium (gisements argentés, loin du Port).', cost: { cobalt_sheet: 60, photonic: 30, superalloy: 20 }, req: ['k_synth'] },
+    k_ion:           { planet: 1, name: 'Propulsion ionique',    desc: 'Recette du moteur ionique (synthétiseur, à l’hydrazine).', cost: { superalloy: 40, photonic: 40, rotor: 30 }, req: ['k_synth', 'k_methane'] },
+    k_iridium_alloy: { planet: 1, name: 'Trempe de l’iridium',   desc: 'Recette de l’iridium trempé (four à plasma).', cost: { ingot_iridium: 40, superalloy: 30 }, req: ['k_iridium'] },
+    k_capacitor:     { planet: 1, name: 'Condensateurs à plasma', desc: 'Recette du condensateur (synthétiseur).', cost: { iridium_alloy: 30, polymer: 30, dome: 10 }, req: ['k_iridium_alloy', 'k_methane'] },
+    k_overclock2:    { planet: 1, name: 'Surcadençage II',       desc: 'Machines 25 % plus rapides de plus.', cost: { qprocessor: 15, superalloy: 40 }, req: ['k_overclock', 'k_quantum'], effect: { machineSpeed: 0.25 } },
+    k_stellar:       { planet: 1, name: 'Forge stellaire',       desc: 'Bâtiment 4×4 : noyaux de fusion.', cost: { iridium_alloy: 40, qprocessor: 15, dome: 20 }, req: ['k_quantum', 'k_iridium_alloy'] },
+    k_gate:          { planet: 1, name: 'Portail stellaire',     desc: 'Recette du segment de portail (forge stellaire).', cost: { ion_engine: 10, qprocessor: 20, capacitor: 10 }, req: ['k_stellar', 'k_ion', 'k_capacitor'] }
   };
-  for (const id in CO.TECHS) CO.TECHS[id].id = id;
+  for (const id in CO.TECHS) { CO.TECHS[id].id = id; if (CO.TECHS[id].planet == null) CO.TECHS[id].planet = 0; }   // research belongs to one planet
 
   // ------------------------------------------------------- station phases
   // Phase i draws station part i (see station.js): keep the two lists in the same order.
-  CO.PHASES = [
+  const TERRE_PHASES = [
     { id: 'frame',    name: 'Armature centrale',      desc: 'La poutre et le moyeu de la station.',               need: { plate: 40, gear: 25 },                       reward: 200 },
     { id: 'habitat',  name: 'Cabine de vie',          desc: 'Un premier module pressurisé pour l’équipage.',       need: { brick: 40, glass: 40, plate: 30 },           reward: 250 },
     { id: 'power',    name: 'Réseau électrique',      desc: 'Câblage et nœuds de distribution.',                  need: { circuit: 30, wire: 60 },                     reward: 350 },
@@ -273,23 +382,105 @@
     { id: 'launch',   name: 'Mise en orbite',         desc: 'Dernière étape : allumer la station !',              need: { probe: 6, core: 8, kit: 15, thruster: 10, solar: 15 }, reward: 5000 }
   ];
 
-  /** Phase `i`; beyond the planned phases, endless growing "extensions" are generated. */
-  CO.getPhase = function (i) {
-    if (i < CO.PHASES.length) return CO.PHASES[i];
-    const n = i - CO.PHASES.length + 1;
-    const menus = [
-      { kit: 8, solar: 8, steel: 30 },
-      { thruster: 6, hull: 16, processor: 8 },
-      { tank: 8, core: 3, battery: 20 },
-      { probe: 2, alloy: 30, solar: 10 },
-      { processor: 14, kit: 8, glass: 40 },
-      { core: 5, thruster: 6, tank: 8 }
-    ];
+  // The portal of Kéora, drawn by station.js (same order).
+  const KEORA_PHASES = [
+    { id: 'anchor',  name: 'Plateforme d’ancrage',     desc: 'Le socle du portail, arrimé en orbite basse.',         need: { cobalt_sheet: 40, rotor: 25 },                  reward: 1500 },
+    { id: 'dorms',   name: 'Dortoirs pressurisés',     desc: 'De quoi loger les premiers colons.',                   need: { ceramic: 40, quartz_glass: 40, cobalt_sheet: 30 }, reward: 2000 },
+    { id: 'grid',    name: 'Réseau photonique',        desc: 'La lumière remplace les câbles.',                      need: { photonic: 30, fiber: 60 },                      reward: 2500 },
+    { id: 'frame',   name: 'Charpente en superalliage', desc: 'L’anneau extérieur du portail.',                     need: { superalloy: 50, ceramic: 30 },                  reward: 3500 },
+    { id: 'mirrors', name: 'Miroirs stellaires',       desc: 'Des lentilles géantes pour concentrer la lumière de l’étoile.', need: { lens: 20, photonic: 20 },       reward: 4500 },
+    { id: 'domes',   name: 'Dômes de colonie',         desc: 'Sous les dômes, l’air est respirable.',                need: { dome: 20, quartz_glass: 40, photonic: 30 },     reward: 5000 },
+    { id: 'quarter', name: 'Quartier d’habitation',    desc: 'Des modules pour toute une ville.',                    need: { habitat: 12, dome: 25 },                        reward: 6000 },
+    { id: 'iring',   name: 'Anneau d’iridium',         desc: 'Un second anneau, plus dense, pour tenir le champ.',   need: { ingot_iridium: 40, photonic: 50, superalloy: 30 }, reward: 7000 },
+    { id: 'engines', name: 'Moteurs ioniques',         desc: 'Pour orienter le portail vers sa destination.',        need: { ion_engine: 12, iridium_alloy: 20 },            reward: 8000 },
+    { id: 'brain',   name: 'Cerveau quantique',        desc: 'Il calcule le chemin à travers le portail.',           need: { qprocessor: 20, cell: 30, capacitor: 10 },      reward: 9500 },
+    { id: 'core',    name: 'Cœur de fusion',           desc: 'L’énergie qu’il faut pour ouvrir le passage.',         need: { fusion_core: 8, capacitor: 15, polymer: 30 },   reward: 11000 },
+    { id: 'open',    name: 'Ouverture du portail',     desc: 'Dernière étape : allumer le portail !',                need: { gate_ring: 6, fusion_core: 8, habitat: 15, ion_engine: 10, lens: 15 }, reward: 20000 }
+  ];
+
+  /**
+   * Planets, played one at a time (the others wait, frozen, until the player comes back). Each has its
+   * own map, land, factory, goal (phases then extensions) and Port; money, workers and research are shared.
+   * maxExt: extensions before the goal is complete and the next planet opens (Infinity on the last one).
+   * drill / drillHeavy / smelter / gen / refRecipe: the buildings and recipe the help texts compare against.
+   * the: the name inside a sentence; ground: the two floor palettes; art: recolouring of the reused building art (hue turn, grey tint).
+   */
+  CO.PLANETS = [
+    { id: 'terre', name: 'Terre', the: 'la Terre', goal: 'Station', goalOf: 'de la station', done: 'Station terminée', phases: TERRE_PHASES, maxExt: 8,
+      desc: 'Le monde industriel : fer, cuivre, charbon, sable, titane, eau et pétrole.',
+      extDesc: 'La station grandit : de nouveaux modules sont commandés.', extBase: 4000, extStep: 500,
+      extMenus: [
+        { kit: 8, solar: 8, steel: 30 },
+        { thruster: 6, hull: 16, processor: 8 },
+        { tank: 8, core: 3, battery: 20 },
+        { probe: 2, alloy: 30, solar: 10 },
+        { processor: 14, kit: 8, glass: 40 },
+        { core: 5, thruster: 6, tank: 8 }
+      ],
+      drill: 'drill', drillHeavy: 'drill_heavy', smelter: 'smelter', gen: 'generator', refRecipe: 'ingot_iron',
+      machines: ['smelter', 'assembler', 'steelmill', 'fabricator', 'spaceyard', 'refinery'],
+      ground: [['#34343b', '#313138', '#37373e'], ['#433f3b', '#403c38', '#46423d']], boulder: '#4a4a52', landBase: 400, far: 'Le titane se trouve loin du Port.' },
+    { id: 'keora', name: 'Kéora', the: 'Kéora', goal: 'Portail', goalOf: 'du portail', done: 'Portail ouvert', phases: KEORA_PHASES, maxExt: Infinity,
+      desc: 'Un monde cristallin aux lacs d’ammoniac : cobalt, lithium, quartz, soufre, roche volcanique et iridium.',
+      extDesc: 'Le portail s’agrandit : de nouveaux modules sont commandés.', extBase: 12000, extStep: 1500,
+      extMenus: [
+        { habitat: 8, lens: 8, superalloy: 30 },
+        { ion_engine: 6, dome: 16, qprocessor: 8 },
+        { capacitor: 8, fusion_core: 3, cell: 20 },
+        { gate_ring: 2, iridium_alloy: 30, lens: 10 },
+        { qprocessor: 14, habitat: 8, quartz_glass: 40 },
+        { fusion_core: 5, ion_engine: 6, capacitor: 8 }
+      ],
+      drill: 'k_drill', drillHeavy: 'k_drill_heavy', smelter: 'k_forge', gen: 'k_gen', refRecipe: 'ingot_cobalt',
+      machines: ['k_forge', 'k_workshop', 'k_plasma_oven', 'k_synth', 'k_stellar', 'k_chem'],
+      ground: [['#363048', '#332d44', '#39334c'], ['#323d4c', '#2f3a49', '#354150']], boulder: '#544a6e', landBase: 2000,
+      art: { hue: 160, tint: '#8f7fe0', mix: 0.22 }, far: 'L’iridium se trouve loin du Port.' }
+  ];
+  /** Index of the planet being played (0 = Terre). */
+  CO.planetIndex = function () { return (CO.state && CO.state.planet) || 0; };
+  /** Planet `k` (default: the one being played). */
+  CO.planet = function (k) { return CO.PLANETS[k == null ? CO.planetIndex() : k]; };
+  /** Does item / building / research `def` belong on planet `k` (default: the current one)? No `planet` = shared. */
+  CO.onPlanet = function (def, k) { return def.planet == null || def.planet === (k == null ? CO.planetIndex() : k); };
+
+  // Lists of what exists on each planet, read through CO.ITEM_ORDER, CO.FLUIDS, CO.BUILD_ORDER and CO.PHASES:
+  // they always describe the planet being played.
+  const CAT_ORDER = ['Transport', 'Production', 'Énergie', 'Fluides', 'Autres'];
+  const lists = [];
+  function listsOf(k) {
+    if (lists[k]) return lists[k];
+    const items = Object.keys(CO.ITEMS).filter(function (id) { return (CO.ITEMS[id].planet || 0) === k; });
+    const builds = Object.keys(CO.BUILDINGS).filter(function (t) { return !CO.BUILDINGS[t].hidden && CO.onPlanet(CO.BUILDINGS[t], k); });
+    builds.sort(function (a, b) { return CAT_ORDER.indexOf(CO.BUILDINGS[a].cat) - CAT_ORDER.indexOf(CO.BUILDINGS[b].cat); });
+    return (lists[k] = {
+      items: items.filter(function (id) { return !CO.ITEMS[id].fluid; }),
+      fluids: items.filter(function (id) { return CO.ITEMS[id].fluid; }),
+      builds: builds
+    });
+  }
+  /** Items that travel on belts (fluids excluded), on the current planet. */
+  Object.defineProperty(CO, 'ITEM_ORDER', { get: function () { return listsOf(CO.planetIndex()).items; } });
+  Object.defineProperty(CO, 'FLUIDS', { get: function () { return listsOf(CO.planetIndex()).fluids; } });
+  Object.defineProperty(CO, 'BUILD_ORDER', { get: function () { return listsOf(CO.planetIndex()).builds; } });
+  Object.defineProperty(CO, 'PHASES', { get: function () { return CO.planet().phases; } });
+
+  /**
+   * Phase `i` of planet `k` (default: current). Beyond the planned phases come growing "extensions"; past
+   * the planet's last extension the goal is complete: a phase that asks for nothing (`done`).
+   */
+  CO.getPhase = function (i, k) {
+    const P = CO.planet(k), n0 = P.phases.length;
+    if (i < n0) return P.phases[i];
+    const n = i - n0 + 1;
+    if (n > P.maxExt) return { id: 'done', name: P.done, desc: '', need: {}, reward: 0, done: true };
+    const menus = P.extMenus;
     const base = menus[(n - 1) % menus.length], need = {};
     const scale = 1 + Math.floor((n - 1) / menus.length) * 0.6 + (n - 1) * 0.15;
-    for (const k in base) need[k] = Math.round(base[k] * scale);
-    return { id: 'ext' + n, name: 'Extension n° ' + n, desc: 'La station grandit : de nouveaux modules sont commandés.', need: need, reward: 4000 + n * 500, extension: n };
+    for (const key in base) need[key] = Math.round(base[key] * scale);
+    return { id: 'ext' + n, name: 'Extension n° ' + n, desc: P.extDesc, need: need, reward: P.extBase + n * P.extStep, extension: n };
   };
+  /** Phase index at which planet `k`'s goal is complete (Infinity when it never is). */
+  CO.goalEnd = function (k) { const P = CO.planet(k); return P.phases.length + P.maxExt; };
 
   // Building upgrades: level 1 (as built), II and III. Speed (or output) and power use grow with the level;
   // each level costs `cost[l]` times the building's price. Only these kinds can be upgraded.
@@ -325,7 +516,9 @@
     sorter_inv: 0.5, underground_in: 0.4, underground_out: 0.4, chest: 0.4, unloader: 0.6,
     launch_pad: 8, drone_hub: 3, drone_provider: 0.5, drone_requester: 0.5, pole: 0.3, pylon: 0.6, generator: 1.2, solar_plant: 2, steam_plant: 4, refinery: 4, pipe: 0.2, pump: 1, oil_well: 2, fluid_tank: 1,
     drill: 0.75, smelter: 1, seller: 1, assembler: 1.5, lab: 1.5, drill_heavy: 2.5, driver: 2.5,
-    steelmill: 3, fabricator: 4, spaceyard: 6
+    steelmill: 3, fabricator: 4, spaceyard: 6,
+    k_drill: 0.75, k_drill_heavy: 2.5, k_forge: 1, k_workshop: 1.5, k_plasma_oven: 3, k_synth: 4, k_stellar: 6, k_chem: 4,
+    k_gen: 1.2, k_collector: 2, k_turbine: 4, k_pump: 1, k_well: 2
   };
   CO.WORKERS = { start: 3, max: 12, base: 2500, speed: 8 };   // speed in tiles per second
 })(window.CO = window.CO || {});

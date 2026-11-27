@@ -6,6 +6,13 @@
 (function (CO) {
   'use strict';
   CO.CHANGELOG = [
+    { v: 7, date: '27 novembre 2026', title: 'Un nouveau monde : Kéora', items: [
+      'Les 8 extensions de la station terminées, la station est complète : une flèche ▶ au-dessus de son image (onglet Station) emmène sur Kéora, avec une petite transition. La flèche ◀ ramène sur la Terre.',
+      'Kéora a sa propre carte : cobalt, lithium, quartz, soufre, roche volcanique et iridium, lacs d’ammoniac et poches de méthane liquide.',
+      'De nouveaux objets et de nouvelles machines : foreuse à plasma, forge à induction, atelier de précision, four à plasma, synthétiseur, forge stellaire, réacteur chimique, générateur au soufre, turbine à ammoniac…',
+      'Un arbre de recherche propre à Kéora et un portail stellaire en 12 étapes à construire.',
+      'Chaque planète garde son usine, ses terrains et son avancement ; celle que tu quittes est en pause. Ton argent, tes ouvriers et tes recherches te suivent.'
+    ] },
     { v: 6, date: '25 novembre 2026', title: 'La grande mise à jour', items: [
       'Énergie : foreuses et machines ont besoin de courant. Le Port fournit 150 kW autour de lui ; poteaux, pylônes, générateur thermique (charbon) et centrale solaire pour le reste.',
       'Fluides : lacs et nappes de pétrole, tuyaux, pompe à eau, cuve, centrale à vapeur (400 kW), puits de pétrole et raffinerie (plastique, carburant).',

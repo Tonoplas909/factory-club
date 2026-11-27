@@ -118,7 +118,7 @@
   function available(g) {
     const gen = g.def.gen * (g.kind === 'port' ? 1 : CO.lvlSpeed(g) * (CO.mods.power || 1));
     if (!g.def.fuel) return gen;
-    if (g.def.water && !(CO.fluid.amount(g, 'water') > 0)) return 0;   // a steam plant also needs water
+    if (g.def.water && !(CO.fluid.amount(g, g.def.cool || 'water') > 0)) return 0;   // a steam plant also needs water
     return g.burn > 0 || g.fuel > 0 ? gen : 0;
   }
 
@@ -142,10 +142,10 @@
         const g = net.gens[i];
         if (!g.def.fuel) { g.status = net.load > 0 ? 'work' : 'idle'; continue; }
         if (g.burn <= 0 && g.fuel <= 0) { g.status = 'nofuel'; continue; }
-        if (g.def.water && !(CO.fluid.amount(g, 'water') > 0)) { g.status = 'nowater'; continue; }
+        if (g.def.water && !(CO.fluid.amount(g, g.def.cool || 'water') > 0)) { g.status = 'nowater'; continue; }
         if (net.load <= 0) { g.status = 'idle'; continue; }
         const sp = CO.lvlSpeed(g);                     // an upgraded generator gives more and burns faster
-        if (g.def.water) CO.fluid.take(g, 'water', g.def.water * net.load * sp * dt);
+        if (g.def.water) CO.fluid.take(g, g.def.cool || 'water', g.def.water * net.load * sp * dt);
         if (g.burn <= 0) { g.fuel--; g.burn += g.def.burn; CO.sim.countUsed(g.def.fuel, 1); }
         g.burn = Math.max(0, g.burn - dt * net.load * sp);
         g.status = 'work';

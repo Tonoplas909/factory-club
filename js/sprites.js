@@ -453,8 +453,26 @@
     overflow: drawOverflow, underflow: drawUnderflow, junction: drawJunction, sorter_inv: drawSorterInv, unloader: drawUnloader,
     pole: drawPole, pylon: drawPylon, drone_provider: drawDroneProvider, drone_requester: drawDroneRequester };
 
+  /** Copy of canvas `src` recoloured with a planet's palette (CO.recolor). */
+  function recolored(src, art) {
+    const c = mk(src.width, src.height), g = c.getContext('2d');
+    g.drawImage(src, 0, 0);
+    const img = g.getImageData(0, 0, c.width, c.height), d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (!d[i + 3]) continue;
+      const v = CO.recolor(d[i], d[i + 1], d[i + 2], art);
+      d[i] = v[0]; d[i + 1] = v[1]; d[i + 2] = v[2];
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
   function buildingSprite(type, dir, f) {
     const def = BUILDINGS[type];
+    if (def.art) {                                                      // another planet's version of a Terre building
+      const key = 'a' + type + (f | 0);
+      return cache[key] || (cache[key] = recolored(buildingSprite(def.art, dir, f), CO.planet(def.planet).art));
+    }
     if (def.kind === 'belt') return beltSprite(def.tier || 0, dir, 0, f | 0);
     if (def.kind === 'pipe') return pipeSprite(dir & 1 ? 10 : 5, null);     // palette / ghost: a straight piece
     if (SMALL[type]) {
@@ -471,10 +489,10 @@
   // --------------------------------------------------------------- terrain
   // Two floor materials blended by large-scale noise (dark basalt and dusty sand), each tile
   // with a little texture. Ores are chunks of rock lying on top of the floor.
-  const BASALT = ['#34343b', '#313138', '#37373e'], SAND = ['#433f3b', '#403c38', '#46423d'];
+  // The two palettes come from the planet (CO.PLANETS[].ground: basalt then sand on the Terre).
   function floorTile(g, px, py, x, y, seed) {
-    const n = CO.vnoise(x * 0.06, y * 0.06, seed + 5);
-    const pal = n > 0.55 ? SAND : BASALT;
+    const n = CO.vnoise(x * 0.06, y * 0.06, seed + 5), ground = CO.planet(CO.world.planet).ground;
+    const pal = n > 0.55 ? ground[1] : ground[0];
     R(g, pal[Math.floor(CO.hash2(x, y, seed) * 3)], px, py, T, T);
     for (let k = 0; k < 3; k++) {                                     // dark specks
       const hx = CO.hash2(x, y, seed + 11 + k), hy = CO.hash2(x, y, seed + 51 + k);
@@ -490,9 +508,9 @@
   }
   function oreTile(g, px, py, id, x, y, seed) {
     if (CO.isFluidOre(id)) {                                          // lake / oil pool: flat liquid with ripples
-      const water = CO.ORE_IDS[id] === 'water';
-      R(g, water ? '#2c5fa8' : '#1d1824', px, py, T, T);
-      const hi = water ? '#5f9fe8' : '#4a3d5e';
+      const pool = ITEMS[CO.ORE_IDS[id]].pool;
+      R(g, pool[0], px, py, T, T);
+      const hi = pool[1];
       for (let k = 0; k < 2; k++) {
         const bx = px + 1 + Math.floor(CO.hash2(x, y, seed + 70 + k) * 10), by = py + 2 + Math.floor(CO.hash2(x, y, seed + 80 + k) * 11);
         R(g, hi, bx, by, 4, 1);
@@ -540,4 +558,5 @@
 
   CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrainChunk: terrainChunk, barrel: barrelSprite, pipe: pipeSprite,
     frames: { launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 3, refinery: 3, generator: 3, drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
+  for (const t in BUILDINGS) if (BUILDINGS[t].art && CO.sprites.frames[BUILDINGS[t].art]) CO.sprites.frames[t] = CO.sprites.frames[BUILDINGS[t].art];
 })(window.CO = window.CO || {});
