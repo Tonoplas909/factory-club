@@ -130,6 +130,20 @@
   }
   Rn.drawZonesTop = drawZonesTop;
 
+  /** Kéora: beam colour from the power of its network (full, short, none) as "r,g,b". */
+  Rn.beamColor = function (net) { const s = net ? net.sat : 0; return s >= 0.999 ? '94,240,255' : s > 0 ? '255,179,71' : '229,84,84'; };
+  /** Can building `def` shoot an energy beam (Kéora)? */
+  Rn.emitsBeam = function (def) { return CO.planet().grid === 'beams' && (!!def.gen || def.kind === 'kaccu' || def.kind === 'kprism' || def.kind === 'ksplit'); };
+  /** Segments the beam of a ghost `g` would follow (straight on, up to the first prism). */
+  Rn.ghostBeams = function (g) {
+    const def = CO.BUILDINGS[g.type], src = { x: g.x, y: g.y, w: def.w, h: def.h, dir: g.dir, kind: def.kind }, out = [];
+    const dirs = def.kind === 'port' ? [0, 1, 2, 3] : def.kind === 'ksplit' ? [g.dir, (g.dir + 1) & 3, (g.dir + 3) & 3] : [g.dir];
+    dirs.forEach(function (d) {
+      const s = CO.power.trace(src, d, function (o) { return !(o.kind === 'kprism' || o.kind === 'ksplit'); });
+      if (s) out.push(s);
+    });
+    return out;
+  };
   /** Sides a tube of Kéora's network connects to (same bits as pipes), and whether its network is busy. */
   Rn.tubeMask = function (b) {
     let m = 0;
@@ -335,6 +349,7 @@
     }
     ctx.restore();
     drawDriverLinks(ov);
+    drawBeamsTop(time);
 
     // 2. items carried on belts / held by routers / chest fill
     const isz = ts * 0.42;
@@ -404,6 +419,7 @@
       } else if ((k === 'router' || k === 'unloader') && b.filter) {
         drawIcon(b.filter, cx, cy, ts * 0.36);
       } else if (k === 'ksilo' || k === 'kaccu') {                 // stock gauge along the bottom edge
+        if (k === 'kaccu') drawArrowOut(b);
         const f = k === 'ksilo' ? b.q.length / b.def.capacity : b.charge / b.def.capacity;
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, b.w * ts - ts * 0.6, Math.max(2, ts * 0.09));
         ctx.fillStyle = k === 'kaccu' ? '#5fe0a8' : f > 0.9 ? '#e55454' : '#5ef0ff';
@@ -414,9 +430,10 @@
         ctx.fillStyle = f > 0.9 ? '#e55454' : ACC; ctx.fillRect(px + ts * 0.15, py + ts * 0.84, ts * 0.7 * f, Math.max(2, ts * 0.09));
       } else if (k === 'port') {
         const pulse = 0.5 + 0.5 * Math.sin(time * 2);
-        ctx.strokeStyle = 'rgba(255,211,127,' + (0.2 + 0.4 * pulse) + ')'; ctx.lineWidth = Math.max(2, ts * 0.1);
+        ctx.strokeStyle = 'rgba(' + (b.def.planet ? '94,240,255' : '255,211,127') + ',' + (0.2 + 0.4 * pulse) + ')'; ctx.lineWidth = Math.max(2, ts * 0.1);
         ctx.strokeRect(px + ts * 0.1, py + ts * 0.1, b.w * ts - ts * 0.2, b.h * ts - ts * 0.2);
       } else if (k === 'generator') {
+        if (Rn.emitsBeam(b.def)) drawArrowOut(b);
         const s = Math.max(3, Math.round(ts * 0.16));
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
         ctx.fillStyle = Rn.ledColor(b); ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
@@ -603,6 +620,31 @@
     ctx.fillText(label, tx, ty);
   }
 
+  // ------------------------------------------------------ Kéora's energy beams
+  /** One beam: a soft glow, a bright core and light pulses running from the source. */
+  function beamLine(ax, ay, bx, by, col, time, ghost) {
+    if (Math.max(ax, bx) < -ts || Math.min(ax, bx) > cw + ts || Math.max(ay, by) < -ts || Math.min(ay, by) > ch + ts) return;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+    if (ghost) {
+      ctx.setLineDash([ts * 0.3, ts * 0.2]); ctx.strokeStyle = 'rgba(' + col + ',0.8)'; ctx.lineWidth = Math.max(1, ts * 0.08); ctx.stroke(); ctx.setLineDash([]);
+      return;
+    }
+    ctx.strokeStyle = 'rgba(' + col + ',0.16)'; ctx.lineWidth = ts * 0.42; ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + col + ',0.85)'; ctx.lineWidth = Math.max(1, ts * 0.07); ctx.stroke();
+    ctx.setLineDash([ts * 0.2, ts * 0.6]); ctx.lineDashOffset = -time * ts * 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = Math.max(1, ts * 0.06); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function drawBeamsTop(time) {
+    const B = CO.power.beams;
+    if (!B.length) return;
+    ctx.save(); ctx.lineCap = 'round';
+    for (let i = 0; i < B.length; i++) {
+      const s = B[i];
+      beamLine(ox + s.a[0] * ts, oy + s.a[1] * ts, ox + s.b[0] * ts, oy + s.b[1] * ts, Rn.beamColor(s.net), time, false);
+    }
+    ctx.restore();
+  }
+
   // ------------------------------------------------------ mass drivers
   function centre(b) { return [ox + (b.x + b.w / 2) * ts, oy + (b.y + b.h / 2) * ts]; }
   /** Dashed link from every launcher to its target; brighter when one end is selected or hovered. */
@@ -690,6 +732,9 @@
     for (let i = 0; i < ov.ghosts.length; i++) {
       const g = ov.ghosts[i], def = CO.BUILDINGS[g.type], px = ox + g.x * ts, py = oy + g.y * ts;
       if ((def.kind === 'driver' || def.kind === 'krelay') && ov.ghosts.length === 1) rangeCircle({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
+      if (Rn.emitsBeam(def) && ov.ghosts.length <= 4) {
+        ctx.save(); Rn.ghostBeams(g).forEach(function (s) { beamLine(ox + s.a[0] * ts, oy + s.a[1] * ts, ox + s.b[0] * ts, oy + s.b[1] * ts, '94,240,255', 0, true); }); ctx.restore();
+      }
       const spr = sprites.building(g.type, g.dir, 0);
       ctx.globalAlpha = 0.72;
       ctx.drawImage(spr, 0, 0, spr.width, spr.height, px, py, def.w * ts, def.h * ts);

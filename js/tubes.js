@@ -1,6 +1,5 @@
 /*
- * tubes.js — Kéora's quantum network: its transport and its power grid (there are no belts, poles nor
- * pipes on Kéora).
+ * tubes.js — Kéora's quantum network: how items travel there (there are no belts nor pipes on Kéora).
  *
  * Tubes, silos, accelerators and relays ("members") that touch form a network; two linked relays join
  * their networks across the map. Every other building touching a member is a "user" of that network:
@@ -11,7 +10,7 @@
  *   - what nobody needs for a moment goes to the lab reserve or a silo, later to a sink (Port surplus,
  *     exchange counter); silos give back what a user needs.
  * Every hand-over is a transfer: a network makes T.BASE transfers/s, plus `rate` per powered accelerator.
- * The same networks carry the power: power.js builds its grids from them.
+ * Power does not travel here: it goes in beams of light (power.js).
  */
 (function (CO) {
   'use strict';

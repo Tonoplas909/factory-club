@@ -33,30 +33,6 @@
     return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
   };
 
-  /**
-   * Colour of a reused building art on another planet (art = CO.PLANETS[k].art): coloured parts turn by
-   * art.hue degrees, grey metal leans towards art.tint by art.mix. r, g, b in 0..255; returns [r, g, b].
-   */
-  CO.recolor = function (r, g, b, art) {
-    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 510, d = (mx - mn) / 255;
-    if (d < 0.1) {
-      const t = art.rgb || (art.rgb = [parseInt(art.tint.slice(1, 3), 16), parseInt(art.tint.slice(3, 5), 16), parseInt(art.tint.slice(5, 7), 16)]);
-      const tl = (t[0] + t[1] + t[2]) / 765, k = tl > 0 ? l / tl : 0;
-      return [r + (Math.min(255, t[0] * k) - r) * art.mix, g + (Math.min(255, t[1] * k) - g) * art.mix, b + (Math.min(255, t[2] * k) - b) * art.mix];
-    }
-    const s = d / (1 - Math.abs(2 * l - 1) || 1);
-    let h = mx === r ? ((g - b) / 255 / d) % 6 : mx === g ? (b - r) / 255 / d + 2 : (r - g) / 255 / d + 4;
-    h = ((h * 60 + art.hue) % 360 + 360) % 360;
-    const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
-    const seg = Math.floor(h / 60), rgb = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]][seg] || [c, x, 0];
-    return [(rgb[0] + m) * 255, (rgb[1] + m) * 255, (rgb[2] + m) * 255];
-  };
-  /** CO.recolor for a "#rrggbb" colour. */
-  CO.recolorHex = function (hex, art) {
-    const n = parseInt(hex.slice(1), 16), c = CO.recolor((n >> 16) & 255, (n >> 8) & 255, n & 255, art);
-    return '#' + c.map(function (v) { return Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0'); }).join('');
-  };
-
   /** Smooth value noise in [0,1). */
   CO.vnoise = function (x, y, seed) {
     const xi = Math.floor(x), yi = Math.floor(y);

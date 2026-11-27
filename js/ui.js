@@ -137,7 +137,8 @@
       row('Programme orbital', 'Recherche Astronautique : le Pas de tir reçoit 10 Modules de fusée et un Satellite ou une Sonde profonde, assemble la fusée et la lance. Les missions (onglet Station) donnent des bonus permanents : machines, foreuses, terrains moins chers, générateurs'),
       row('Drones', 'Recherche Drones logistiques : un Port de drones (portée 24 cases) envoie ses 4 drones chercher les objets des Coffres d’envoi (remplis par convoyeur) pour les porter aux Coffres de demande (objet choisi dans Infos, jusqu’à 40), qui les sortent par leur flèche'),
       row('Planètes', 'Les 8 extensions de la station terminées, la flèche ▶ au-dessus de l’image (onglet Station) emmène sur Kéora, où rien de la Terre n’existe : autre carte, autres minerais, liquides en cartouches, autres machines et recherches, et un portail stellaire à construire. La flèche ◀ ramène sur la Terre ; la planète quittée est en pause. Argent et ouvriers suivent'),
-      row('Réseau quantique (Kéora)', 'Les tubes qui se touchent forment un réseau ; tout bâtiment qui touche un tube y est relié et reçoit ce dont il a besoin. Une flèche de sortie pointée sur un tube dépose la production dans le réseau. Le réseau porte aussi le courant. 6 transferts/s, plus avec les accélérateurs ; silos pour le surplus, relais pour relier deux réseaux au loin'),
+      row('Réseau quantique (Kéora)', 'Les tubes qui se touchent forment un réseau ; tout bâtiment qui touche un tube y est relié et reçoit ce dont il a besoin. Une flèche de sortie pointée sur un tube dépose la production dans le réseau. 6 transferts/s, plus avec les accélérateurs ; silos pour le surplus, relais pour relier deux réseaux au loin'),
+      row('Faisceaux d’énergie (Kéora)', 'Pas de poteaux : générateurs, accumulateurs et Spatioport (4 côtés) envoient un faisceau en ligne droite, dans le sens de leur flèche (R pour tourner), sur 24 cases. Tout bâtiment traversé est alimenté. Un Prisme renvoie le faisceau dans le sens de sa flèche, un Diffracteur le divise en trois. Faisceau cyan : assez d’énergie ; orange : pas assez ; rouge : aucune'),
       row('Contrats', 'Après ta première livraison, le Port propose des contrats (onglet Station) : livre une quantité d’un objet avant la fin du temps pour une grosse récompense. Deux à la fois ; les livraisons au Port les remplissent avant la station'),
       row('Améliorations', 'Recherches Améliorations I et II : dans Infos, un bouton fait passer foreuses, machines, pompes et générateurs au niveau II (×1,5, coûte 2× le bâtiment) puis III (×2, 4× le bâtiment). Ils consomment plus de courant. Marche aussi sur toute une sélection'),
       row('Fluides', 'Recherche Hydraulique : une Pompe à eau posée sur un lac remplit les tuyaux qui la touchent. Les tuyaux qui se touchent partagent leur contenu (un seul fluide par réseau). La Centrale à vapeur (eau + charbon) donne 400 kW ; la Raffinerie transforme le pétrole en plastique et carburant'),
@@ -339,7 +340,7 @@
     const list = CO.world.list, has = function (t) { return list.some(function (b) { return b.type === t; }); };
     if (!has('k_tube')) return '① Pose des Tubes quantiques (catégorie Réseau) depuis le Spatioport : glisse pour tracer une ligne. Tout bâtiment qui touche un tube y est relié.';
     if (!has('k_drill')) return '② Pose une Foreuse à plasma sur un gisement contre le réseau, sa flèche jaune pointée sur un tube.';
-    if (CO.power.unpowered > 0) return '⚡ Un bâtiment n’a pas de courant : il doit toucher un tube du réseau relié au Spatioport (ou à un générateur).';
+    if (CO.power.unpowered > 0) return '⚡ Un bâtiment n’a pas de courant : un faisceau d’énergie doit le traverser. Aligne-le avec un côté du Spatioport, ou envoie-lui un faisceau avec un Prisme ou un générateur (sa flèche donne le sens).';
     if (!has('k_forge')) return '③ Une Forge à induction qui touche le réseau reçoit seule le minerai. Pointe sa flèche sur un tube pour y renvoyer les lingots.';
     if (!has('k_workshop')) return '④ Un Atelier de précision relié au réseau (recette : tôle de cobalt ou rotor). Le Spatioport prend lui-même ce que l’étape demande.';
     return '';
@@ -562,9 +563,10 @@
       openModal('Bienvenue sur ' + Q.name, h('div', null, cv,
         h('p', { text: Q.desc }),
         h('p', { class: 'small', text: 'Rien de ' + CO.PLANETS[k - 1].the + ' n’existe ici : ni convoyeurs, ni poteaux, ni tuyaux, ni machines, ni recherches. Ton argent et tes ouvriers t’ont suivi ; l’usine de ' + CO.PLANETS[k - 1].the + ' est en pause et reprend à ton retour (flèche ◀ au-dessus de l’image).' }),
-        h('p', { class: 'small', text: 'Le réseau quantique : les Tubes quantiques qui se touchent forment un réseau, et tout bâtiment qui touche un tube y est relié. Pointe la flèche d’une foreuse ou d’une machine sur un tube : sa production entre dans le réseau, qui l’apporte seul aux machines qui en ont besoin, au laboratoire et au Spatioport. Le même réseau transporte le courant (le Spatioport en fournit 150 kW). Un réseau fait ' + CO.tubes.BASE + ' transferts/s ; les Accélérateurs de flux en ajoutent, les Silos gardent le surplus, les Relais quantiques relient deux réseaux au loin.' }),
+        h('p', { class: 'small', text: 'Le réseau quantique : les Tubes quantiques qui se touchent forment un réseau, et tout bâtiment qui touche un tube y est relié. Pointe la flèche d’une foreuse ou d’une machine sur un tube : sa production entre dans le réseau, qui l’apporte seul aux machines qui en ont besoin, au laboratoire et au Spatioport. Un réseau fait ' + CO.tubes.BASE + ' transferts/s ; les Accélérateurs de flux en ajoutent, les Silos gardent le surplus, les Relais quantiques relient deux réseaux au loin.' }),
+        h('p', { class: 'small', text: 'L’énergie voyage en faisceaux de lumière : le Spatioport en envoie un par côté, les générateurs et les accumulateurs dans le sens de leur flèche, sur 24 cases. Tout ce qu’un faisceau traverse est alimenté ; un Prisme le fait tourner, un Diffracteur le divise. Aligne tes machines sur les faisceaux.' }),
         h('p', { class: 'small', text: 'Les liquides se mettent en cartouches (extracteurs posés sur les lacs). Les jours sont courts : la nuit, les collecteurs photoniques s’éteignent, les accumulateurs prennent le relais.' }),
-        h('p', { class: 'small', text: 'Pour commencer : des tubes depuis le Spatioport, ' + BUILDINGS[Q.drill].name + ' sur un gisement (flèche vers un tube), ' + BUILDINGS[Q.smelter].name + ' contre le réseau, puis ' + BUILDINGS[Q.gen].name + ' quand le courant manque. Objectif : ' + Q.phases.length + ' étapes ' + Q.goalOf + '.' })),
+        h('p', { class: 'small', text: 'Pour commencer : des tubes depuis le Spatioport, ' + BUILDINGS[Q.drill].name + ' sur un gisement (flèche vers un tube), ' + BUILDINGS[Q.smelter].name + ' contre le réseau, le tout dans un faisceau du Spatioport (ou d’un prisme) ; puis ' + BUILDINGS[Q.gen].name + ' quand le courant manque. Objectif : ' + Q.phases.length + ' étapes ' + Q.goalOf + '.' })),
         [{ label: 'C’est parti !', primary: true }]);
       UI.modalAnim = { cv: cv, phase: 0, planet: k };
     }); }, 200);
@@ -868,23 +870,26 @@
       case 'unloader':
         return b.status === 'work' ? pill('good', 'Extrait' + (b.filter ? ' : ' + itemName(b.filter) : ''))
           : b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('warn', 'Rien à extraire');
-      default: return pill('info', b.items.length + ' objet(s)');
+      case 'kprism': case 'ksplit':
+        return !b.net ? pill('warn', 'Aucun faisceau') : pill(b.net.sat >= 0.999 ? 'good' : b.net.sat > 0 ? 'warn' : 'bad', 'Faisceau · ' + Math.round(b.net.sat * 100) + ' %');
+      default: return b.items ? pill('info', b.items.length + ' objet(s)') : pill('info', b.def.name);
     }
   }
   function statusHelp(b) {
     if (b.site && !b.site.paid) return 'Posé sans assez de crédits : un ouvrier viendra le payer (' + CO.fmt(b.def.cost) + ' ¢) et le construire dès que tu les auras.';
     if (b.site) return b.site.w ? 'Un ouvrier s’en occupe : ' + fmtTime(b.site.t) + ' de travail une fois sur place.' : 'Tous les ouvriers sont occupés : il sera construit dès qu’un se libère (recrute-en d’autres dans l’onglet Station).';
-    if (CO.planet().grid === 'tubes') {
+    if (CO.planet().transport === 'tubes') {
       const linked = !!b.knet;
-      if (CO.render.noPower(b)) return linked ? 'Son réseau n’a pas d’énergie : relie-lui le Spatioport, un générateur (et son combustible) ou un accumulateur chargé.'
-        : 'Il ne touche aucun tube : pose un Tube quantique contre lui, relié au Spatioport ou à un générateur.';
-      if (b.kind === 'generator' && b.status === 'nofuel') return linked ? 'Le réseau lui apporte du ' + itemName(b.def.fuel).toLowerCase() + ' dès qu’il en circule : pointe la flèche d’une foreuse (ou d’un extracteur) sur un tube du même réseau.'
-        : 'Il ne touche aucun tube : pose un tube contre lui pour qu’il reçoive son combustible et donne son courant.';
+      if (CO.render.noPower(b)) return b.net ? 'Les faisceaux qui le traversent n’apportent aucune énergie : leurs générateurs n’ont plus de combustible, ou c’est la nuit pour les collecteurs (pense aux accumulateurs).'
+        : 'Aucun faisceau d’énergie ne le traverse : aligne-le avec un côté du Spatioport, ou tourne vers lui un générateur, un accumulateur ou un Prisme placé sur un faisceau.';
+      if (b.kind === 'generator' && b.status === 'nofuel') return linked ? 'Le réseau de tubes lui apporte du ' + itemName(b.def.fuel).toLowerCase() + ' dès qu’il en circule : pointe la flèche d’une foreuse (ou d’un extracteur) sur un tube du même réseau.'
+        : 'Il ne touche aucun tube : pose un tube contre lui pour qu’il reçoive son combustible.';
       if ((b.kind === 'machine' || b.kind === 'drill') && b.status === 'blocked') return 'Sa production ne sort pas : pointe sa flèche jaune sur un tube (ou sur un bâtiment qui la prend). Si le réseau est saturé, relie un silo ou un comptoir d’échange.';
       if (b.kind === 'machine' && b.recipe && b.status === 'idle') return linked ? 'Il attend ses matières : le réseau les lui apporte dès qu’elles y circulent (ou qu’un silo en a).' : 'Il ne touche aucun tube : pose un tube contre lui pour qu’il reçoive ses matières.';
       if (b.kind === 'krelay' && !CO.tubes.relayTarget(b)) return '« Choisir la cible » ci-dessous, puis clique sur un autre relais (64 cases au plus) : les deux réseaux n’en feront qu’un.';
       if (b.kind === 'ktube' && b.knet && b.knet.full) return 'Le réseau est plein : personne ne prend ce qu’il contient. Relie un silo, un comptoir d’échange ou le Spatioport.';
-      if (b.kind === 'lab' && !linked) return 'Il ne touche aucun tube : le réseau ne peut ni l’alimenter ni lui apporter les objets de la recherche.';
+      if (b.kind === 'lab' && !linked) return 'Il ne touche aucun tube : le réseau ne peut pas lui apporter les objets de la recherche.';
+      if ((b.kind === 'kprism' || b.kind === 'ksplit') && !b.net) return 'Aucun faisceau ne l’atteint : place-le sur la trajectoire d’un faisceau (Spatioport, générateur, accumulateur ou autre prisme).';
     }
     if (CO.render.noPower(b)) return b.net ? 'Son réseau ne produit rien : ajoute un générateur (et son combustible), ou relie le réseau au Port avec des poteaux.'
       : 'Aucun réseau électrique ne l’atteint : pose un Poteau électrique à moins de 2 cases de lui, relié au Port ou à un générateur.';
@@ -1100,7 +1105,7 @@
     } else if (b.kind === 'krelay') {
       const tg = CO.tubes.relayTarget(b);
       body.appendChild(section('Liaison', h('div', { class: 'icard flat' },
-        h('div', { class: 'small', text: tg ? 'Relié au relais en ' + tg.x + ', ' + tg.y + ' (' + Math.round(CO.sim.driverDist(b, tg)) + ' cases) : les deux réseaux n’en font qu’un, objets et courant.'
+        h('div', { class: 'small', text: tg ? 'Relié au relais en ' + tg.x + ', ' + tg.y + ' (' + Math.round(CO.sim.driverDist(b, tg)) + ' cases) : les deux réseaux de tubes n’en font qu’un.'
           : b.target ? 'Le relais visé a disparu ou est hors de portée.' : 'Aucune liaison (il peut aussi être la cible d’un autre relais).' }),
         kv('Portée', b.def.range + ' cases'),
         h('div', { class: 'actions' },
@@ -1214,24 +1219,24 @@
   /** Power of a building: what it uses, or the network it belongs to (poles, generators, Port; tubes on Kéora). */
   function powerInfo(body, b) {
     if (b.site) return;
-    const net = b.net, tubes = CO.planet().grid === 'tubes';
+    const net = b.net, tubes = CO.planet().grid === 'beams';
     const netRows = function (n) {
       return [kv('Production', CO.fmt(Math.round(n.supply)) + ' kW'), kv('Demande', CO.fmt(Math.round(n.demand)) + ' kW'),
         kv('Alimentation', Math.round(n.sat * 100) + ' %'),
         n.cap ? kv('Accumulateurs', CO.fmt(Math.round(n.stored)) + ' / ' + CO.fmt(n.cap) + ' kJ') : null,
-        h('div', { class: 'small', text: tubes ? 'Réseau quantique : ' + n.gens.length + ' source(s) · ' + n.cons.length + ' machine(s) · ' + n.accus.length + ' accumulateur(s)'
+        h('div', { class: 'small', text: tubes ? 'Faisceaux : ' + n.gens.length + ' source(s) · ' + n.cons.length + ' machine(s) · ' + n.accus.length + ' accumulateur(s) · ' + (n.nodes.length - n.gens.length - n.accus.length) + ' prisme(s)'
           : 'Réseau : ' + n.gens.length + ' source(s) · ' + n.cons.length + ' machine(s) · ' + (n.nodes.length - n.gens.length) + ' poteau(x)' })];
     };
     if (b.def.power) {
       const rows = [kv('Consommation', b.def.power + ' kW en marche')];
       if (net) rows.push(kv('Vitesse', Math.round((b.pw || 0) * 100) + ' %'));
-      else rows.push(h('div', { class: 'small', style: 'color:#b9a8ff', text: tubes ? 'Non raccordé : il ne touche aucun tube relié à une source d’énergie.' : 'Non raccordé : aucun poteau, générateur ou Port ne le touche.' }));
+      else rows.push(h('div', { class: 'small', style: 'color:#b9a8ff', text: tubes ? 'Aucun faisceau d’énergie ne le traverse.' : 'Non raccordé : aucun poteau, générateur ou Port ne le touche.' }));
       body.appendChild(section('Énergie', h('div', { class: 'icard flat' }, rows.concat(net ? netRows(net) : []))));
-    } else if (b.kind === 'generator' || b.kind === 'pole' || b.kind === 'port' || b.kind === 'kaccu') {
+    } else if (b.kind === 'generator' || b.kind === 'pole' || b.kind === 'port' || b.kind === 'kaccu' || b.kind === 'kprism' || b.kind === 'ksplit') {
       const rows = [];
       if (b.def.gen) rows.push(kv('Puissance', CO.fmt(Math.round(b.def.gen * (b.kind === 'port' ? 1 : CO.lvlSpeed(b)))) + ' kW' + (b.def.light ? ' en plein jour' : '')));
       if (b.def.light) rows.push(kv('Lumière', Math.round(CO.daylight() * 100) + ' %'));
-      if (tubes && !net) rows.push(h('div', { class: 'small', style: 'color:#b9a8ff', text: 'Il ne touche aucun tube : son énergie ne va nulle part.' }));
+      if (tubes) rows.push(kv('Faisceau', (b.kind === 'port' ? '4 côtés' : b.kind === 'ksplit' ? 'devant, gauche, droite' : 'vers ' + CO.DIR_ARROWS[b.dir]) + ' · ' + CO.power.RANGE + ' cases'));
       if (b.def.fuel) rows.push(kv(itemName(b.def.fuel), b.fuel + ' / ' + CO.power.FUEL_CAP + (b.burn > 0 ? ' · en cours : ' + fmtNum(b.burn, 1) + ' s' : '')));
       if (b.kind === 'pole') rows.push(kv('Portée', 'zone ' + (b.def.cover * 2 + 1) + '×' + (b.def.cover * 2 + 1) + ' · liaisons ' + b.def.reach + ' cases'));
       body.appendChild(section('Réseau électrique', h('div', { class: 'icard flat' }, rows.concat(net ? netRows(net) : []))));
@@ -1258,9 +1263,9 @@
 
   /** Kéora: the quantum network a building is part of (tubes, silos...) or touches (users). */
   function networkInfo(body, b) {
-    if (b.site || CO.planet().grid !== 'tubes') return;
+    if (b.site || CO.planet().transport !== 'tubes') return;
     const n = b.knet, mem = CO.tubes.member(b);
-    if (!n) { body.appendChild(section('Réseau quantique', h('div', { class: 'small', style: 'color:#b9a8ff', text: 'Ne touche aucun tube : ni objets ni courant.' }))); return; }
+    if (!n) { body.appendChild(section('Réseau quantique', h('div', { class: 'small', style: 'color:#b9a8ff', text: 'Ne touche aucun tube : le réseau ne lui apporte rien.' }))); return; }
     const box = h('div', { class: 'icard flat' },
       kv('Transferts', fmtNum(n.flow, 1) + ' / ' + fmtNum(n.rate, 1) + ' par seconde'),
       kv('En circulation', n.pool.length + ' / ' + CO.tubes.capOf(n) + ' objets'),
@@ -1509,10 +1514,12 @@
         break;
       case 'lab': out.push('Consomme sans limite les objets de la recherche active (le surplus utile part en réserve)'); break;
       case 'seller': out.push(def.planet ? 'Relié au réseau, achète ce qui y reste sans preneur' : 'Achète tout ce qui arrive, sans limite de débit'); break;
-      case 'ktube': out.push('Réseau : ' + CO.tubes.BASE + ' transferts/s, + ' + BUILDINGS.k_booster.rate + ' par accélérateur · objets et courant'); break;
+      case 'ktube': out.push('Réseau : ' + CO.tubes.BASE + ' transferts/s, + ' + BUILDINGS.k_booster.rate + ' par accélérateur'); break;
+      case 'kprism': out.push('Renvoie les faisceaux d’énergie dans le sens de sa flèche · ' + CO.power.RANGE + ' cases'); break;
+      case 'ksplit': out.push('Divise les faisceaux d’énergie en trois (devant, gauche, droite) · ' + CO.power.RANGE + ' cases'); break;
       case 'ksilo': out.push('Capacité : ' + def.capacity + ' objets, pris et rendus par le réseau'); break;
       case 'kbooster': out.push('+' + def.rate + ' transferts/s pour son réseau · ' + def.power + ' kW'); break;
-      case 'krelay': out.push('Portée : ' + def.range + ' cases · relie deux réseaux (objets et courant)'); break;
+      case 'krelay': out.push('Portée : ' + def.range + ' cases · relie deux réseaux de tubes'); break;
       case 'kaccu': out.push('Réserve ' + CO.fmt(def.capacity) + ' kJ · ' + def.rate + ' kW au plus, en charge comme en décharge'); break;
       case 'generator': out.push((def.light ? 'Jusqu’à ' : '') + def.gen + ' kW' + (def.fuel ? ' · ' + itemName(def.fuel) + ' : 1 toutes les ' + def.burn + ' s à pleine charge' : def.light ? ' le jour, rien la nuit' : ' en continu')); break;
       case 'port': out.push('Accepte tout, sans limite de débit (le surplus est revendu)'); break;

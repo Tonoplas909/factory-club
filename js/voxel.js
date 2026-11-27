@@ -149,29 +149,156 @@
 
   // Kéora's quantum network: violet metal, cyan light.
   const KB = '#3a3550', KB2 = '#4a4466', KL = '#8a84b0', KC = '#5ef0ff', KV = '#c060f0';
-  function kPlinth(m, n) { m.box(0, 0, 0, n, n, 1, KB); m.box(1, 1, 1, n - 2, n - 2, 1, KB2); return m; }
+  const KP = '#ff6ad8', KM = '#5fe0a8', KY = '#e6d040', KA = '#c8903a', KD = '#1a1528';
+  const shade = CO.shade;
+  /** Round base of Kéora's machines (the Terre's stand on square plinths). */
+  function kRound(m, n) { m.cyl(n / 2, n / 2, 0, n / 2 - 0.4, 1, KB).cyl(n / 2, n / 2, 1, n / 2 - 1.2, 1, KB2); return m; }
+  function kDrill(f, n) {                              // a spinning crystal bit in a ring frame
+    const m = kRound(new Model(n), n), c = n / 2, big = n > 16;
+    m.cyl(c, c, 2, c - 3, 2, KD).cyl(c, c, 4, c - 3, 1, KL).cyl(c, c, 4, c - 4.5, 1, null);
+    for (let k = 0; k < 4; k++) {
+      const a = (f % 4) * Math.PI / 8 + k * Math.PI / 2;
+      for (let r = 1; r < c - 3; r++) m.set(Math.round(c - 0.5 + Math.cos(a) * r), Math.round(c - 0.5 + Math.sin(a) * r), 3, KV);
+    }
+    const s = big ? 3 : 2, x0 = Math.floor(c - s / 2);
+    m.box(x0, x0, 3, s, s, big ? 8 : 6, KC).box(x0, x0, big ? 11 : 9, s, s, 1, '#e0ffff');
+    return m;
+  }
 
   const MODELS = {
+    // ---- Kéora's machines: round violet bases, crystals, cold lights
+    k_drill: function (f) { return kDrill(f, 16); },
+    k_drill_heavy: function (f) { return kDrill(f, 24); },
+    k_extractor: function (f) {                        // a basin on the lake and three cartridges
+      const m = kRound(new Model(16), 16);
+      m.cyl(6, 7, 2, 4.5, 1, '#1f5a52').set(5 + f, 6, 2, '#5fc8b0');
+      for (let i = 0; i < 3; i++) m.box(11, 3 + i * 4, 2, 3, 3, 4, KM).box(11, 3 + i * 4, 6, 3, 3, 1, '#e0fff8');
+      return m;
+    },
+    k_well: function (f) {                             // a sealed shaft with an amber cap moving up and down
+      const m = kRound(new Model(16), 16);
+      m.box(5, 5, 2, 6, 6, 6, KB2).box(6, 6, 8 + f, 4, 4, 2, KA).box(7, 7, 10 + f, 2, 2, 1, '#ffe0a0');
+      m.box(2, 7, 2, 3, 2, 3, KL).box(11, 7, 2, 3, 2, 3, KL);
+      return m;
+    },
+    k_forge: function (f) {                            // coil rings around a white-hot core
+      const m = kRound(new Model(16), 16);
+      m.cyl(8, 8, 2, 3, 8, [KP, '#ff9ad8', '#ffd0f0'][f % 3]);
+      for (let z = 2; z < 10; z += 2) m.cyl(8, 8, z, 5.5, 1, (z / 2 + f) % 3 ? KC : '#2f8a9a').cyl(8, 8, z, 4.4, 1, null);
+      return m;
+    },
+    k_workshop: function (f) {                         // a table and two laser arms over the part
+      const m = kRound(new Model(16), 16);
+      m.box(3, 3, 2, 10, 10, 2, '#2a2540').box(6 + (f % 4), 7, 4, 3, 2, 1, '#7f9cf0');
+      m.box(2, 2, 2, 2, 2, 7, KL).box(2, 2, 9, 4, 2, 1, KC).box(12, 12, 2, 2, 2, 7, KL).box(10, 12, 9, 4, 2, 1, KP);
+      return m;
+    },
+    k_plasma_oven: function (f) {                      // a dome with plasma glowing through its top
+      const m = kRound(new Model(24), 24);
+      m.cyl(12, 12, 2, 9, 5, KB2).cyl(12, 12, 7, 8, 2, KL).cyl(12, 12, 9, 6, 1, KB2).cyl(12, 12, 10, 4, 1, f % 2 ? KP : KV);
+      for (let k = 0; k < 4; k++) m.box(k % 2 ? 1 : 21, 10 + (k >> 1) * 3, 3, 2, 2, 2, KP);
+      return m;
+    },
+    k_synth: function (f) {                            // a cluster of crystal towers, one lit at a time
+      const m = kRound(new Model(24), 24);
+      const hs = [6, 9, 5, 8, 11, 7, 5, 8, 6];
+      for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) {
+        const k = i + j * 3, x = 4 + i * 6, y = 4 + j * 6;
+        m.box(x, y, 2, 4, 4, hs[k], KB2).box(x + 1, y + 1, 2 + hs[k], 2, 2, 2, k % 4 === f % 4 ? KC : KV);
+      }
+      return m;
+    },
+    k_stellar: function (f) {                          // a standing ring around a captive star
+      const m = kRound(new Model(32), 32);
+      for (let a = 0; a < 360; a += 6) {
+        const r = a * Math.PI / 180, x = Math.round(16 + Math.cos(r) * 11), z = Math.round(14 + Math.sin(r) * 11);
+        m.box(x - 1, 15, z, 2, 2, 2, a % 36 ? KL : KC);
+      }
+      m.cyl(16, 16, 12, 3 + (f % 2) * 0.6, 4, KY).box(15, 15, 13, 2, 2, 2, '#ffffff');
+      m.box(14, 14, 2, 4, 4, 2, KB2).box(4, 4, 2, 3, 3, 6, KV).box(25, 25, 2, 3, 3, 6, KV);
+      return m;
+    },
+    k_chem: function (f) {                             // three vats (ammonia, methane, product)
+      const m = kRound(new Model(24), 24);
+      [[7, 8, KM, 7], [17, 8, KA, 9], [12, 17, KC, 6]].forEach(function (v, i) {
+        m.cyl(v[0], v[1], 2, 4, v[3], v[2]).cyl(v[0], v[1], 2 + v[3], 3, 1, shade(v[2], 0.3));
+        if ((f + i) % 3 === 0) m.set(v[0], v[1], 3 + v[3], '#ffffff');
+      });
+      return m;
+    },
+    k_gen: function (f) {                              // a sulfur burner between two radiators
+      const m = kRound(new Model(16), 16);
+      m.cyl(8, 8, 2, 4, 5, KB2).cyl(8, 8, 7, 2.5, 1 + (f % 2), [KY, '#fff7a8', '#ffb347'][f % 3]);
+      for (let k = 0; k < 4; k++) m.box(1, 3 + k * 3, 2, 2, 1, 6, KL).box(13, 3 + k * 3, 2, 2, 1, 6, KL);
+      return m;
+    },
+    k_turbine: function (f) {                          // a big turbine housing with turning blades on top
+      const m = kRound(new Model(24), 24);
+      m.cyl(11, 12, 2, 9, 8, KB2).cyl(11, 12, 10, 8, 1, KD);
+      for (let k = 0; k < 3; k++) {
+        const a = k * Math.PI * 2 / 3 + f * Math.PI / 6;
+        for (let r = 2; r < 8; r++) m.set(Math.round(11 + Math.cos(a) * r), Math.round(12 + Math.sin(a) * r), 11, KL);
+      }
+      m.box(10, 11, 11, 2, 2, 1, KA).box(20, 9, 2, 3, 6, 10, '#5a3a10').box(20, 10, 12, 3, 4, 1, KA);
+      return m;
+    },
+    k_collector: function () {                         // four tilted crystal facets around a lens
+      const m = kRound(new Model(16), 16);
+      [[2, 2], [9, 2], [2, 9], [9, 9]].forEach(function (p, i) {
+        for (let k = 0; k < 5; k++) m.box(p[0], p[1] + k, 2 + (i < 2 ? k >> 1 : 2 - (k >> 1)), 5, 1, 1, i % 3 ? '#8a5ad8' : KV);
+      });
+      m.box(7, 7, 2, 2, 2, 6, KC);
+      return m;
+    },
+    k_lab: function (f) {                              // a glass dome with a floating crystal
+      const m = kRound(new Model(16), 16);
+      m.cyl(8, 8, 2, 6, 3, '#5a9aa8').cyl(8, 8, 5, 5, 2, '#7fc0cc').cyl(8, 8, 7, 3.5, 1, '#9fe8f0').box(7, 7, 8, 2, 2, 1, '#e0ffff');
+      m.box(7, 7, 10 + (f % 2), 2, 2, 3, KV);
+      return m;
+    },
+    k_seller: function () {                            // an exchange kiosk and a gold coin
+      const m = kRound(new Model(16), 16);
+      m.box(3, 3, 2, 10, 7, 6, KB2).box(3, 3, 8, 10, 7, 1, KL).box(4, 9, 4, 8, 1, 3, KM);
+      m.cyl(8, 13, 2, 2, 3, KY);
+      return m;
+    },
+    k_port: function (f) {                             // the Spatioport: a round pad, a light ring and a beacon mast
+      const m = new Model(32);
+      m.cyl(16, 16, 0, 15.6, 2, KB).cyl(16, 16, 2, 14.5, 1, '#2a2540');
+      for (let a = 0; a < 360; a += 30) { const r = a * Math.PI / 180; m.box(Math.round(16 + Math.cos(r) * 12), Math.round(16 + Math.sin(r) * 12), 3, 1, 1, 1, (a / 30 + f) % 2 ? KC : '#ffffff'); }
+      m.box(14, 14, 3, 4, 4, 9, KL).box(13, 13, 12, 6, 6, 1, KV).box(15, 15, 13, 2, 2, 2, f % 2 ? KC : '#ffffff');
+      return m;
+    },
+    k_prism: function () {                             // a crystal pointing East, on a small base
+      const m = new Model(8);
+      m.box(1, 1, 0, 6, 6, 1, KB2).box(2, 2, 1, 2, 4, 4, KV).box(4, 3, 1, 2, 2, 3, KV).box(6, 3, 1, 1, 2, 2, KC);
+      return m;
+    },
+    k_split: function () {                             // a crystal with three points: East, North, South
+      const m = new Model(8);
+      m.box(1, 1, 0, 6, 6, 1, KB2).box(3, 3, 1, 2, 2, 5, KV).box(5, 3, 1, 2, 2, 2, KC).box(3, 0, 1, 2, 2, 2, KC).box(3, 6, 1, 2, 2, 2, KC);
+      return m;
+    },
     k_silo: function () {                              // tall capsule silo with light rings
-      const m = kPlinth(new Model(16), 16);
+      const m = kRound(new Model(16), 16);
       m.cyl(8, 8, 2, 6.5, 12, KB2).cyl(8, 8, 14, 5, 1, KL).cyl(8, 8, 15, 2, 1, KB);
       m.cyl(8, 8, 5, 6.55, 1, KC).cyl(8, 8, 10, 6.55, 1, KV);
       return m;
     },
     k_booster: function (f) {                          // magnetic coil around a glowing core
-      const m = kPlinth(new Model(16), 16);
+      const m = kRound(new Model(16), 16);
       for (let z = 2; z < 9; z += 2) m.cyl(8, 8, z, 6, 1, z === 4 + 2 * (f % 2) ? KC : KL);
       m.cyl(8, 8, 2, 3, 8, KB).cyl(8, 8, 10, 2, 2, f % 2 ? KC : '#2f8a9a');
       return m;
     },
     k_relay: function (f) {                            // crystal emitter on a tripod
-      const m = kPlinth(new Model(16), 16);
+      const m = kRound(new Model(16), 16);
       m.box(3, 3, 2, 2, 2, 6, KL).box(11, 3, 2, 2, 2, 6, KL).box(7, 12, 2, 2, 2, 6, KL);
       m.box(5, 5, 8, 6, 6, 2, KB2).box(6, 6, 10, 4, 4, 6, KV).box(7, 7, 16, 2, 2, 2, f % 2 ? KC : '#ffffff');
       return m;
     },
     k_accu: function (f) {                             // four battery cells with charge lights
-      const m = kPlinth(new Model(16), 16);
+      const m = kRound(new Model(16), 16);
       for (let k = 0; k < 4; k++) {
         const x = 2 + (k % 2) * 7, y = 2 + Math.floor(k / 2) * 7;
         m.box(x, y, 2, 5, 5, 7, KB2).box(x + 1, y + 1, 9, 3, 3, 1, KL);
@@ -452,8 +579,8 @@
       return m;
     }
   };
-  V.frames = { k_booster: 2, k_relay: 2, k_accu: 3, launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 4, refinery: 4, generator: 4, drill: 2, drill_heavy: 2, smelter: 4, assembler: 4, steelmill: 4, fabricator: 4, spaceyard: 2, lab: 4, port: 2 };
-  for (const t in BUILDINGS) if (BUILDINGS[t].art && V.frames[BUILDINGS[t].art]) V.frames[t] = V.frames[BUILDINGS[t].art];
+  V.frames = { k_booster: 2, k_relay: 2, k_accu: 3, k_drill: 4, k_drill_heavy: 4, k_extractor: 2, k_well: 2, k_forge: 3, k_workshop: 4, k_plasma_oven: 2,
+    k_synth: 4, k_stellar: 2, k_chem: 3, k_gen: 3, k_turbine: 3, k_lab: 2, k_port: 2, launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 4, refinery: 4, generator: 4, drill: 2, drill_heavy: 2, smelter: 4, assembler: 4, steelmill: 4, fabricator: 4, spaceyard: 2, lab: 4, port: 2 };
 
   const cache = new Map();
   V.building = function (type, dir, frame) {
@@ -463,14 +590,8 @@
     const k = 'b' + type + d + ':' + f;
     let s = cache.get(k);
     if (!s) {
-      const base = def.art || type;                               // another planet's version: the Terre model, recoloured
-      const fn = base === 'drill_heavy' ? function (fr) { return MODELS.drill(fr, true); } : MODELS[base];
-      const m = fn(f);
-      if (def.art) {
-        const art = CO.planet(def.planet).art, pal = new Map();
-        m.m.forEach(function (c, key) { let v = pal.get(c); if (!v) { v = CO.recolorHex(c, art); pal.set(c, v); } m.m.set(key, v); });
-      }
-      s = raster(rotated(m, d));
+      const fn = type === 'drill_heavy' ? function (fr) { return MODELS.drill(fr, true); } : MODELS[type];
+      s = raster(rotated(fn(f), d));
       cache.set(k, s);
     }
     return s;

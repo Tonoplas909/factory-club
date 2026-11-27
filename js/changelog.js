@@ -6,6 +6,12 @@
 (function (CO) {
   'use strict';
   CO.CHANGELOG = [
+    { v: 9, date: '27 novembre 2026', title: 'Kéora : faisceaux d’énergie et nouveaux dessins', items: [
+      'L’énergie de Kéora voyage en faisceaux de lumière : le Spatioport en envoie un par côté, les générateurs et les accumulateurs dans le sens de leur flèche, sur 24 cases. Tout ce qu’un faisceau traverse est alimenté.',
+      'Prisme (renvoie le faisceau dans le sens de sa flèche) et Diffracteur (le divise en trois). Un faisceau cyan a assez d’énergie, orange pas assez, rouge aucune ; son tracé s’affiche quand on pose un générateur ou un prisme.',
+      'Les tubes ne transportent plus que les objets.',
+      'Toutes les machines de Kéora ont leurs propres dessins (coques octogonales, cristaux, plasma), en vue de dessus comme en vue isométrique.'
+    ] },
     { v: 8, date: '27 novembre 2026', title: 'Kéora : un monde à part', items: [
       'Plus rien de la Terre sur Kéora : ni convoyeurs, ni aiguillages, ni coffres, ni poteaux, ni tuyaux. Chaque bâtiment appartient à une seule planète.',
       'Le réseau quantique : les tubes qui se touchent forment un réseau, et tout bâtiment qui touche un tube y est relié. Une flèche de sortie pointée sur un tube y dépose la production ; le réseau l’apporte seul aux machines qui en ont besoin, au laboratoire et au Spatioport.',

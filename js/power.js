@@ -19,7 +19,7 @@
   'use strict';
   const world = CO.world;
   const FUEL_CAP = 10;
-  const PW = CO.power = { nets: [], links: [], ver: -1, supply: 0, demand: 0, unpowered: 0, FUEL_CAP: FUEL_CAP };
+  const PW = CO.power = { nets: [], links: [], beams: [], ver: -1, supply: 0, demand: 0, unpowered: 0, FUEL_CAP: FUEL_CAP, RANGE: 24 };
 
   function isNode(b) { return !b.site && (b.kind === 'pole' || b.kind === 'generator' || b.kind === 'port'); }
   PW.isConsumer = function (b) { return !!b.def.power; };
@@ -56,25 +56,96 @@
     return n !== p && linkOf(p, n) >= 0;
   };
 
-  /** Kéora: no poles nor wires, the power travels in the tubes of the quantum network (tubes.js). */
-  function rebuildTubes() {
+  // ---------------------------------------------------------------- Kéora: beams
+  // No poles nor wires on Kéora. Generators, accumulators and the Spatioport shoot a beam of light out of
+  // their output side (the Spatioport out of its four sides), in a straight line, PW.RANGE cells long; it
+  // goes over everything and powers every building it crosses. A prism sends the beams that reach it on in
+  // its own direction (a diffractor also to its left and right), with a fresh range. Everything a beam
+  // links (sources, prisms, consumers) is one network.
+  /** Does `b` shoot beams of its own (generators, accumulators, the Spatioport)? Prisms only pass them on. */
+  function emits(b) { return !!b.def.gen || b.kind === 'kaccu'; }
+  /** Directions a beam leaves `b` in. */
+  function outDirs(b) {
+    if (b.kind === 'port') return [0, 1, 2, 3];
+    if (b.kind === 'ksplit') return [b.dir, (b.dir + 1) & 3, (b.dir + 3) & 3];
+    return [b.dir];
+  }
+  /**
+   * Follow the beam leaving `src` towards `d`: calls hit(building) for each building crossed (a prism ends
+   * it) and returns the segment drawn: centre of the side it leaves from → centre of the last cell.
+   * Even-sized sources shoot a beam two cells wide, centred on the building.
+   */
+  function trace(src, d, hit) {
+    const hor = d === 0 || d === 2, s = d === 0 || d === 1 ? 1 : -1;
+    const mid = hor ? src.y + src.h / 2 : src.x + src.w / 2;
+    const lanes = Number.isInteger(mid) ? [mid - 1, mid] : [Math.floor(mid)];
+    let p = hor ? (s > 0 ? src.x + src.w : src.x - 1) : (s > 0 ? src.y + src.h : src.y - 1), last = null;
+    for (let k = 0; k < PW.RANGE; k++, p += s) {
+      let inside = false, stop = false;
+      for (let l = 0; l < lanes.length; l++) {
+        const x = hor ? p : lanes[l], y = hor ? lanes[l] : p;
+        if (!world.inBounds(x, y)) continue;
+        inside = true;
+        const o = world.at(x, y);
+        if (!o || o === src || o.site) continue;
+        if (hit(o) === false) stop = true;
+      }
+      if (!inside) break;
+      last = p;
+      if (stop) break;
+    }
+    if (last === null) return null;
+    const a = hor ? [s > 0 ? src.x + src.w : src.x, mid] : [mid, s > 0 ? src.y + src.h : src.y];
+    const e = hor ? [last + 0.5, mid] : [mid, last + 0.5];
+    return { a: a, b: e, src: src };
+  }
+  PW.trace = trace;
+  function rebuildBeams() {
     PW.ver = world.version;
-    CO.tubes.ensure();
-    const nets = CO.tubes.nets.map(function (tn) { return { id: tn.id, nodes: [], gens: [], cons: [], accus: [], supply: 0, demand: 0, sat: 0, load: 0, tnet: tn }; });
-    const list = world.list;
+    const list = world.list, parent = new Map();
+    const find = function (b) { let r = b; while (parent.get(r) !== r) r = parent.get(r); let c = b; while (c !== r) { const n = parent.get(c); parent.set(c, r); c = n; } return r; };
+    const add = function (b) { if (!parent.has(b)) parent.set(b, b); };
+    const union = function (a, b) { add(a); add(b); const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+    const segs = [], lit = new Set(), queue = [];
     for (let i = 0; i < list.length; i++) {
-      const b = list[i], net = b.knet && !b.site ? nets[b.knet.id] : null;
+      const b = list[i];
       b.net = null;
       if (b.site) continue;
-      if (b.def.gen) { if (net) { net.gens.push(b); net.nodes.push(b); b.net = net; } }
-      else if (b.kind === 'kaccu') { if (net) { net.accus.push(b); net.nodes.push(b); b.net = net; } }
-      else if (PW.isConsumer(b)) { b.pw = 0; if (net) { net.cons.push(b); b.net = net; } }
+      if (PW.isConsumer(b)) b.pw = 0;
+      if (emits(b)) { add(b); queue.push(b); lit.add(b); }
     }
-    PW.nets = nets; PW.links = [];
+    while (queue.length) {
+      const src = queue.shift(), dirs = outDirs(src);
+      for (let k = 0; k < dirs.length; k++) {
+        const seg = trace(src, dirs[k], function (o) {
+          union(src, o);
+          if (o.kind === 'kprism' || o.kind === 'ksplit') {
+            if (!lit.has(o)) { lit.add(o); queue.push(o); }
+            return false;
+          }
+          return true;
+        });
+        if (seg) segs.push(seg);
+      }
+    }
+    const byRoot = new Map(), nets = [];
+    parent.forEach(function (_, b) {
+      const r = find(b);
+      let net = byRoot.get(r);
+      if (!net) { net = { id: nets.length, nodes: [], gens: [], cons: [], accus: [], supply: 0, demand: 0, sat: 0, load: 0 }; byRoot.set(r, net); nets.push(net); }
+      b.net = net;
+      if (b.def.gen) { net.gens.push(b); net.nodes.push(b); }
+      else if (b.kind === 'kaccu') { net.accus.push(b); net.nodes.push(b); }
+      else if (PW.isConsumer(b)) net.cons.push(b);
+      else net.nodes.push(b);
+    });
+    for (let i = 0; i < segs.length; i++) segs[i].net = segs[i].src.net;
+    PW.nets = nets; PW.links = []; PW.beams = segs;
   }
 
   function rebuild() {
-    if (CO.planet(world.planet).grid === 'tubes') { rebuildTubes(); return; }
+    if (CO.planet(world.planet).grid === 'beams') { rebuildBeams(); return; }
+    PW.beams = [];
     PW.ver = world.version;
     const list = world.list, nodes = [], cons = [];
     for (let i = 0; i < list.length; i++) {
@@ -141,7 +212,7 @@
   }
 
   PW.update = function (dt) {
-    if (world.version !== PW.ver || (world.planet && CO.tubes.ver !== world.version)) rebuild();
+    if (world.version !== PW.ver) rebuild();
     const research = !!CO.state.research;
     let ts = 0, td = 0, off = 0;
     for (let n = 0; n < PW.nets.length; n++) {

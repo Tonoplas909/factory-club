@@ -449,7 +449,7 @@
   // ---- Kéora's quantum network (violet metal, cyan light)
   const KB = '#3a3550', KB2 = '#4a4466', KC = '#5ef0ff', KV = '#c060f0';
   function drawKSilo(g) {                                             // capsule silo: a ring of slots around a hatch
-    block(g, 32, 32, { base: KB2, cornerColor: '#6a6090', panel: KB });
+    kHull(g, 32, 32, 1);
     disc(g, OUT, 16, 16, 12); disc(g, '#5a5480', 16, 16, 11); ring(g, '#8a84b0', 16, 16, 11, 1);
     for (let k = 0; k < 8; k++) {
       const a = k / 8 * Math.PI * 2, x = Math.round(16 + Math.cos(a) * 7), y = Math.round(16 + Math.sin(a) * 7);
@@ -458,25 +458,171 @@
     disc(g, OUT, 16, 16, 3); disc(g, '#2a2540', 16, 16, 2);
   }
   function drawKBooster(g, f) {                                       // magnetic coil around a pulsing core
-    block(g, 32, 32, { base: KB2, cornerColor: '#6a6090', panel: KB });
+    kHull(g, 32, 32, f);
     ring(g, OUT, 16, 16, 12, 2); ring(g, '#8a7ad8', 16, 16, 11, 2);
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + f * 0.5; R(g, KC, Math.round(16 + Math.cos(a) * 10) - 1, Math.round(16 + Math.sin(a) * 10) - 1, 2, 2); }
     disc(g, OUT, 16, 16, 5); disc(g, f % 2 ? KC : '#2f8a9a', 16, 16, 4); disc(g, '#e0ffff', 16, 16, 1);
   }
   function drawKRelay(g, f) {                                         // crystal emitter on a tripod
-    block(g, 32, 32, { base: KB2, cornerColor: '#6a6090', panel: KB });
+    kHull(g, 32, 32, f);
     line(g, OUT, 6, 26, 16, 16, 2); line(g, OUT, 26, 26, 16, 16, 2); line(g, OUT, 16, 5, 16, 16, 2);
     line(g, '#8a84b0', 7, 25, 15, 17, 1); line(g, '#8a84b0', 25, 25, 17, 17, 1);
     R(g, OUT, 12, 10, 8, 12); R(g, KV, 13, 11, 6, 10); R(g, '#f0c8ff', 13, 11, 2, 6);
     R(g, f % 2 ? KC : '#ffffff', 15, 6, 2, 3);
   }
   function drawKAccu(g, f) {                                          // four cells with charge marks
-    block(g, 32, 32, { base: KB2, cornerColor: '#6a6090', panel: KB });
+    kHull(g, 32, 32, f);
     for (let k = 0; k < 4; k++) {
       const x = 5 + k * 6;
       R(g, OUT, x, 6, 5, 20); R(g, '#2a2540', x + 1, 7, 3, 18); R(g, '#8a84b0', x + 1, 5, 3, 1);
       for (let j = 0; j < 4; j++) R(g, j < 2 + (f + k) % 3 ? '#5fe0a8' : '#2a5a4a', x + 1, 22 - j * 4, 3, 3);
     }
+  }
+  // ---- Kéora's machines: octagonal violet hulls, crystals and cold lights (nothing like the Terre's blocks)
+  const KP = '#ff6ad8', KM = '#5fe0a8', KY = '#e6d040', KA = '#c8903a', KD = '#1a1528', KL = '#8a84b0';
+  /** Filled octagon: a w×h rectangle whose corners are cut by k pixels. */
+  function octo(g, c, x, y, w, h, k) {
+    for (let j = 0; j < h; j++) {
+      const cut = j < k ? k - j : j >= h - k ? j - (h - k) + 1 : 0;
+      R(g, c, x + cut, y + j, w - 2 * cut, 1);
+    }
+  }
+  /** Kéora hull filling W×H: outline, lit rim, inner panel, a cyan light on each cut corner. */
+  function kHull(g, W, H, f) {
+    const k = W >= 48 ? 8 : 6;
+    octo(g, OUT, 0, 0, W, H, k); octo(g, '#6a6290', 1, 1, W - 2, H - 2, k - 1); octo(g, KB2, 2, 2, W - 3, H - 3, k - 1);
+    octo(g, OUT, 3, 3, W - 6, H - 6, k - 2); octo(g, KB, 4, 4, W - 8, H - 8, k - 3);
+    const on = (f || 0) % 2 ? KC : '#3a8a9a';
+    R(g, on, k - 2, 2, 2, 1); R(g, on, W - k, 2, 2, 1); R(g, on, k - 2, H - 3, 2, 1); R(g, on, W - k, H - 3, 2, 1);
+  }
+  /** Crystal (rhombus) centred on (cx, cy), half-size s. */
+  function gem(g, c, cx, cy, s, hi) {
+    for (let j = -s; j <= s; j++) { const w = s - Math.abs(j); R(g, OUT, cx - w - 1, cy + j, 2 * w + 3, 1); }
+    for (let j = -s + 1; j <= s - 1; j++) { const w = s - Math.abs(j) - 1; if (w >= 0) R(g, c, cx - w, cy + j, 2 * w + 1, 1); }
+    if (hi) R(g, hi, cx - 1, cy - s + 2, 2, 2);
+  }
+  function drawKDrill(g, f, heavy) {                                  // a spinning crystal bit in a well
+    const W = heavy ? 48 : 32, c = W / 2, r = heavy ? 14 : 10;
+    kHull(g, W, W, f);
+    disc(g, OUT, c, c, r); disc(g, KD, c, c, r - 1); ring(g, KL, c, c, r - 1, 1);
+    for (let k = 0; k < 4; k++) {
+      const a = (f % 4) * Math.PI / 8 + k * Math.PI / 2;
+      line(g, KV, Math.round(c + Math.cos(a) * 3), Math.round(c + Math.sin(a) * 3), Math.round(c + Math.cos(a) * (r - 3)), Math.round(c + Math.sin(a) * (r - 3)), heavy ? 2 : 1);
+    }
+    gem(g, KC, c, c, heavy ? 5 : 3, '#e0ffff');
+  }
+  function drawKDrillHeavy(g, f) { drawKDrill(g, f, true); }
+  function drawKExtractor(g, f) {                                     // a window on the lake and a rack of cartridges
+    kHull(g, 32, 32, f);
+    disc(g, OUT, 16, 13, 8); disc(g, '#1f5a52', 16, 13, 7); R(g, '#5fc8b0', 11 + (f % 2) * 3, 11, 5, 1); R(g, '#5fc8b0', 14 - (f % 2) * 2, 15, 4, 1);
+    for (let i = 0; i < 3; i++) { R(g, OUT, 7 + i * 6, 22, 6, 7); R(g, KM, 8 + i * 6, 23, 4, 5); R(g, '#e0fff8', 8 + i * 6, 23, 4, 1); }
+  }
+  function drawKWell(g, f) {                                          // a sealed shaft, amber methane rising
+    kHull(g, 32, 32, f);
+    disc(g, OUT, 16, 16, 9); disc(g, '#2e2210', 16, 16, 8); disc(g, KA, 16, 16, 4 + (f % 2)); R(g, '#ffe0a0', 15, 13, 2, 2);
+    R(g, OUT, 4, 14, 6, 4); R(g, KL, 5, 15, 4, 2); R(g, OUT, 22, 14, 6, 4); R(g, KL, 23, 15, 4, 2);
+  }
+  function drawKForge(g, f) {                                         // induction coil around a white-hot core
+    kHull(g, 32, 32, f);
+    disc(g, OUT, 16, 16, 11); disc(g, KD, 16, 16, 10);
+    for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; R(g, (k + f) % 3 ? KC : '#2f8a9a', Math.round(16 + Math.cos(a) * 8) - 1, Math.round(16 + Math.sin(a) * 8) - 1, 2, 2); }
+    disc(g, OUT, 16, 16, 5); disc(g, [KP, '#ff9ad8', '#ffd0f0'][f % 3], 16, 16, 4); disc(g, '#ffffff', 16, 16, 1);
+  }
+  function drawKWorkshop(g, f) {                                      // two laser heads cutting a part on a table
+    kHull(g, 32, 32, f);
+    R(g, OUT, 7, 9, 18, 15); R(g, '#2a2540', 8, 10, 16, 13);
+    for (let y = 12; y < 22; y += 3) R(g, '#3a3060', 8, y, 16, 1);
+    const tx = 11 + (f % 4) * 3, ty = 17;
+    R(g, OUT, 5, 5, 5, 5); R(g, KL, 6, 6, 3, 3); R(g, OUT, 22, 5, 5, 5); R(g, KL, 23, 6, 3, 3);
+    line(g, KC, 8, 9, tx, ty, 1); line(g, KP, 24, 9, tx + 1, ty, 1);
+    R(g, OUT, tx - 2, ty - 1, 5, 4); R(g, '#7f9cf0', tx - 1, ty, 3, 2); R(g, '#ffffff', tx, ty, 1, 1);
+  }
+  function drawKPlasmaOven(g, f) {                                    // a round chamber of swirling plasma
+    kHull(g, 48, 48, f);
+    disc(g, OUT, 24, 24, 16); disc(g, '#2a1a40', 24, 24, 15); ring(g, KL, 24, 24, 15, 1);
+    for (let k = 0; k < 14; k++) {
+      const a = k * 0.9 + f * 0.7, r = 3 + (k % 5) * 2.4;
+      R(g, k % 2 ? KP : KV, Math.round(24 + Math.cos(a) * r) - 1, Math.round(24 + Math.sin(a) * r) - 1, 2, 2);
+    }
+    disc(g, '#ffd0f0', 24, 24, 2);
+    for (let i = 0; i < 3; i++) { R(g, OUT, 3, 16 + i * 6, 4, 4); R(g, KP, 4, 17 + i * 6, 2, 2); R(g, OUT, 41, 16 + i * 6, 4, 4); R(g, KP, 42, 17 + i * 6, 2, 2); }
+  }
+  function drawKSynth(g, f) {                                         // a grid of assembly cells lighting in turn
+    kHull(g, 48, 48, f);
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) {
+      const x = 9 + i * 10, y = 9 + j * 10, on = (i + j * 3) % 4 === f % 4;
+      R(g, OUT, x, y, 9, 9); R(g, on ? KC : '#3a3060', x + 1, y + 1, 7, 7);
+      gem(g, on ? '#e0ffff' : KV, x + 4, y + 4, 2);
+    }
+  }
+  function drawKStellar(g, f) {                                       // a ring around a captive star
+    kHull(g, 64, 64, f);
+    disc(g, OUT, 32, 32, 24); disc(g, KD, 32, 32, 23);
+    ring(g, KL, 32, 32, 21, 3); ring(g, KC, 32, 32, 18, 1);
+    [[32, 8], [56, 32], [32, 56], [8, 32]].forEach(function (p) { R(g, OUT, p[0] - 4, p[1] - 4, 8, 8); R(g, KV, p[0] - 3, p[1] - 3, 6, 6); R(g, '#f0c8ff', p[0] - 3, p[1] - 3, 2, 2); });
+    const r = 6 + (f % 2);
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + f * 0.2; line(g, '#fff7a8', 32, 32, Math.round(32 + Math.cos(a) * (r + 5)), Math.round(32 + Math.sin(a) * (r + 5)), 1); }
+    disc(g, KY, 32, 32, r); disc(g, '#ffffff', 32, 32, r - 3);
+  }
+  function drawKChem(g, f) {                                          // three vats joined by pipes
+    kHull(g, 48, 48, f);
+    line(g, OUT, 15, 17, 33, 17, 3); line(g, OUT, 15, 17, 24, 33, 3); line(g, OUT, 33, 17, 24, 33, 3);
+    line(g, KL, 15, 17, 33, 17, 1); line(g, KL, 15, 17, 24, 33, 1); line(g, KL, 33, 17, 24, 33, 1);
+    [[15, 17, KM], [33, 17, KA], [24, 33, KC]].forEach(function (v, i) {
+      disc(g, OUT, v[0], v[1], 7); disc(g, v[2], v[0], v[1], 6); disc(g, shade(v[2], -0.35), v[0], v[1] + 2, 3);
+      R(g, '#ffffff', v[0] - 2 + ((f + i) % 3), v[1] - 3, 1, 1);
+    });
+  }
+  function drawKGen(g, f) {                                           // a sulfur burner between two radiators
+    kHull(g, 32, 32, f);
+    for (let y = 8; y < 24; y += 3) { R(g, OUT, 5, y, 5, 2); R(g, KL, 6, y, 3, 1); R(g, OUT, 22, y, 5, 2); R(g, KL, 23, y, 3, 1); }
+    disc(g, OUT, 16, 16, 7); disc(g, '#3a2a10', 16, 16, 6); disc(g, [KY, '#fff7a8', '#ffb347'][f % 3], 16, 16, 3); R(g, '#ffffff', 16, 15, 1, 1);
+  }
+  function drawKTurbine(g, f) {                                       // a big fan and an amber exhaust
+    kHull(g, 48, 48, f);
+    disc(g, OUT, 22, 24, 15); disc(g, KD, 22, 24, 14); ring(g, KL, 22, 24, 14, 1);
+    for (let k = 0; k < 3; k++) { const a = k * Math.PI * 2 / 3 + f * Math.PI / 6; line(g, KL, 22, 24, Math.round(22 + Math.cos(a) * 12), Math.round(24 + Math.sin(a) * 12), 3); }
+    disc(g, OUT, 22, 24, 4); disc(g, KA, 22, 24, 3);
+    R(g, OUT, 38, 14, 7, 20); R(g, '#5a3a10', 39, 15, 5, 18); R(g, [KA, '#ffe0a0', KA][f % 3], 40, 16 + (f % 3) * 4, 3, 4);
+  }
+  function drawKCollector(g) {                                        // four crystal facets around a lens
+    kHull(g, 32, 32, 1);
+    const tri = function (x0, y0, dx, dy, c) { for (let i = 0; i < 11; i++) R(g, c, dx > 0 ? x0 : x0 - i, y0 + dy * i, i + 1, 1); };
+    tri(6, 6, 1, 1, KV); tri(26, 6, -1, 1, '#8a5ad8'); tri(6, 26, 1, -1, '#8a5ad8'); tri(26, 26, -1, -1, KV);
+    gem(g, KC, 16, 16, 5, '#e0ffff');
+  }
+  function drawKLab(g, f) {                                           // a glass dome with a floating crystal
+    kHull(g, 32, 32, f);
+    disc(g, OUT, 16, 16, 11); disc(g, '#3a6a78', 16, 16, 10); disc(g, '#5a9aa8', 15, 15, 8); R(g, '#e0ffff', 10, 9, 4, 2);
+    gem(g, KV, 16, 17 - (f % 2), 4, '#f0c8ff');
+    for (let k = 0; k < 4; k++) R(g, (k + f) % 4 ? '#2f8a9a' : KC, 7 + k * 6, 27, 2, 2);
+  }
+  function drawKSeller(g) {                                           // an exchange screen and a coin slot
+    kHull(g, 32, 32, 1);
+    R(g, OUT, 6, 6, 20, 12); R(g, '#2a2540', 7, 7, 18, 10);
+    R(g, KM, 9, 13, 3, 3); R(g, KM, 13, 11, 3, 5); R(g, KM, 17, 9, 3, 7); R(g, KC, 21, 8, 2, 8);
+    disc(g, OUT, 16, 23, 4); disc(g, KY, 16, 23, 3); R(g, '#8a6a10', 15, 22, 2, 3);
+  }
+  function drawKPort(g, f) {                                          // the Spatioport: a landing ring of lights
+    kHull(g, 64, 64, f);
+    disc(g, OUT, 32, 32, 25); disc(g, '#2a2540', 32, 32, 24);
+    ring(g, KC, 32, 32, 21, 1); ring(g, KV, 32, 32, 15, 1);
+    line(g, '#3a3060', 32, 9, 32, 55, 2); line(g, '#3a3060', 9, 32, 55, 32, 2);
+    for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; R(g, (k + f) % 2 ? '#ffffff' : KC, Math.round(32 + Math.cos(a) * 18) - 1, Math.round(32 + Math.sin(a) * 18) - 1, 2, 2); }
+    gem(g, KV, 32, 32, 8, '#f0c8ff'); gem(g, KC, 32, 32, 4);
+  }
+  /** Prism (1×1, drawn facing East): a crystal that turns the beam towards its point. */
+  function drawKPrism(g) {
+    octo(g, OUT, 1, 1, 14, 14, 3); octo(g, KB2, 2, 2, 12, 12, 2);
+    for (let i = 0; i < 9; i++) { const h = 9 - i; R(g, OUT, 4 + i, 8 - (h >> 1) - 1, 1, h + 2); }
+    for (let i = 0; i < 8; i++) { const h = 8 - i; R(g, i < 3 ? '#f0c8ff' : KV, 4 + i, 8 - (h >> 1), 1, h); }
+    R(g, KC, 12, 7, 2, 2);
+  }
+  /** Diffractor (1×1, facing East): a crystal with three points (front, left, right). */
+  function drawKSplit(g) {
+    octo(g, OUT, 1, 1, 14, 14, 3); octo(g, KB2, 2, 2, 12, 12, 2);
+    gem(g, KV, 8, 8, 4, '#f0c8ff');
+    R(g, KC, 12, 7, 2, 2); R(g, KC, 7, 2, 2, 2); R(g, KC, 7, 12, 2, 2);
   }
   /** Tube of the quantum network: a hub and an arm towards each connected side; `glow` 0 idle, 1 busy. */
   function tubeSprite(mask, glow) {
@@ -492,33 +638,19 @@
     return (cache[key] = c);
   }
 
-  const BIG = { k_silo: [2, drawKSilo], k_booster: [2, drawKBooster], k_relay: [2, drawKRelay], k_accu: [2, drawKAccu], launch_pad: [4, drawLaunchPad], drone_hub: [2, drawDroneHub], pump: [2, drawPump], oil_well: [2, drawOilWell], fluid_tank: [2, drawFluidTank], steam_plant: [3, drawSteamPlant], refinery: [3, drawRefinery],
+  const BIG = { k_silo: [2, drawKSilo], k_booster: [2, drawKBooster], k_relay: [2, drawKRelay], k_accu: [2, drawKAccu],
+    k_drill: [2, drawKDrill], k_drill_heavy: [3, drawKDrillHeavy], k_extractor: [2, drawKExtractor], k_well: [2, drawKWell], k_forge: [2, drawKForge],
+    k_workshop: [2, drawKWorkshop], k_plasma_oven: [3, drawKPlasmaOven], k_synth: [3, drawKSynth], k_stellar: [4, drawKStellar], k_chem: [3, drawKChem],
+    k_gen: [2, drawKGen], k_turbine: [3, drawKTurbine], k_collector: [2, drawKCollector], k_lab: [2, drawKLab], k_seller: [2, drawKSeller], k_port: [4, drawKPort],
+    launch_pad: [4, drawLaunchPad], drone_hub: [2, drawDroneHub], pump: [2, drawPump], oil_well: [2, drawOilWell], fluid_tank: [2, drawFluidTank], steam_plant: [3, drawSteamPlant], refinery: [3, drawRefinery],
     generator: [2, drawGenerator], solar_plant: [2, drawSolarPlant], drill: [2, drawDrill], drill_heavy: [3, drawDrill], smelter: [2, drawSmelter], assembler: [2, drawAssembler],
     steelmill: [3, drawSteelmill], fabricator: [3, drawFabricator], spaceyard: [4, drawSpaceyard], lab: [2, drawLab], seller: [2, drawSeller], port: [4, drawPort], driver: [2, drawDriver] };
   const SMALL = { splitter: drawSplitter, merger: drawMerger, chest: drawChest, underground_in: drawTunnelIn, underground_out: drawTunnelOut,
     overflow: drawOverflow, underflow: drawUnderflow, junction: drawJunction, sorter_inv: drawSorterInv, unloader: drawUnloader,
-    pole: drawPole, pylon: drawPylon, drone_provider: drawDroneProvider, drone_requester: drawDroneRequester };
-
-  /** Copy of canvas `src` recoloured with a planet's palette (CO.recolor). */
-  function recolored(src, art) {
-    const c = mk(src.width, src.height), g = c.getContext('2d');
-    g.drawImage(src, 0, 0);
-    const img = g.getImageData(0, 0, c.width, c.height), d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      if (!d[i + 3]) continue;
-      const v = CO.recolor(d[i], d[i + 1], d[i + 2], art);
-      d[i] = v[0]; d[i + 1] = v[1]; d[i + 2] = v[2];
-    }
-    g.putImageData(img, 0, 0);
-    return c;
-  }
+    pole: drawPole, pylon: drawPylon, drone_provider: drawDroneProvider, drone_requester: drawDroneRequester, k_prism: drawKPrism, k_split: drawKSplit };
 
   function buildingSprite(type, dir, f) {
     const def = BUILDINGS[type];
-    if (def.art) {                                                      // another planet's version of a Terre building
-      const key = 'a' + type + (f | 0);
-      return cache[key] || (cache[key] = recolored(buildingSprite(def.art, dir, f), CO.planet(def.planet).art));
-    }
     if (def.kind === 'belt') return beltSprite(def.tier || 0, dir, 0, f | 0);
     if (def.kind === 'pipe') return pipeSprite(dir & 1 ? 10 : 5, null);     // palette / ghost: a straight piece
     if (def.kind === 'ktube') return tubeSprite(5, 0);
@@ -604,6 +736,6 @@
   }
 
   CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrainChunk: terrainChunk, barrel: barrelSprite, pipe: pipeSprite, tube: tubeSprite,
-    frames: { k_booster: 2, k_relay: 2, k_accu: 3, launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 3, refinery: 3, generator: 3, drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
-  for (const t in BUILDINGS) if (BUILDINGS[t].art && CO.sprites.frames[BUILDINGS[t].art]) CO.sprites.frames[t] = CO.sprites.frames[BUILDINGS[t].art];
+    frames: { k_booster: 2, k_relay: 2, k_accu: 3, k_drill: 4, k_drill_heavy: 4, k_extractor: 2, k_well: 2, k_forge: 3, k_workshop: 4, k_plasma_oven: 3,
+      k_synth: 4, k_stellar: 2, k_chem: 3, k_gen: 3, k_turbine: 3, k_lab: 4, k_port: 2, launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 3, refinery: 3, generator: 3, drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
 })(window.CO = window.CO || {});

@@ -271,6 +271,7 @@
     drawRockets(time);
     drawWires();
     drawDriverLinks(ov);
+    drawBeams(time);
     drawShots(time);
     drawWorkers(time);
 
@@ -351,12 +352,14 @@
       for (let d = 0; d < 4; d++) if (b.slots[d] !== null) drawItem(b.slots[d], b.x + 0.5 + DX[d] * 0.2, b.y + 0.5 + DY[d] * 0.2, top);
     } else if (k === 'chest') gauge(b, b.q.length / CO.chestCap(b.def));
     else if (k === 'generator') {
+      if (CO.render.emitsBeam(b.def)) arrowOut(b);
       led(CO.render.ledColor(b), Math.round(c[0] - s / 2), Math.round(c[1] - ts * 0.55));
       if (b.def.fuel) gauge(b, b.fuel / CO.power.FUEL_CAP);
     }
+    else if (k === 'kaccu') arrowOut(b);
     else if (k === 'port') {
       const pulse = 0.5 + 0.5 * Math.sin(time * 2);
-      ctx.strokeStyle = 'rgba(255,211,127,' + (0.2 + 0.4 * pulse) + ')'; ctx.lineWidth = Math.max(2, ts * 0.08);
+      ctx.strokeStyle = 'rgba(' + (b.def.planet ? '94,240,255' : '255,211,127') + ',' + (0.2 + 0.4 * pulse) + ')'; ctx.lineWidth = Math.max(2, ts * 0.08);
       diamondPath(b.x + 0.15, b.y + 0.15, b.x + b.w - 0.15, b.y + b.h - 0.15, top); ctx.stroke();
     }
   }
@@ -372,6 +375,31 @@
     const t = P(mx + dx * 0.42, my + dy * 0.42, 0.05), l = P(mx + nx * 0.28, my + ny * 0.28, 0.05), r = P(mx - nx * 0.28, my - ny * 0.28, 0.05);
     ctx.beginPath(); ctx.moveTo(t[0], t[1]); ctx.lineTo(l[0], l[1]); ctx.lineTo(r[0], r[1]); ctx.closePath();
     ctx.fillStyle = ACC; ctx.fill(); ctx.lineWidth = Math.max(1, ts / 16); ctx.strokeStyle = OUT; ctx.stroke();
+  }
+
+  // ------------------------------------------------------- Kéora's energy beams
+  const BEAM_Z = 0.6;
+  function beamLine(a, e, col, time, ghost) {
+    if (Math.max(a[0], e[0]) < -ts || Math.min(a[0], e[0]) > cw + ts || Math.max(a[1], e[1]) < -ts || Math.min(a[1], e[1]) > ch + ts) return;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(e[0], e[1]);
+    if (ghost) {
+      ctx.setLineDash([ts * 0.3, ts * 0.2]); ctx.strokeStyle = 'rgba(' + col + ',0.8)'; ctx.lineWidth = Math.max(1, ts * 0.08); ctx.stroke(); ctx.setLineDash([]);
+      return;
+    }
+    ctx.strokeStyle = 'rgba(' + col + ',0.16)'; ctx.lineWidth = ts * 0.4; ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + col + ',0.85)'; ctx.lineWidth = Math.max(1, ts * 0.07); ctx.stroke();
+    ctx.setLineDash([ts * 0.2, ts * 0.6]); ctx.lineDashOffset = -time * ts * 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = Math.max(1, ts * 0.06); ctx.stroke(); ctx.setLineDash([]);
+  }
+  function drawBeams(time) {
+    const B = CO.power.beams;
+    if (!B.length) return;
+    ctx.save(); ctx.lineCap = 'round';
+    for (let i = 0; i < B.length; i++) {
+      const s = B[i];
+      beamLine(P(s.a[0], s.a[1], BEAM_Z), P(s.b[0], s.b[1], BEAM_Z), CO.render.beamColor(s.net), time, false);
+    }
+    ctx.restore();
   }
 
   // ------------------------------------------------------- flying things
@@ -554,6 +582,9 @@
     for (let i = 0; i < gh.length; i++) {
       const g = gh[i], def = CO.BUILDINGS[g.type], box = { x: g.x, y: g.y, w: def.w, h: def.h, dir: g.dir };
       if ((def.kind === 'driver' || def.kind === 'krelay') && gh.length === 1) rangeEllipse({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
+      if (CO.render.emitsBeam(def) && gh.length <= 4) {
+        ctx.save(); CO.render.ghostBeams(g).forEach(function (s) { beamLine(P(s.a[0], s.a[1], BEAM_Z), P(s.b[0], s.b[1], BEAM_Z), '94,240,255', 0, true); }); ctx.restore();
+      }
       foot(box, !g.valid ? 'rgba(229,84,84,0.45)' : g.ghost ? 'rgba(110,160,255,0.3)' : 'rgba(255,211,127,0.14)',
         !g.valid ? 'rgba(229,84,84,0.95)' : g.ghost ? 'rgba(150,190,255,0.95)' : 'rgba(255,211,127,0.95)', lw);
       const spr = def.kind === 'belt' ? V.belt(def.tier || 0, g.dir, 0, 0) : V.building(g.type, g.dir, 0);

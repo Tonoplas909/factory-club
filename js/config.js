@@ -261,51 +261,55 @@
     port:            { name: 'Port de la station',   cat: 'Autres',     kind: 'port',        w: 4, h: 4, cost: 0,   tech: null, fixed: true, hidden: true, gen: 150, cover: 6,
                        desc: 'Reçoit les pièces de la station. Le surplus est revendu.' },
 
-    // ================= Kéora (planet 1): nothing of the Terre exists there. No belts, poles nor pipes: the
-    // quantum network (tubes.js) carries the items AND the power; liquids travel in cartridges.
-    // `art`: the Terre building whose pixel art is redrawn with the planet's palette (CO.PLANETS[].art).
+    // ================= Kéora (planet 1): nothing of the Terre exists there. No belts: the quantum network
+    // (tubes.js) carries the items. No poles: energy travels in beams of light (power.js). No pipes: liquids
+    // travel in cartridges.
     k_tube:          { name: 'Tube quantique',       cat: 'Réseau',     kind: 'ktube',       w: 1, h: 1, cost: 3,   tech: null, planet: 1, path: true, nodir: true,
-                       desc: 'Les tubes qui se touchent forment un réseau. Tout bâtiment qui touche un tube y est relié : le réseau lui apporte ce dont il a besoin et lui donne du courant. Pointe la flèche d’une machine sur un tube pour y déposer sa production. Glisse pour en poser plusieurs.' },
+                       desc: 'Les tubes qui se touchent forment un réseau. Tout bâtiment qui touche un tube y est relié : le réseau lui apporte ce dont il a besoin. Pointe la flèche d’une machine sur un tube pour y déposer sa production. Glisse pour en poser plusieurs.' },
     k_silo:          { name: 'Silo à capsules',      cat: 'Réseau',     kind: 'ksilo',       w: 2, h: 2, cost: 150, tech: null, capacity: 400, planet: 1, nodir: true,
                        desc: 'Fait partie du réseau : garde jusqu’à 400 objets dont personne n’a besoin sur le moment, et les rend dès qu’un bâtiment du réseau les demande.' },
     k_booster:       { name: 'Accélérateur de flux', cat: 'Réseau',     kind: 'kbooster',    w: 2, h: 2, cost: 300, tech: 'k_flux', rate: 10, power: 40, planet: 1, nodir: true,
                        desc: 'Fait partie du réseau et lui ajoute 10 transferts/s (un réseau seul en fait 6). Consomme 40 kW.' },
     k_relay:         { name: 'Relais quantique',     cat: 'Réseau',     kind: 'krelay',      w: 2, h: 2, cost: 800, tech: 'k_relay', range: 64, planet: 1, nodir: true,
-                       desc: 'Relie son réseau (objets et courant) à celui d’un autre relais, jusqu’à 64 cases, par-dessus tout le reste. Infos → « Choisir la cible ».' },
-    k_drill:         { name: 'Foreuse à plasma',     cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 120, tech: null, rate: 0.5, power: 15, planet: 1, art: 'drill',
+                       desc: 'Relie son réseau de tubes à celui d’un autre relais, jusqu’à 64 cases, par-dessus tout le reste. Infos → « Choisir la cible ».' },
+    k_prism:         { name: 'Prisme',               cat: 'Énergie',    kind: 'kprism',      w: 1, h: 1, cost: 20,  tech: null, planet: 1,
+                       desc: 'Un faisceau d’énergie qui l’atteint repart dans le sens de sa flèche, avec une portée neuve de 24 cases. Sert à contourner, à tourner au coin d’une rangée de machines.' },
+    k_split:         { name: 'Diffracteur',          cat: 'Énergie',    kind: 'ksplit',      w: 1, h: 1, cost: 60,  tech: 'k_photonics', planet: 1,
+                       desc: 'Divise le faisceau qui l’atteint en trois : devant (sa flèche), à gauche et à droite, chacun avec une portée de 24 cases.' },
+    k_drill:         { name: 'Foreuse à plasma',     cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 120, tech: null, rate: 0.5, power: 15, planet: 1,
                        desc: 'À poser sur un gisement : 0,5 minerai/s à pleine couverture (0,125 par case). Équivaut à 2 forges. Sort par la flèche (sur un tube : dans le réseau).' },
-    k_drill_heavy:   { name: 'Foreuse sismique',     cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 500, tech: 'k_seismic', rate: 2, power: 45, planet: 1, art: 'drill_heavy',
+    k_drill_heavy:   { name: 'Foreuse sismique',     cat: 'Production', kind: 'drill',       w: 3, h: 3, cost: 500, tech: 'k_seismic', rate: 2, power: 45, planet: 1,
                        desc: 'Grande foreuse 3×3 : 2 minerais/s à pleine couverture (9 cases). Équivaut à 8 forges.' },
-    k_extractor:     { name: 'Extracteur d’ammoniac', cat: 'Production', kind: 'drill',      w: 2, h: 2, cost: 200, tech: 'k_cryo', rate: 0.5, power: 20, fluidOre: 'ammonia', yields: 'ammonia_cell', planet: 1, art: 'pump',
+    k_extractor:     { name: 'Extracteur d’ammoniac', cat: 'Production', kind: 'drill',      w: 2, h: 2, cost: 200, tech: 'k_cryo', rate: 0.5, power: 20, fluidOre: 'ammonia', yields: 'ammonia_cell', planet: 1,
                        desc: 'À poser sur un lac d’ammoniac : remplit 0,5 cartouche/s à pleine couverture. Pas de tuyaux sur Kéora : les liquides voyagent en cartouches, comme les autres objets.' },
-    k_well:          { name: 'Puits de méthane',     cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 1000, tech: 'k_methane', rate: 0.25, power: 50, fluidOre: 'methane', yields: 'methane_cell', planet: 1, art: 'oil_well',
+    k_well:          { name: 'Puits de méthane',     cat: 'Production', kind: 'drill',       w: 2, h: 2, cost: 1000, tech: 'k_methane', rate: 0.25, power: 50, fluidOre: 'methane', yields: 'methane_cell', planet: 1,
                        desc: 'À poser sur une poche de méthane (taches brunes, loin du Port) : 0,25 cartouche/s à pleine couverture.' },
-    k_forge:         { name: 'Forge à induction',    cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 150, tech: null, power: 20, planet: 1, art: 'smelter',
+    k_forge:         { name: 'Forge à induction',    cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 150, tech: null, power: 20, planet: 1,
                        desc: 'Fond cobalt, lithium, quartz et roche volcanique en lingots, lithium raffiné, verre et céramique. La recette se choisit seule.' },
-    k_workshop:      { name: 'Atelier de précision', cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 220, tech: null, power: 30, planet: 1, art: 'assembler',
+    k_workshop:      { name: 'Atelier de précision', cat: 'Production', kind: 'machine',     w: 2, h: 2, cost: 220, tech: null, power: 30, planet: 1,
                        desc: 'Tôles, rotors, fibre optique, puces photoniques et cellules. Clique dessus pour choisir la recette.' },
-    k_plasma_oven:   { name: 'Four à plasma',        cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 600, tech: 'k_plasma', power: 80, planet: 1, art: 'steelmill',
+    k_plasma_oven:   { name: 'Four à plasma',        cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 600, tech: 'k_plasma', power: 80, planet: 1,
                        desc: 'Superalliage et cristal résonant (au soufre), iridium trempé (au lithium).' },
-    k_synth:         { name: 'Synthétiseur',         cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 1000, tech: 'k_synth', power: 120, planet: 1, art: 'fabricator',
+    k_synth:         { name: 'Synthétiseur',         cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 1000, tech: 'k_synth', power: 120, planet: 1,
                        desc: 'Assemble les pièces avancées du portail.' },
-    k_stellar:       { name: 'Forge stellaire',      cat: 'Production', kind: 'machine',     w: 4, h: 4, cost: 2500, tech: 'k_stellar', power: 300, planet: 1, art: 'spaceyard',
+    k_stellar:       { name: 'Forge stellaire',      cat: 'Production', kind: 'machine',     w: 4, h: 4, cost: 2500, tech: 'k_stellar', power: 300, planet: 1,
                        desc: 'Géant 4×4 : noyaux de fusion et segments de portail, les pièces les plus complexes.' },
-    k_chem:          { name: 'Réacteur chimique',    cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 1500, tech: 'k_cryo', power: 100, planet: 1, art: 'refinery',
+    k_chem:          { name: 'Réacteur chimique',    cat: 'Production', kind: 'machine',     w: 3, h: 3, cost: 1500, tech: 'k_cryo', power: 100, planet: 1,
                        desc: 'Hydrazine (cartouches d’ammoniac) et polymère (cartouches de méthane + soufre).' },
-    k_gen:           { name: 'Générateur au soufre', cat: 'Énergie',    kind: 'generator',   w: 2, h: 2, cost: 150, tech: null, gen: 150, fuel: 'sulfur', burn: 6, planet: 1, art: 'generator',
-                       desc: 'Brûle du soufre : 150 kW pour le réseau qu’il touche. Le réseau lui apporte son soufre. À pleine charge, un soufre dure 6 s.' },
-    k_turbine:       { name: 'Turbine au méthane',   cat: 'Énergie',    kind: 'generator',   w: 3, h: 3, cost: 2000, tech: 'k_methane', gen: 500, fuel: 'methane_cell', burn: 4, planet: 1, art: 'steam_plant',
-                       desc: 'Brûle des cartouches de méthane : 500 kW. À pleine charge, une cartouche dure 4 s.' },
-    k_collector:     { name: 'Collecteur photonique', cat: 'Énergie',   kind: 'generator',   w: 2, h: 2, cost: 1200, tech: 'k_lens', gen: 120, light: true, planet: 1, art: 'solar_plant',
-                       desc: 'Jusqu’à 120 kW sans carburant, en plein jour. Kéora tourne vite : la nuit tombe toutes les 5 minutes et le collecteur s’éteint. Garde des accumulateurs pour la nuit.' },
+    k_gen:           { name: 'Générateur au soufre', cat: 'Énergie',    kind: 'generator',   w: 2, h: 2, cost: 150, tech: null, gen: 150, fuel: 'sulfur', burn: 6, planet: 1,
+                       desc: 'Brûle du soufre (apporté par les tubes) et envoie 150 kW dans un faisceau d’énergie, dans le sens de sa flèche : tout ce que le faisceau traverse sur 24 cases est alimenté. À pleine charge, un soufre dure 6 s.' },
+    k_turbine:       { name: 'Turbine au méthane',   cat: 'Énergie',    kind: 'generator',   w: 3, h: 3, cost: 2000, tech: 'k_methane', gen: 500, fuel: 'methane_cell', burn: 4, planet: 1,
+                       desc: 'Brûle des cartouches de méthane : 500 kW, envoyés dans un faisceau dans le sens de sa flèche. À pleine charge, une cartouche dure 4 s.' },
+    k_collector:     { name: 'Collecteur photonique', cat: 'Énergie',   kind: 'generator',   w: 2, h: 2, cost: 1200, tech: 'k_lens', gen: 120, light: true, planet: 1,
+                       desc: 'Jusqu’à 120 kW sans carburant, en plein jour, dans un faisceau dans le sens de sa flèche. Kéora tourne vite : la nuit tombe toutes les 5 minutes et le collecteur s’éteint. Garde des accumulateurs pour la nuit.' },
     k_accu:          { name: 'Accumulateur',         cat: 'Énergie',    kind: 'kaccu',       w: 2, h: 2, cost: 600, tech: 'k_cells', capacity: 30000, rate: 200, planet: 1, nodir: true,
-                       desc: 'Se charge avec le surplus du réseau qu’il touche (200 kW au plus) et le rend quand les générateurs ne suffisent plus, la nuit par exemple. Réserve : 30 000 kJ.' },
-    k_lab:           { name: 'Laboratoire cristallin', cat: 'Autres',   kind: 'lab',         w: 2, h: 2, cost: 200, tech: null, power: 30, planet: 1, art: 'lab',
+                       desc: 'Placé sur un faisceau, il se charge du surplus de son réseau (200 kW au plus) et le rend quand les générateurs ne suffisent plus, la nuit par exemple. Il émet aussi un faisceau dans le sens de sa flèche. Réserve : 30 000 kJ.' },
+    k_lab:           { name: 'Laboratoire cristallin', cat: 'Autres',   kind: 'lab',         w: 2, h: 2, cost: 200, tech: null, power: 30, planet: 1,
                        desc: 'Relié au réseau, il reçoit les objets de la recherche en cours (onglet Recherche) et met en réserve ceux qui serviront plus tard.' },
-    k_seller:        { name: 'Comptoir d’échange',   cat: 'Autres',     kind: 'seller',      w: 2, h: 2, cost: 100, tech: null, planet: 1, art: 'seller',
+    k_seller:        { name: 'Comptoir d’échange',   cat: 'Autres',     kind: 'seller',      w: 2, h: 2, cost: 100, tech: null, planet: 1,
                        desc: 'Relié au réseau, il achète au prix fixe tout ce qui y traîne sans preneur depuis quelques secondes.' },
-    k_port:          { name: 'Spatioport de Kéora',  cat: 'Autres',     kind: 'port',        w: 4, h: 4, cost: 0,   tech: null, fixed: true, hidden: true, gen: 150, planet: 1, art: 'port',
-                       desc: 'Reçoit les pièces du portail. Relié au réseau, il prend ce que l’étape demande (et les contrats), revend le surplus et fournit 150 kW au réseau.' }
+    k_port:          { name: 'Spatioport de Kéora',  cat: 'Autres',     kind: 'port',        w: 4, h: 4, cost: 0,   tech: null, fixed: true, hidden: true, gen: 150, planet: 1,
+                       desc: 'Reçoit les pièces du portail. Relié aux tubes, il prend ce que l’étape demande (et les contrats) et revend le surplus. Il envoie 150 kW dans quatre faisceaux d’énergie, un par côté.' }
   };
   for (const id in CO.BUILDINGS) CO.BUILDINGS[id].id = id;
   // Every building belongs to one planet: what has no `planet` is the Terre's.
@@ -359,7 +363,7 @@
 
     // ================= Kéora: researched there, with its own items. Nothing learnt on the Terre counts there
     // (speed bonuses and upgrade levels included).
-    k_photonics:     { planet: 1, name: 'Photonique',            desc: 'Recette de la puce photonique (atelier de précision).', cost: { fiber: 30, cobalt_sheet: 15 }, req: [] },
+    k_photonics:     { planet: 1, name: 'Photonique',            desc: 'Recette de la puce photonique (atelier de précision) et Diffracteur (divise un faisceau d’énergie en trois).', cost: { fiber: 30, cobalt_sheet: 15 }, req: [] },
     k_plasma:        { planet: 1, name: 'Fusion au plasma',      desc: 'Four à plasma : superalliage et cristal résonant.', cost: { cobalt_sheet: 30, ceramic: 30, rotor: 15, lithium: 20 }, req: [] },
     k_flux:          { planet: 1, name: 'Flux quantique',        desc: 'Accélérateur de flux : +10 transferts/s pour le réseau qu’il touche.', cost: { cobalt_sheet: 20, rotor: 10, quartz_glass: 10 }, req: [] },
     k_overclock:     { planet: 1, name: 'Surcadençage',          desc: 'Machines 25 % plus rapides.', cost: { rotor: 30, photonic: 20 }, req: ['k_photonics'], effect: { machineSpeed: 0.25 } },
@@ -428,8 +432,9 @@
    * own map, land, factory, goal (phases then extensions) and Port; money, workers and research are shared.
    * maxExt: extensions before the goal is complete and the next planet opens (Infinity on the last one).
    * drill / drillHeavy / smelter / gen / refRecipe: the buildings and recipe the help texts compare against.
-   * the: the name inside a sentence; ground: the two floor palettes; art: recolouring of the reused building art (hue turn, grey tint).
-   * port: its Port; grid: how power travels ('poles' and wires, or the 'tubes' of the quantum network); upTech: research for
+   * the: the name inside a sentence; ground: the two floor palettes.
+   * port: its Port; grid: how power travels ('poles' and wires, or 'beams' of light); transport: how items travel ('belts', or
+   * the 'tubes' of the quantum network); upTech: research for
    * the upgrade levels II and III; day: length of a day in seconds (0: always day).
    */
   CO.PLANETS = [
@@ -447,7 +452,7 @@
       drill: 'drill', drillHeavy: 'drill_heavy', smelter: 'smelter', gen: 'generator', refRecipe: 'ingot_iron',
       machines: ['smelter', 'assembler', 'steelmill', 'fabricator', 'spaceyard', 'refinery'],
       ground: [['#34343b', '#313138', '#37373e'], ['#433f3b', '#403c38', '#46423d']], boulder: '#4a4a52', landBase: 400, far: 'Le titane se trouve loin du Port.',
-      port: 'port', grid: 'poles', upTech: [null, 'upgrades1', 'upgrades2'], day: 0 },
+      port: 'port', grid: 'poles', transport: 'belts', upTech: [null, 'upgrades1', 'upgrades2'], day: 0 },
     { id: 'keora', name: 'Kéora', the: 'Kéora', goal: 'Portail', goalOf: 'du portail', done: 'Portail ouvert', phases: KEORA_PHASES, maxExt: Infinity,
       desc: 'Un monde cristallin aux lacs d’ammoniac : cobalt, lithium, quartz, soufre, roche volcanique et iridium.',
       extDesc: 'Le portail s’agrandit : de nouveaux modules sont commandés.', extBase: 12000, extStep: 1500,
@@ -462,8 +467,8 @@
       drill: 'k_drill', drillHeavy: 'k_drill_heavy', smelter: 'k_forge', gen: 'k_gen', refRecipe: 'ingot_cobalt',
       machines: ['k_forge', 'k_workshop', 'k_plasma_oven', 'k_synth', 'k_stellar', 'k_chem'],
       ground: [['#363048', '#332d44', '#39334c'], ['#323d4c', '#2f3a49', '#354150']], boulder: '#544a6e', landBase: 2000,
-      art: { hue: 160, tint: '#8f7fe0', mix: 0.22 }, far: 'L’iridium se trouve loin du Port.',
-      port: 'k_port', grid: 'tubes', upTech: [null, 'k_up1', 'k_up2'], day: 300 }
+      far: 'L’iridium se trouve loin du Port.',
+      port: 'k_port', grid: 'beams', transport: 'tubes', upTech: [null, 'k_up1', 'k_up2'], day: 300 }
   ];
   /** Index of the planet being played (0 = Terre). */
   CO.planetIndex = function () { return (CO.state && CO.state.planet) || 0; };
@@ -548,7 +553,7 @@
     steelmill: 3, fabricator: 4, spaceyard: 6,
     k_drill: 0.75, k_drill_heavy: 2.5, k_forge: 1, k_workshop: 1.5, k_plasma_oven: 3, k_synth: 4, k_stellar: 6, k_chem: 4,
     k_gen: 1.2, k_collector: 2, k_turbine: 4, k_extractor: 1, k_well: 2, k_tube: 0.2, k_silo: 1, k_booster: 1.5, k_relay: 2.5, k_accu: 1.5,
-    k_lab: 1.5, k_seller: 1
+    k_lab: 1.5, k_seller: 1, k_prism: 0.3, k_split: 0.5
   };
   CO.WORKERS = { start: 3, max: 12, base: 2500, speed: 8 };   // speed in tiles per second
 })(window.CO = window.CO || {});
