@@ -326,6 +326,8 @@
         drawIcon(id, bx + bs / 2, by + bs / 2, bs);
       } else if (k === 'machine') label('?', c[0], by + bs / 2, ACC, ts * 0.7);
       led(CO.render.ledColor(b), bx + bs + 3, by);
+      if (b.def.mode === 'kiln') gauge(b, Math.min(1, (b.heat || 20) / b.def.maxHeat), '#ff7a3a');
+      else if (b.def.mode === 'grower' && b.slots && b.slots.length) gauge(b, b.slots.length / b.def.slots, '#c060f0');
     } else if (k === 'lab') {
       led(CO.render.ledColor(b), Math.round(c[0] - s / 2), Math.round(c[1] - ts * 0.6));
       if (CO.state.research) {
@@ -363,10 +365,10 @@
       diamondPath(b.x + 0.15, b.y + 0.15, b.x + b.w - 0.15, b.y + b.h - 0.15, top); ctx.stroke();
     }
   }
-  function gauge(b, f) {
+  function gauge(b, f, col) {
     const c = P(b.x + b.w / 2, b.y + b.h / 2, heightOf(b) + 0.15), bw = Math.max(ts * 0.6, b.w * hw * 0.9), bh = Math.max(2, Math.round(ts * 0.08));
     ctx.fillStyle = OUT; ctx.fillRect(Math.round(c[0] - bw / 2) - 1, Math.round(c[1]) - 1, Math.round(bw) + 2, bh + 2);
-    ctx.fillStyle = f > 0.9 ? RED : ACC; ctx.fillRect(Math.round(c[0] - bw / 2), Math.round(c[1]), Math.round(bw * f), bh);
+    ctx.fillStyle = col || (f > 0.9 ? RED : ACC); ctx.fillRect(Math.round(c[0] - bw / 2), Math.round(c[1]), Math.round(bw * f), bh);
   }
   /** Yellow arrow lying on the ground just outside the output edge. */
   function arrowOut(b) {

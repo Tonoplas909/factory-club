@@ -170,6 +170,17 @@
   CO.upgradePrice = function (b) { return CO.UPGRADE.cost[b.lvl || 1] * b.def.cost; };
   /** Seconds one craft takes with current research. */
   CO.craftTime = function (rec) { return rec.time / CO.mods.machine; };
+  /** How many crafts of `rec` one machine runs at once: a crucible's batch, a crystalliser's pods, else 1. */
+  CO.machineMult = function (rec) { const d = CO.BUILDINGS[rec.machine]; return d.mode === 'kiln' ? d.batch : d.mode === 'grower' ? d.slots : 1; };
+  /** `item` per second made by one machine running `rec` without a break (a crystalliser: at night). */
+  CO.machineRate = function (rec, item) { return rec.out[item] * CO.machineMult(rec) / CO.craftTime(rec); };
+  /** Short French note on how a machine of `rec` works, or ''. */
+  CO.machineNote = function (rec) {
+    const d = CO.BUILDINGS[rec.machine];
+    if (d.mode === 'kiln') return 'fournée de ' + d.batch + ' à ' + CO.fmt(rec.temp) + '°';
+    if (d.mode === 'grower') return d.slots + ' cristaux à la fois, la nuit';
+    return rec.cat ? 'use un ' + CO.ITEMS[rec.cat].name.toLowerCase() + ' toutes les ' + d.catUses + ' pièces' : '';
+  };
 
   // -------------------------------------------------------------- money
   CO.addMoney = function (n) {

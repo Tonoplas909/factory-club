@@ -187,6 +187,20 @@
       for (let z = 2; z < 10; z += 2) m.cyl(8, 8, z, 5.5, 1, (z / 2 + f) % 3 ? KC : '#2f8a9a').cyl(8, 8, z, 4.4, 1, null);
       return m;
     },
+    k_grower: function (f) {                           // six glass pods with crystals growing inside
+      const m = kRound(new Model(16), 16);
+      for (let k = 0; k < 6; k++) {
+        const x = 3 + (k % 3) * 4, y = 4 + Math.floor(k / 3) * 6;
+        m.box(x, y, 2, 2, 2, 5, '#3a6a78').box(x, y, 3, 2, 2, 2 + ((k + f) % 3), (k + f) % 4 ? KV : '#ffe0ff');
+      }
+      return m;
+    },
+    k_crusher: function (f) {                          // a hopper over two rollers, a slag heap beside
+      const m = kRound(new Model(16), 16);
+      m.box(3, 3, 2, 8, 8, 3, KB2).box(4, 4, 5, 6, 6, 1, KL).box(4, 5, 6, 6, 1, 1, f % 2 ? KL : KB).box(4, 8, 6, 6, 1, 1, f % 2 ? KB : KL);
+      m.box(11, 9, 2, 3, 3, 2, '#6a5a6a').set(12, 10, 4, '#c45a3c');
+      return m;
+    },
     k_workshop: function (f) {                         // a table and two laser arms over the part
       const m = kRound(new Model(16), 16);
       m.box(3, 3, 2, 10, 10, 2, '#2a2540').box(6 + (f % 4), 7, 4, 3, 2, 1, '#7f9cf0');
@@ -579,7 +593,7 @@
       return m;
     }
   };
-  V.frames = { k_booster: 2, k_relay: 2, k_accu: 3, k_drill: 4, k_drill_heavy: 4, k_extractor: 2, k_well: 2, k_forge: 3, k_workshop: 4, k_plasma_oven: 2,
+  V.frames = { k_grower: 3, k_crusher: 2, k_booster: 2, k_relay: 2, k_accu: 3, k_drill: 4, k_drill_heavy: 4, k_extractor: 2, k_well: 2, k_forge: 3, k_workshop: 4, k_plasma_oven: 2,
     k_synth: 4, k_stellar: 2, k_chem: 3, k_gen: 3, k_turbine: 3, k_lab: 2, k_port: 2, launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 4, refinery: 4, generator: 4, drill: 2, drill_heavy: 2, smelter: 4, assembler: 4, steelmill: 4, fabricator: 4, spaceyard: 2, lab: 4, port: 2 };
 
   const cache = new Map();

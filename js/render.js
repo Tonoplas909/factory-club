@@ -392,6 +392,18 @@
         const s = Math.max(3, Math.round(ts * 0.16));
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);
         ctx.fillStyle = led; ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
+        if (b.def.mode === 'kiln') {                 // crucible: heat gauge, white-hot once at the ore's temperature
+          const rec = b.recipe ? CO.RECIPES[b.recipe] : null, f = Math.min(1, (b.heat || 20) / b.def.maxHeat), gw = b.w * ts - ts * 0.6, gh = Math.max(2, ts * 0.09);
+          ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, gw, gh);
+          ctx.fillStyle = rec && b.heat >= rec.temp ? '#ffe0a0' : '#ff7a3a'; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, gw * f, gh);
+          if (rec) { ctx.fillStyle = '#ffffff'; ctx.fillRect(px + ts * 0.3 + gw * rec.temp / b.def.maxHeat, py + b.h * ts - ts * 0.24, Math.max(1, ts * 0.04), gh + ts * 0.08); }
+        } else if (b.def.mode === 'grower' && b.slots) {   // crystalliser: one dot per crystal growing
+          for (let i = 0; i < b.slots.length; i++) {
+            const r = CO.RECIPES[b.slots[i].r], f = Math.min(1, b.slots[i].p / r.time), d = Math.max(2, ts * 0.14);
+            ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.3 + i * d * 1.5 - 1, py + b.h * ts - ts * 0.24 - 1, d + 2, d + 2);
+            ctx.fillStyle = f >= 1 ? '#ffffff' : 'rgba(192,96,240,' + (0.35 + 0.65 * f) + ')'; ctx.fillRect(px + ts * 0.3 + i * d * 1.5, py + b.h * ts - ts * 0.24, d, d);
+          }
+        }
       } else if (k === 'lab') {
         const s = Math.max(3, Math.round(ts * 0.16));
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.12 - 1, py + ts * 0.12 - 1, s + 2, s + 2);

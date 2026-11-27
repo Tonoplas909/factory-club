@@ -182,8 +182,8 @@
         line.appendChild(h('span', { class: 'garrow', 'data-bld': rec.machine }, thumb(rec.machine, 30), h('small', { text: mach.name })));
         Object.keys(rec.out).forEach(function (k, i) { if (i) line.appendChild(plus()); line.appendChild(chip(k, rec.out[k])); });
         right.appendChild(line);
-        const t = CO.craftTime(rec), per = rec.out[id] / t;
-        right.appendChild(h('div', { class: 'small', text: 'Cycle ' + fmtTime(t) + ' · ' + fmtRate(per) + ' par machine' }));
+        const t = CO.craftTime(rec), per = CO.machineRate(rec, id), note = CO.machineNote(rec);
+        right.appendChild(h('div', { class: 'small', text: 'Cycle ' + fmtTime(t) + ' · ' + fmtRate(per) + ' par machine' + (note ? ' (' + note + ')' : '') }));
         if (!recOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
         else if (!machOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Machine à débloquer : ' + TECHS[mach.tech].name }));
       } else {
@@ -341,7 +341,7 @@
     if (!has('k_tube')) return '① Pose des Tubes quantiques (catégorie Réseau) depuis le Spatioport : glisse pour tracer une ligne. Tout bâtiment qui touche un tube y est relié.';
     if (!has('k_drill')) return '② Pose une Foreuse à plasma sur un gisement contre le réseau, sa flèche jaune pointée sur un tube.';
     if (CO.power.unpowered > 0) return '⚡ Un bâtiment n’a pas de courant : un faisceau d’énergie doit le traverser. Aligne-le avec un côté du Spatioport, ou envoie-lui un faisceau avec un Prisme ou un générateur (sa flèche donne le sens).';
-    if (!has('k_forge')) return '③ Une Forge à induction qui touche le réseau reçoit seule le minerai. Pointe sa flèche sur un tube pour y renvoyer les lingots.';
+    if (!has('k_forge')) return '③ Un Creuset à fournée qui touche le réseau reçoit seul le minerai, le chauffe et le cuit par fournées de 8. Pointe sa flèche sur un tube pour y renvoyer les lingots.';
     if (!has('k_workshop')) return '④ Un Atelier de précision relié au réseau (recette : tôle de cobalt ou rotor). Le Spatioport prend lui-même ce que l’étape demande.';
     return '';
   }
@@ -719,11 +719,13 @@
       if (!g) { g = groups[key] = { item: item, drill: b.kind === 'drill', n: 0, work: 0, idle: 0, blocked: 0, off: 0, miss: {} }; order.push(key); }
       g.n++;
       if (key === 'none') return;
-      if (b.status === 'work') g.work++; else if (b.status === 'blocked') g.blocked++; else if (b.status === 'nopower') g.off++;
+      if (b.status === 'work' || b.status === 'heat') g.work++; else if (b.status === 'blocked') g.blocked++; else if (b.status === 'nopower') g.off++;
       else {
         g.idle++;
+        if (b.status === 'day') return;                  // a crystalliser waiting for the night lacks nothing
         const rec = RECIPES[b.recipe];
         for (const k in rec.in) if ((b.inBuf[k] || 0) < rec.in[k]) g.miss[k] = (g.miss[k] || 0) + 1;
+        if (rec.cat && !(b.wear > 0) && !((b.inBuf[rec.cat] || 0) >= 1)) g.miss[rec.cat] = (g.miss[rec.cat] || 0) + 1;
         if (rec.fin) for (const k in rec.fin) if (CO.fluid.amount(b, k) < rec.fin[k]) g.miss[k] = (g.miss[k] || 0) + 1;
       }
     });
@@ -843,8 +845,22 @@
         return b.mode === 'charge' ? pill('good', 'Se charge · ' + pct) : b.mode === 'discharge' ? pill('warn', 'Se décharge · ' + pct) : pill('info', pct);
       }
       case 'pole': return b.net ? pill(b.net.sat >= 1 ? 'good' : b.net.sat > 0 ? 'warn' : 'bad', 'Réseau ' + Math.round(b.net.sat * 100) + ' %') : pill('info', 'Isolé');
-      case 'machine':
-        if (!b.recipe) return pill('warn', 'Recette à choisir');
+      case 'machine': {
+        if (!b.recipe) return pill('warn', b.def.mode === 'kiln' ? 'Attend du minerai' : 'Recette à choisir');
+        const rec = RECIPES[b.recipe];
+        if (b.def.mode === 'kiln') {
+          const ore = Object.keys(rec.in)[0], n = b.inBuf[ore] || 0;
+          return b.status === 'heat' ? pill('warn', 'Chauffe · ' + Math.round(b.heat) + '° / ' + CO.fmt(rec.temp) + '°')
+            : b.status === 'work' ? pill('good', 'Cuisson · fournée de ' + b.batchN) : b.status === 'blocked' ? pill('bad', 'Sortie bloquée')
+            : b.status === 'fill' ? pill('warn', 'Remplissage · ' + n + ' / ' + b.def.batch) : pill('warn', 'Attend du minerai');
+        }
+        if (b.def.mode === 'grower') {
+          const n = (b.slots || []).length;
+          return b.status === 'work' ? pill('good', n + ' cristal(aux) poussent') : b.status === 'day' ? pill('info', 'Jour : ' + n + ' cristal(aux) en sommeil')
+            : b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('warn', 'Attend des matières');
+        }
+        if (rec.cat && !(b.wear > 0) && !((b.inBuf[rec.cat] || 0) >= 1) && b.status !== 'work') return pill('bad', 'Plus de catalyseur');
+      }
         return b.status === 'work' ? pill('good', 'En production') : b.status === 'blocked' ? pill('bad', 'Sortie bloquée') : pill('warn', 'Attend des matières');
       case 'drill':
         if (!b.ore) return pill('bad', 'Hors gisement');
@@ -885,6 +901,13 @@
       if (b.kind === 'generator' && b.status === 'nofuel') return linked ? 'Le réseau de tubes lui apporte du ' + itemName(b.def.fuel).toLowerCase() + ' dès qu’il en circule : pointe la flèche d’une foreuse (ou d’un extracteur) sur un tube du même réseau.'
         : 'Il ne touche aucun tube : pose un tube contre lui pour qu’il reçoive son combustible.';
       if ((b.kind === 'machine' || b.kind === 'drill') && b.status === 'blocked') return 'Sa production ne sort pas : pointe sa flèche jaune sur un tube (ou sur un bâtiment qui la prend). Si le réseau est saturé, relie un silo ou un comptoir d’échange.';
+      if (b.kind === 'machine' && b.recipe) {
+        const rec = RECIPES[b.recipe];
+        if (b.def.mode === 'kiln' && b.status === 'heat') return 'Le creuset chauffe (' + Math.round(b.heat) + '°) jusqu’à ' + CO.fmt(rec.temp) + '° avant de cuire sa fournée. Garde-le plein : vide, il refroidit.';
+        if (b.def.mode === 'kiln' && b.status === 'fill') return 'Il charge sa fournée : il cuira dès qu’il aura ' + b.def.batch + ' minerais, ou ' + b.def.wait + ' s après le premier. Plus la fournée est pleine, plus il produit.';
+        if (b.def.mode === 'grower' && b.status === 'day') return 'Les cristaux ne poussent que dans le noir : ils reprendront à la tombée de la nuit. Garde des cristaux en silo pour la journée.';
+        if (rec.cat && !(b.wear > 0) && !((b.inBuf[rec.cat] || 0) >= 1)) return 'Il lui faut un ' + itemName(rec.cat) + ' (atelier de précision : verre de quartz + puce photonique) : le réseau le lui apporte.';
+      }
       if (b.kind === 'machine' && b.recipe && b.status === 'idle') return linked ? 'Il attend ses matières : le réseau les lui apporte dès qu’elles y circulent (ou qu’un silo en a).' : 'Il ne touche aucun tube : pose un tube contre lui pour qu’il reçoive ses matières.';
       if (b.kind === 'krelay' && !CO.tubes.relayTarget(b)) return '« Choisir la cible » ci-dessous, puis clique sur un autre relais (64 cases au plus) : les deux réseaux n’en feront qu’un.';
       if (b.kind === 'ktube' && b.knet && b.knet.full) return 'Le réseau est plein : personne ne prend ce qu’il contient. Relie un silo, un comptoir d’échange ou le Spatioport.';
@@ -932,11 +955,12 @@
     const t = CO.craftTime(rec);
     const side = function (map) {
       const col = h('div', { class: 'flow-col' });
-      for (const k in map) col.appendChild(h('div', { class: 'flow-item', 'data-item': k }, itemIcon(k, 3), h('b', { text: '×' + map[k] }), h('small', { text: fmtRate(map[k] / t) })));
+      for (const k in map) col.appendChild(h('div', { class: 'flow-item', 'data-item': k }, itemIcon(k, 3), h('b', { text: '×' + map[k] }), h('small', { text: fmtRate(map[k] * CO.machineMult(rec) / t) })));
       return col;
     };
+    const note = CO.machineNote(rec);
     return h('div', { class: 'flow' }, side(Object.assign({}, rec.in, rec.fin || {})), h('div', { class: 'flow-arrow', text: '➜' }), side(rec.out),
-      h('div', { class: 'flow-foot', text: 'Cycle : ' + fmtTime(t) + ' · cadence d’une machine' }));
+      h('div', { class: 'flow-foot', text: 'Cycle : ' + fmtTime(t) + ' · cadence d’une machine' + (note ? ' · ' + note : '') }));
   }
 
   function stockChips(map) {
@@ -1060,11 +1084,30 @@
       if (b.recipe && !b.site) {
         const rec = RECIPES[b.recipe];
         body.appendChild(section('Production', flowCard(rec)));
-        body.appendChild(section('Cycle en cours', progressBar(b, function () { return b.crafting ? b.prog / CO.craftTime(rec) : 0; })));
+        if (b.def.mode === 'kiln') {
+          const ore = Object.keys(rec.in)[0], heatBar = h('div', { class: 'bar heat' }, h('i', { style: 'width:' + Math.min(100, b.heat / b.def.maxHeat * 100) + '%' }),
+            h('span', { class: 'mark', style: 'left:' + (rec.temp / b.def.maxHeat * 100) + '%' }));
+          body.appendChild(section('Creuset', h('div', { class: 'icard flat' },
+            kv('Température', Math.round(b.heat) + '° · il faut ' + CO.fmt(rec.temp) + '°'), heatBar,
+            kv('Fournée', b.crafting ? b.batchN + ' en cuisson' : (b.inBuf[ore] || 0) + ' / ' + b.def.batch + ' chargés'),
+            h('div', { class: 'small', text: 'Il cuit dès qu’il est plein, ou ' + b.def.wait + ' s après le premier minerai. Vide, il refroidit de ' + b.def.cool + '°/s ; il chauffe de ' + b.def.heatRate + '°/s.' }))));
+        }
+        if (b.def.mode === 'grower') {
+          const box = h('div', { class: 'icard flat' }, kv('Obscurité', Math.round((1 - CO.daylight()) * 100) + ' %'));
+          (b.slots || []).forEach(function (sl, i) {
+            const r = RECIPES[sl.r];
+            box.appendChild(h('div', { class: 'need-top' }, h('span', { text: 'Pousse ' + (i + 1) + ' · ' + itemName(Object.keys(r.out)[0]) }), h('b', { text: Math.floor(sl.p / r.time * 100) + ' %' })));
+          });
+          if (!(b.slots || []).length) box.appendChild(h('div', { class: 'small', text: 'Aucun cristal en pousse.' }));
+          body.appendChild(section('Cristaux (' + (b.slots || []).length + ' / ' + b.def.slots + ')', box));
+        }
+        if (rec.cat) body.appendChild(section('Catalyseur', h('div', { class: 'icard flat' },
+          kv('Usure', (b.wear > 0 ? b.wear : 0) + ' pièce(s) restante(s) sur ' + b.def.catUses), kv('En réserve', String(b.inBuf[rec.cat] || 0)))));
+        if (!b.def.mode) body.appendChild(section('Cycle en cours', progressBar(b, function () { return b.crafting ? b.prog / CO.craftTime(rec) : 0; })));
         body.appendChild(h('div', { class: 'two' }, section('Stock entrant', stockChips(b.inBuf)), section('Prêt à sortir', stockChips(countBy(b.outBuf)))));
       }
     } else if (b.kind === 'drill') {
-      const total = b.w * b.h, P = CO.planet(), eq = CO.drillRate(b) * CO.craftTime(RECIPES[P.refRecipe]);   // how many smelters (current research) it can feed
+      const total = b.w * b.h, P = CO.planet(), ref = RECIPES[P.refRecipe], eq = CO.drillRate(b) / (CO.machineRate(ref, P.refRecipe) * ref.in[Object.keys(ref.in)[0]] / ref.out[P.refRecipe]);   // how many smelters (current research) it can feed
       body.appendChild(section('Extraction', h('div', { class: 'icard flat' },
         b.ore ? h('div', { class: 'ore-row' }, itemIcon(b.ore, 4), h('div', null, h('b', { text: itemName(b.ore) }), h('div', { class: 'small', text: fmtRate(CO.drillRate(b)) + ' · ' + b.n + '/' + total + ' cases' }))) : h('div', { class: 'small', text: 'Aucun gisement sous la foreuse.' }),
         kv('Couverture', Math.round(b.n / total * 100) + ' %'),
@@ -1467,7 +1510,8 @@
     const rec = RECIPES[id], it = ITEMS[id], lines = [it.price + ' ¢ l’unité'];
     if (rec) {
       const t = CO.craftTime(rec);
-      lines.push('Fabriqué : ' + BUILDINGS[rec.machine].name + ' · ' + fmtRate(rec.out[id] / t) + ' par machine (cycle ' + fmtTime(t) + ')');
+      const note = CO.machineNote(rec);
+      lines.push('Fabriqué : ' + BUILDINGS[rec.machine].name + ' · ' + fmtRate(CO.machineRate(rec, id)) + ' par machine (cycle ' + fmtTime(t) + (note ? ', ' + note : '') + ')');
       if (!CO.isRecipeUnlocked(id)) lines.push(h('small', { class: 'tip-lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
     } else {
       const P = CO.planet(it.planet || 0), r = BUILDINGS[P.drill].rate * CO.mods.drill;
@@ -1501,15 +1545,17 @@
         const r = def.rate * CO.mods.drill;
         out.push('Extraction : ' + fmtRate(r) + ' à pleine couverture (' + fmtRate(r / (def.w * def.h)) + ' par case)');
         const P = CO.planet(def.planet || 0);
-        if (!def.yields) out.push('Alimente ' + fmtNum(r * CO.craftTime(RECIPES[P.refRecipe]), 2) + ' × ' + BUILDINGS[P.smelter].name + ' à pleine couverture');
+        const ref = RECIPES[P.refRecipe];
+        if (!def.yields) out.push('Alimente ' + fmtNum(r / (CO.machineRate(ref, P.refRecipe) * ref.in[Object.keys(ref.in)[0]] / ref.out[P.refRecipe]), 2) + ' × ' + BUILDINGS[P.smelter].name + ' à pleine couverture');
         break;
       }
       case 'machine':
         CO.recipesFor(type).forEach(function (rec) {
           const t = CO.craftTime(rec), ok = CO.isRecipeUnlocked(rec.id);
           const ins = Object.keys(rec.in).map(function (k) { return rec.in[k] + ' ' + itemName(k); }).join(' + ');
+          const note = CO.machineNote(rec);
           out.push(h('small', { class: 'tip-rec' + (ok ? '' : ' locked') }, itemIcon(rec.id, 2),
-            h('span', { text: (ok ? '' : '🔒 ') + itemName(rec.id) + ' : ' + fmtRate(rec.out[rec.id] / t) + ' · cycle ' + fmtTime(t) + ' · ' + ins })));
+            h('span', { text: (ok ? '' : '🔒 ') + itemName(rec.id) + ' : ' + fmtRate(CO.machineRate(rec, rec.id)) + ' · cycle ' + fmtTime(t) + ' · ' + ins + (note ? ' · ' + note : '') })));
         });
         break;
       case 'lab': out.push('Consomme sans limite les objets de la recherche active (le surplus utile part en réserve)'); break;

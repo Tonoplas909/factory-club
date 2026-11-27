@@ -117,8 +117,13 @@
     const st = CO.state;
     switch (u.kind) {
       case 'machine': {
-        const rec = u.recipe ? CO.RECIPES[u.recipe] : autoRecipe(u.type, item), need = rec && rec.in[item];
-        return !!need && (u.inBuf[item] || 0) < need * 2;
+        const rec = u.recipe ? CO.RECIPES[u.recipe] : autoRecipe(u.type, item);
+        if (!rec) return false;
+        if (rec.cat === item) return (u.inBuf[item] || 0) < 1;                 // a spare catalyst
+        const need = rec.in[item];
+        if (!need) return false;
+        if (u.def.mode === 'kiln') return !u.crafting && (u.inBuf[item] || 0) < need * u.def.batch;
+        return (u.inBuf[item] || 0) < need * 2;
       }
       case 'generator': return u.def.fuel === item && u.fuel < CO.power.FUEL_CAP;
       case 'lab': {
@@ -141,7 +146,11 @@
     const out = [], st = CO.state;
     switch (u.kind) {
       case 'machine':
-        if (u.recipe) { const rec = CO.RECIPES[u.recipe]; for (const k in rec.in) if (wants(u, k)) out.push(k); }
+        if (u.recipe) {
+          const rec = CO.RECIPES[u.recipe];
+          for (const k in rec.in) if (wants(u, k)) out.push(k);
+          if (rec.cat && wants(u, rec.cat)) out.push(rec.cat);
+        }
         else CO.recipesFor(u.type).forEach(function (r) { if (CO.isRecipeUnlocked(r.id)) for (const k in r.in) if (out.indexOf(k) < 0 && wants(u, k)) out.push(k); });
         break;
       case 'generator': if (u.def.fuel && wants(u, u.def.fuel)) out.push(u.def.fuel); break;

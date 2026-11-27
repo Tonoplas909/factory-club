@@ -6,6 +6,13 @@
 (function (CO) {
   'use strict';
   CO.CHANGELOG = [
+    { v: 10, date: '27 novembre 2026', title: 'Kéora : on y fabrique autrement', items: [
+      'Creuset à fournée : il charge 8 minerais identiques et les cuit tous ensemble, quand il est plein ou 6 s après le premier. Il doit d’abord chauffer à la température du minerai (lithium 300°, roche 700°, quartz 900°, cobalt 1 100°, iridium 1 500°) et refroidit s’il reste vide.',
+      'Cristallisoir : 6 cristaux résonants poussent à la fois, mais seulement la nuit.',
+      'Four à plasma : chaque alliage rejette des scories ; le Broyeur à scories en fait de la laine minérale, l’isolant des panneaux de dôme.',
+      'Synthétiseur : chaque pièce use son catalyseur (15 pièces par catalyseur, fabriqué à l’atelier) ; le réseau en apporte un neuf.',
+      'Nouvelles icônes pour tous les objets de Kéora : pépites, éclats de cristal, lingots hexagonaux, cartouches, capsules…'
+    ] },
     { v: 9, date: '27 novembre 2026', title: 'Kéora : faisceaux d’énergie et nouveaux dessins', items: [
       'L’énergie de Kéora voyage en faisceaux de lumière : le Spatioport en envoie un par côté, les générateurs et les accumulateurs dans le sens de leur flèche, sur 24 cases. Tout ce qu’un faisceau traverse est alimenté.',
       'Prisme (renvoie le faisceau dans le sens de sa flèche) et Diffracteur (le divise en trois). Un faisceau cyan a assez d’énergie, orange pas assez, rouge aucune ; son tracé s’affiche quand on pose un générateur ou un prisme.',

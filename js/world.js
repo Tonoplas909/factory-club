@@ -277,7 +277,11 @@
         case 'kaccu':
           b.charge = 0; b.status = 'idle'; break;
         case 'machine':
-          b.recipe = (cfg && cfg.recipe) || null; b.inBuf = {}; b.outBuf = []; b.prog = 0; b.crafting = false; b.status = 'idle'; b.rr = 0; break;
+          b.recipe = (cfg && cfg.recipe) || null; b.inBuf = {}; b.outBuf = []; b.prog = 0; b.crafting = false; b.status = 'idle'; b.rr = 0;
+          if (def.mode === 'kiln') { b.heat = 20; b.batchN = 0; b.waitT = 0; }      // Kéora: see sim.js updateKiln / updateGrower
+          if (def.mode === 'grower') b.slots = [];
+          if (def.catUses) b.wear = 0;
+          break;
         case 'generator':                              // fuel: items waiting, burn: seconds left on the one burning
           b.fuel = 0; b.burn = 0; b.status = 'idle'; break;
         case 'pole': break;
@@ -377,6 +381,9 @@
       if (b.kind === 'machine') {
         if (Object.keys(b.inBuf).length) o.ib = b.inBuf;
         if (b.outBuf.length) o.ob = b.outBuf.slice();
+        if (b.def.mode === 'kiln') { o.ht = Math.round(b.heat); if (b.crafting) { o.kb = b.batchN; o.kp = Math.round(b.prog * 100) / 100; } }
+        if (b.slots && b.slots.length) o.gs = b.slots.map(function (sl) { return [sl.r, Math.round(sl.p * 100) / 100]; });
+        if (b.wear > 0) o.wr = b.wear;
       }
       if (b.kind === 'drill' && b.out.length) o.ob = b.out.slice();
       return o;
@@ -407,6 +414,12 @@
         if (b.kind === 'generator') { b.fuel = Math.max(0, Number(o.fu) || 0); b.burn = Math.max(0, Number(o.bu) || 0); }
         if ((b.kind === 'pipe' || b.kind === 'fluid_tank') && o.ff && CO.ITEMS[o.ff] && CO.ITEMS[o.ff].fluid) { b.fa = Math.max(0, Number(o.fa) || 0); b.ff = o.ff; }
         if (o.ob) { if (b.outBuf) b.outBuf = o.ob.slice(); else if (b.out) b.out = o.ob.slice(); }
+        if (b.def.mode === 'kiln') {
+          b.heat = CO.clamp(Number(o.ht) || 20, 20, b.def.maxHeat);
+          if (o.kb > 0 && b.recipe) { b.batchN = Math.min(b.def.batch, o.kb | 0); b.prog = Math.max(0, Number(o.kp) || 0); b.crafting = true; }
+        }
+        if (b.slots && Array.isArray(o.gs)) b.slots = o.gs.filter(function (a) { return Array.isArray(a) && CO.RECIPES[a[0]]; }).slice(0, b.def.slots).map(function (a) { return { r: a[0], p: Math.max(0, Number(a[1]) || 0) }; });
+        if (b.def.catUses) b.wear = CO.clamp(o.wr | 0, 0, b.def.catUses);
       }
     }
   };

@@ -76,14 +76,15 @@
         // new recipe uses stays in stock (up to the usual limit), the rest leaves through the output.
         const old = b.recipe ? CO.RECIPES[b.recipe] : null, nr = c.r ? CO.RECIPES[c.r] : null;
         const stock = Object.assign({}, b.inBuf);
-        if (b.crafting && old) for (const k in old.in) stock[k] = (stock[k] || 0) + old.in[k];
+        if (b.crafting && old) for (const k in old.in) stock[k] = (stock[k] || 0) + old.in[k] * (b.def.mode === 'kiln' ? b.batchN || 0 : 1);
         b.inBuf = {};
         for (const k in stock) {
-          const n = stock[k] || 0, keep = nr && nr.in[k] ? Math.min(n, nr.in[k] * 2) : 0;
+          const limit = nr && nr.in[k] ? nr.in[k] * (b.def.mode === 'kiln' ? b.def.batch : 2) : nr && nr.cat === k ? 2 : 0;
+          const n = stock[k] || 0, keep = Math.min(n, limit);
           if (keep > 0) b.inBuf[k] = keep;
           for (let i = keep; i < n; i++) b.outBuf.push(k);
         }
-        b.recipe = c.r; b.crafting = false; b.prog = 0;
+        b.recipe = c.r; b.crafting = false; b.prog = 0; b.batchN = 0;
       }
     } else if (b.kind === 'router' || b.kind === 'unloader' || b.kind === 'drone_requester') b.filter = c.f;
     else if (b.kind === 'driver' || b.kind === 'krelay') world.setTarget(b, c.k || null);

@@ -235,7 +235,13 @@
 
   function machineIn(b, item, dir) {
     if (dir === ((b.dir + 2) & 3)) return false;             // front side is the output
+    if (b.def.mode === 'kiln' && b.crafting) return false;   // a crucible takes nothing while its batch bakes
     let rec = b.recipe ? RECIPES[b.recipe] : null;
+    if (rec && rec.cat === item) {                           // catalyst: one in use, one spare
+      if ((b.inBuf[item] || 0) >= 2) return false;
+      b.inBuf[item] = (b.inBuf[item] || 0) + 1;
+      return true;
+    }
     if (!rec) {
       // No recipe yet: auto-pick only when the item identifies exactly one unlocked recipe.
       let found = null, count = 0;
@@ -249,10 +255,12 @@
     const need = rec.in[item];
     if (!need) return false;
     const have = b.inBuf[item] || 0;
-    if (have >= need * 2) return false;
+    if (have >= (b.def.mode === 'kiln' ? need * b.def.batch : need * 2)) return false;
+    if (b.def.mode === 'kiln' && !have) b.waitT = 0;
     b.inBuf[item] = have + 1;
     return true;
   }
+  sim.machineIn = machineIn;
 
   /**
    * Labs feed the active research first; anything a future research will need goes to the shared
@@ -413,8 +421,72 @@
   }
 
   function outTotal(rec) { let n = 0; for (const k in rec.out) n += rec.out[k]; return n; }
+  sim.outTotal = outTotal;
+
+  /**
+   * Kéora's crucible: loads up to def.batch identical ores, then bakes them all at once (rec.time) when it
+   * is full or def.wait seconds after the first one. It must first heat up to rec.temp; it heats while it
+   * has something to bake and cools down when empty.
+   */
+  function updateKiln(b, dt) {
+    if (b.outBuf.length) flush(b, b.outBuf);
+    const rec = b.recipe ? RECIPES[b.recipe] : null, def = b.def, pw = b.pw || 0;
+    const ore = rec ? Object.keys(rec.in)[0] : null, loaded = ore ? b.inBuf[ore] || 0 : 0;
+    b.wants = !!rec && (b.crafting || loaded > 0);
+    if (b.wants) b.heat = Math.min(def.maxHeat, (b.heat || 20) + def.heatRate * pw * CO.lvlSpeed(b) * dt);
+    else b.heat = Math.max(20, (b.heat || 20) - def.cool * dt);
+    if (!rec) { b.status = 'idle'; return; }
+    if (b.wants && pw <= 0) { b.status = 'nopower'; return; }
+    if (b.crafting) {
+      if (b.heat < rec.temp) { b.status = 'heat'; return; }                  // still heating up
+      if (b.prog < rec.time) { b.prog += dt * CO.mods.machine * pw * CO.lvlSpeed(b); b.status = 'work'; return; }
+      const n = b.batchN || 0;
+      if (b.outBuf.length + n * outTotal(rec) > Math.max(OUT_CAP, def.batch * outTotal(rec))) { b.status = 'blocked'; return; }
+      for (const k in rec.out) { for (let i = 0; i < rec.out[k] * n; i++) b.outBuf.push(k); sim.countProduced(k, rec.out[k] * n); }
+      b.crafting = false; b.prog = 0; b.batchN = 0;
+      return;
+    }
+    if (!loaded) { b.status = 'idle'; return; }
+    b.waitT = (b.waitT || 0) + dt;
+    const units = Math.floor(loaded / rec.in[ore]);
+    if (units >= def.batch || (units > 0 && b.waitT >= def.wait)) {
+      b.inBuf[ore] -= units * rec.in[ore]; sim.countUsed(ore, units * rec.in[ore]);
+      b.batchN = units; b.crafting = true; b.prog = 0;
+      b.status = b.heat >= rec.temp ? 'work' : 'heat';
+    } else b.status = 'fill';
+  }
+  /**
+   * Kéora's crystalliser: up to def.slots crystals grow at once, each needing rec.time seconds of darkness
+   * (they grow at the speed of 1 − daylight: fully at night, hardly by day).
+   */
+  function updateGrower(b, dt) {
+    if (b.outBuf.length) flush(b, b.outBuf);
+    const rec = b.recipe ? RECIPES[b.recipe] : null, def = b.def, pw = b.pw || 0, dark = 1 - CO.daylight();
+    const slots = b.slots || (b.slots = []);
+    if (rec) while (slots.length < def.slots) {                              // plant a new crystal
+      let can = true;
+      for (const k in rec.in) if ((b.inBuf[k] || 0) < rec.in[k]) { can = false; break; }
+      if (!can) break;
+      for (const k in rec.in) { b.inBuf[k] -= rec.in[k]; sim.countUsed(k, rec.in[k]); }
+      slots.push({ r: rec.id, p: 0 });
+    }
+    b.wants = slots.length > 0 && dark > 0.02;
+    if (!slots.length) { b.status = 'idle'; return; }
+    if (b.wants && pw <= 0) { b.status = 'nopower'; return; }
+    for (let i = 0; i < slots.length; i++) slots[i].p += dt * dark * CO.mods.machine * pw * CO.lvlSpeed(b);
+    for (let i = slots.length - 1; i >= 0; i--) {
+      const r = RECIPES[slots[i].r];
+      if (slots[i].p < r.time) continue;
+      if (b.outBuf.length + outTotal(r) > OUT_CAP) { b.status = 'blocked'; return; }
+      for (const k in r.out) { for (let j = 0; j < r.out[k]; j++) b.outBuf.push(k); sim.countProduced(k, r.out[k]); }
+      slots.splice(i, 1);
+    }
+    b.status = dark > 0.02 ? 'work' : 'day';
+  }
 
   function updateMachine(b, dt) {
+    if (b.def.mode === 'kiln') { updateKiln(b, dt); return; }
+    if (b.def.mode === 'grower') { updateGrower(b, dt); return; }
     if (b.outBuf.length) flush(b, b.outBuf);
     const rec = b.recipe ? RECIPES[b.recipe] : null;
     if (!rec) { b.status = 'idle'; b.wants = false; return; }
@@ -435,10 +507,15 @@
     let can = true;
     for (const k in rec.in) if ((b.inBuf[k] || 0) < rec.in[k]) { can = false; break; }
     if (can && rec.fin) for (const k in rec.fin) if (CO.fluid.amount(b, k) < rec.fin[k] - 1e-6) { can = false; break; }
+    if (can && rec.cat && !(b.wear > 0) && !((b.inBuf[rec.cat] || 0) >= 1)) can = false;   // no catalyst left
     if (can && room) {
       b.wants = true;
       if (pw <= 0) { b.status = 'nopower'; return; }
       for (const k in rec.in) { b.inBuf[k] -= rec.in[k]; sim.countUsed(k, rec.in[k]); }
+      if (rec.cat) {                                         // each craft wears the catalyst down
+        if (!(b.wear > 0)) { b.inBuf[rec.cat]--; sim.countUsed(rec.cat, 1); b.wear = b.def.catUses; }
+        b.wear--;
+      }
       if (rec.fin) for (const k in rec.fin) CO.fluid.take(b, k, rec.fin[k]);
       b.crafting = true; b.prog = 0; b.status = 'work';
     } else { b.status = can ? 'blocked' : 'idle'; b.wants = false; }

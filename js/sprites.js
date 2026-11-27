@@ -64,7 +64,35 @@
     tank:    ['..oooo..', '.ohhbbo.', 'ohhbbbso', 'oaaaaaao', 'obhbbbso', 'obbbbsso', '.osssso.', '..oooo..'],
     orb:     ['..oooo..', '.ohhhho.', 'ohhaabbo', 'ohabbbbo', 'obbbbbso', 'obbbbsso', '.osssso.', '..oooo..'],
     drop:    ['...oo...', '..ohbo..', '.ohbbbo.', '.ohbbbo.', 'ohabbbso', 'obbbbsso', '.osssso.', '..oooo..'],
-    probe:   ['...oo...', '..oaao..', '.oabbao.', 'oobhbboo', '..obbo..', '.oobboo.', 'o..oo..o', '........']
+    probe:   ['...oo...', '..oaao..', '.oabbao.', 'oobhbboo', '..obbo..', '.oobboo.', 'o..oo..o', '........'],
+    // ---- Kéora's items: their own shapes (nuggets, shards, hexagonal bars, capsules, cartridges...)
+    k_nugget: ['........', '..oooo..', '.ohhbbo.', 'ohhbbaso', 'obbbbbso', 'obbbbsso', '.osssso.', '..oooo..'],
+    k_shard: ['.....oo.', '....oho.', '...ohbo.', '..ohbbo.', '.ohbbso.', 'ohbbsso.', 'oabsso..', '.oooo...'],
+    k_powder: ['........', '........', '...oo...', '..ohho..', '.ohbbbo.', 'ohbabbso', 'obbbbsso', 'oooooooo'],
+    k_hexbar: ['..oooo..', '.ohhhbo.', 'ohhhbbbo', 'obbbbbso', 'obbbbbso', 'osbbbsso', '.osssso.', '..oooo..'],
+    k_flask: ['...oo...', '...oo...', '..ohbo..', '.ohbbbo.', 'ohaaaaso', 'obaaaaso', '.osssso.', '..oooo..'],
+    k_pane: ['oooooooo', 'ohaabbbo', 'oahbbbbo', 'obbbbbao', 'obbbbaso', 'obbbasso', 'obbbbsso', 'oooooooo'],
+    k_tile: ['........', '.oooooo.', 'ohhhhhbo', 'ohbbbbso', 'ohbaabso', 'obbbbsso', '.oooooo.', '........'],
+    k_sheet: ['........', '.ooooooo', 'ohhhhhbo', 'obbbbbo.', 'ohhhhbo.', 'obbbbso.', 'oooooo..', '........'],
+    k_rotor: ['..oaao..', '.obbbbo.', 'abooooba', 'abo..oba', 'abo..oba', 'abooooba', '.obbbbo.', '..oaao..'],
+    k_spool: ['oooooooo', 'obbbbbbo', '.oaaaao.', '.ohahao.', '.oaaaao.', '.ohahao.', 'obbbbbbo', 'oooooooo'],
+    k_pchip: ['.o.o.o..', 'oooooooo', 'obbbbbbo', 'obbaabbo', 'obaahabo', 'obbaabbo', 'oooooooo', '.o.o.o..'],
+    k_capsule: ['........', '.oooooo.', 'ohhhhhao', 'obbbbbao', 'obbbbbao', 'osssssao', '.oooooo.', '........'],
+    k_layers: ['........', '.oooooo.', 'ohhhhhho', 'oaaaaaao', 'obbbbbbo', 'oaaaaaao', 'osssssso', '.oooooo.'],
+    k_blob: ['........', '...ooo..', '..ohhbo.', '.ohhbbbo', 'ohbbbbso', 'obbbbsso', '.ossso..', '..ooo...'],
+    k_vial: ['..oooo..', '..oaao..', '..obbo..', '.ohbbbo.', '.ohbbbo.', '.ohbbso.', '.osssso.', '..oooo..'],
+    k_dome: ['........', '...oo...', '.oohhoo.', 'ohhbbbbo', 'ohbbbbbo', 'obbbbbso', 'oaaaaaao', 'oooooooo'],
+    k_lens: ['..oooo..', '.oaaaao.', 'oahhbbao', 'oahbbbao', 'oabbbbao', 'oabbbsao', '.oaaaao.', '..oooo..'],
+    k_module: ['.oooooo.', 'ohhhhhho', 'obabbabo', 'obbbbbbo', 'obabbabo', 'osssssso', '.oooooo.', '..o..o..'],
+    k_qchip: ['o.o.o.o.', 'oooooooo', 'obaaaabo', 'oabhhbao', 'oabhhbao', 'obaaaabo', 'oooooooo', '.o.o.o.o'],
+    k_capa: ['..oooo..', '.ohhhbo.', 'oaaaaaao', 'ohbbbbso', 'oaaaaaao', 'ohbbbbso', '.osssso.', '..o..o..'],
+    k_engine: ['.oooo...', 'ohhbbo..', 'obbbbooo', 'obbbbaaa', 'obbbbaaa', 'obbssooo', 'osssso..', '.oooo...'],
+    k_star: ['...oo...', '.aohhoa.', '.ohhhbo.', 'ohhbbbbo', 'obbbbbso', '.obbsso.', '.aossoa.', '...oo...'],
+    k_gate: ['..oooo..', '.ohhhbo.', 'oho..obo', 'oa....ao', 'oa....ao', 'obo..oso', '.osssso.', '..oooo..'],
+    k_cart: ['..oooo..', '..oaao..', '.oooooo.', '.ohbbbo.', '.ohbbbo.', '.ohbbso.', '.osssso.', '.oooooo.'],
+    k_slag: ['........', '.oo..oo.', 'obbooabo', 'obsbbbso', '.obbabo.', 'obssbbso', '.oooooo.', '........'],
+    k_wool: ['..o.oo..', '.ohohho.', 'ohhbhbho', 'obhbbhbo', 'ohbbbbbo', 'obbsbbso', '.osssso.', '..o..o..'],
+    k_catalyst: ['...oo...', '..oaao..', '.oahhao.', 'oahhbbao', 'oabbbsao', '.oabsao.', '..oaao..', '...oo...']
   };
 
   function itemIcon(id) {
@@ -528,6 +556,23 @@
     for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; R(g, (k + f) % 3 ? KC : '#2f8a9a', Math.round(16 + Math.cos(a) * 8) - 1, Math.round(16 + Math.sin(a) * 8) - 1, 2, 2); }
     disc(g, OUT, 16, 16, 5); disc(g, [KP, '#ff9ad8', '#ffd0f0'][f % 3], 16, 16, 4); disc(g, '#ffffff', 16, 16, 1);
   }
+  function drawKGrower(g, f) {                                       // six glass pods, crystals growing inside
+    kHull(g, 32, 32, f);
+    R(g, OUT, 5, 6, 22, 20); R(g, '#1a2a3a', 6, 7, 20, 18);
+    for (let k = 0; k < 6; k++) {
+      const x = 8 + (k % 3) * 6, y = 9 + Math.floor(k / 3) * 8, on = (k + f) % 4 === 0;
+      R(g, OUT, x - 1, y - 1, 6, 7); R(g, '#3a6a78', x, y, 4, 5);
+      gem(g, on ? '#ffe0ff' : KV, x + 2, y + 3, 2);
+    }
+  }
+  function drawKCrusher(g, f) {                                       // two toothed rollers over a slag bin
+    kHull(g, 32, 32, f);
+    R(g, OUT, 6, 20, 20, 7); R(g, '#3a3040', 7, 21, 18, 5); R(g, '#6a5a6a', 9, 22, 4, 2); R(g, '#c45a3c', 18, 23, 2, 1);
+    [[11, 13], [21, 13]].forEach(function (c, i) {
+      disc(g, OUT, c[0], c[1], 6); disc(g, KL, c[0], c[1], 5); disc(g, KB2, c[0], c[1], 2);
+      for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + (i ? -1 : 1) * f * 0.5; R(g, OUT, Math.round(c[0] + Math.cos(a) * 5), Math.round(c[1] + Math.sin(a) * 5), 1, 1); }
+    });
+  }
   function drawKWorkshop(g, f) {                                      // two laser heads cutting a part on a table
     kHull(g, 32, 32, f);
     R(g, OUT, 7, 9, 18, 15); R(g, '#2a2540', 8, 10, 16, 13);
@@ -639,7 +684,7 @@
   }
 
   const BIG = { k_silo: [2, drawKSilo], k_booster: [2, drawKBooster], k_relay: [2, drawKRelay], k_accu: [2, drawKAccu],
-    k_drill: [2, drawKDrill], k_drill_heavy: [3, drawKDrillHeavy], k_extractor: [2, drawKExtractor], k_well: [2, drawKWell], k_forge: [2, drawKForge],
+    k_grower: [2, drawKGrower], k_crusher: [2, drawKCrusher], k_drill: [2, drawKDrill], k_drill_heavy: [3, drawKDrillHeavy], k_extractor: [2, drawKExtractor], k_well: [2, drawKWell], k_forge: [2, drawKForge],
     k_workshop: [2, drawKWorkshop], k_plasma_oven: [3, drawKPlasmaOven], k_synth: [3, drawKSynth], k_stellar: [4, drawKStellar], k_chem: [3, drawKChem],
     k_gen: [2, drawKGen], k_turbine: [3, drawKTurbine], k_collector: [2, drawKCollector], k_lab: [2, drawKLab], k_seller: [2, drawKSeller], k_port: [4, drawKPort],
     launch_pad: [4, drawLaunchPad], drone_hub: [2, drawDroneHub], pump: [2, drawPump], oil_well: [2, drawOilWell], fluid_tank: [2, drawFluidTank], steam_plant: [3, drawSteamPlant], refinery: [3, drawRefinery],
@@ -736,6 +781,6 @@
   }
 
   CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrainChunk: terrainChunk, barrel: barrelSprite, pipe: pipeSprite, tube: tubeSprite,
-    frames: { k_booster: 2, k_relay: 2, k_accu: 3, k_drill: 4, k_drill_heavy: 4, k_extractor: 2, k_well: 2, k_forge: 3, k_workshop: 4, k_plasma_oven: 3,
+    frames: { k_grower: 4, k_crusher: 4, k_booster: 2, k_relay: 2, k_accu: 3, k_drill: 4, k_drill_heavy: 4, k_extractor: 2, k_well: 2, k_forge: 3, k_workshop: 4, k_plasma_oven: 3,
       k_synth: 4, k_stellar: 2, k_chem: 3, k_gen: 3, k_turbine: 3, k_lab: 4, k_port: 2, launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 3, refinery: 3, generator: 3, drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
 })(window.CO = window.CO || {});
