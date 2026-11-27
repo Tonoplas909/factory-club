@@ -277,7 +277,8 @@
         case 'kaccu':
           b.charge = 0; b.status = 'idle'; break;
         case 'machine':
-          b.recipe = (cfg && cfg.recipe) || null; b.inBuf = {}; b.outBuf = []; b.prog = 0; b.crafting = false; b.status = 'idle'; b.rr = 0;
+          b.recipe = cfg && cfg.recipe && CO.RECIPES[cfg.recipe] && CO.RECIPES[cfg.recipe].machine === type ? cfg.recipe : null;
+          b.inBuf = {}; b.outBuf = []; b.prog = 0; b.crafting = false; b.status = 'idle'; b.rr = 0;
           if (def.mode === 'kiln') { b.heat = 20; b.batchN = 0; b.waitT = 0; }      // Kéora: see sim.js updateKiln / updateGrower
           if (def.mode === 'grower') b.slots = [];
           if (def.catUses) b.wear = 0;
