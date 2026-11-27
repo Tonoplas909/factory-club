@@ -446,7 +446,53 @@
     disc(g, OUT, 10, 42, 3); disc(g, HOT[f % 3], 10, 42, 2);
   }
 
-  const BIG = { launch_pad: [4, drawLaunchPad], drone_hub: [2, drawDroneHub], pump: [2, drawPump], oil_well: [2, drawOilWell], fluid_tank: [2, drawFluidTank], steam_plant: [3, drawSteamPlant], refinery: [3, drawRefinery],
+  // ---- Kéora's quantum network (violet metal, cyan light)
+  const KB = '#3a3550', KB2 = '#4a4466', KC = '#5ef0ff', KV = '#c060f0';
+  function drawKSilo(g) {                                             // capsule silo: a ring of slots around a hatch
+    block(g, 32, 32, { base: KB2, cornerColor: '#6a6090', panel: KB });
+    disc(g, OUT, 16, 16, 12); disc(g, '#5a5480', 16, 16, 11); ring(g, '#8a84b0', 16, 16, 11, 1);
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * Math.PI * 2, x = Math.round(16 + Math.cos(a) * 7), y = Math.round(16 + Math.sin(a) * 7);
+      R(g, OUT, x - 2, y - 2, 4, 4); R(g, k % 2 ? KV : KC, x - 1, y - 1, 2, 2);
+    }
+    disc(g, OUT, 16, 16, 3); disc(g, '#2a2540', 16, 16, 2);
+  }
+  function drawKBooster(g, f) {                                       // magnetic coil around a pulsing core
+    block(g, 32, 32, { base: KB2, cornerColor: '#6a6090', panel: KB });
+    ring(g, OUT, 16, 16, 12, 2); ring(g, '#8a7ad8', 16, 16, 11, 2);
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + f * 0.5; R(g, KC, Math.round(16 + Math.cos(a) * 10) - 1, Math.round(16 + Math.sin(a) * 10) - 1, 2, 2); }
+    disc(g, OUT, 16, 16, 5); disc(g, f % 2 ? KC : '#2f8a9a', 16, 16, 4); disc(g, '#e0ffff', 16, 16, 1);
+  }
+  function drawKRelay(g, f) {                                         // crystal emitter on a tripod
+    block(g, 32, 32, { base: KB2, cornerColor: '#6a6090', panel: KB });
+    line(g, OUT, 6, 26, 16, 16, 2); line(g, OUT, 26, 26, 16, 16, 2); line(g, OUT, 16, 5, 16, 16, 2);
+    line(g, '#8a84b0', 7, 25, 15, 17, 1); line(g, '#8a84b0', 25, 25, 17, 17, 1);
+    R(g, OUT, 12, 10, 8, 12); R(g, KV, 13, 11, 6, 10); R(g, '#f0c8ff', 13, 11, 2, 6);
+    R(g, f % 2 ? KC : '#ffffff', 15, 6, 2, 3);
+  }
+  function drawKAccu(g, f) {                                          // four cells with charge marks
+    block(g, 32, 32, { base: KB2, cornerColor: '#6a6090', panel: KB });
+    for (let k = 0; k < 4; k++) {
+      const x = 5 + k * 6;
+      R(g, OUT, x, 6, 5, 20); R(g, '#2a2540', x + 1, 7, 3, 18); R(g, '#8a84b0', x + 1, 5, 3, 1);
+      for (let j = 0; j < 4; j++) R(g, j < 2 + (f + k) % 3 ? '#5fe0a8' : '#2a5a4a', x + 1, 22 - j * 4, 3, 3);
+    }
+  }
+  /** Tube of the quantum network: a hub and an arm towards each connected side; `glow` 0 idle, 1 busy. */
+  function tubeSprite(mask, glow) {
+    const key = 'k' + mask + ':' + glow;
+    if (cache[key]) return cache[key];
+    const c = mk(T, T), g = c.getContext('2d'), core = glow ? KC : '#3a6a78';
+    if (mask & 1) { R(g, OUT, 8, 4, 8, 8); R(g, KB2, 8, 5, 8, 6); R(g, core, 8, 7, 8, 2); }
+    if (mask & 2) { R(g, OUT, 4, 8, 8, 8); R(g, KB2, 5, 8, 6, 8); R(g, core, 7, 8, 2, 8); }
+    if (mask & 4) { R(g, OUT, 0, 4, 8, 8); R(g, KB2, 0, 5, 8, 6); R(g, core, 0, 7, 8, 2); }
+    if (mask & 8) { R(g, OUT, 4, 0, 8, 8); R(g, KB2, 5, 0, 6, 8); R(g, core, 7, 0, 2, 8); }
+    R(g, OUT, 3, 3, 10, 10); R(g, '#5a5480', 4, 4, 8, 8); R(g, '#8a84b0', 4, 4, 8, 1);
+    R(g, glow ? '#e0ffff' : core, 6, 6, 4, 4);
+    return (cache[key] = c);
+  }
+
+  const BIG = { k_silo: [2, drawKSilo], k_booster: [2, drawKBooster], k_relay: [2, drawKRelay], k_accu: [2, drawKAccu], launch_pad: [4, drawLaunchPad], drone_hub: [2, drawDroneHub], pump: [2, drawPump], oil_well: [2, drawOilWell], fluid_tank: [2, drawFluidTank], steam_plant: [3, drawSteamPlant], refinery: [3, drawRefinery],
     generator: [2, drawGenerator], solar_plant: [2, drawSolarPlant], drill: [2, drawDrill], drill_heavy: [3, drawDrill], smelter: [2, drawSmelter], assembler: [2, drawAssembler],
     steelmill: [3, drawSteelmill], fabricator: [3, drawFabricator], spaceyard: [4, drawSpaceyard], lab: [2, drawLab], seller: [2, drawSeller], port: [4, drawPort], driver: [2, drawDriver] };
   const SMALL = { splitter: drawSplitter, merger: drawMerger, chest: drawChest, underground_in: drawTunnelIn, underground_out: drawTunnelOut,
@@ -475,6 +521,7 @@
     }
     if (def.kind === 'belt') return beltSprite(def.tier || 0, dir, 0, f | 0);
     if (def.kind === 'pipe') return pipeSprite(dir & 1 ? 10 : 5, null);     // palette / ghost: a straight piece
+    if (def.kind === 'ktube') return tubeSprite(5, 0);
     if (SMALL[type]) {
       const key = 's' + type + dir;
       return cache[key] || (cache[key] = orient(SMALL[type], dir, false));
@@ -556,7 +603,7 @@
     return (cache[key] = c);
   }
 
-  CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrainChunk: terrainChunk, barrel: barrelSprite, pipe: pipeSprite,
-    frames: { launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 3, refinery: 3, generator: 3, drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
+  CO.sprites = { item: itemIcon, belt: beltSprite, building: buildingSprite, terrainChunk: terrainChunk, barrel: barrelSprite, pipe: pipeSprite, tube: tubeSprite,
+    frames: { k_booster: 2, k_relay: 2, k_accu: 3, launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 3, refinery: 3, generator: 3, drill: 4, drill_heavy: 4, smelter: 3, assembler: 4, steelmill: 3, fabricator: 4, spaceyard: 4, lab: 4, port: 2 } };
   for (const t in BUILDINGS) if (BUILDINGS[t].art && CO.sprites.frames[BUILDINGS[t].art]) CO.sprites.frames[t] = CO.sprites.frames[BUILDINGS[t].art];
 })(window.CO = window.CO || {});

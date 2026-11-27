@@ -78,6 +78,7 @@
   };
   /** Should the coverage zones of the power network be shown? (placing / inspecting energy pieces) */
   Rn.showZones = function (ov) {
+    if (CO.planet().grid !== 'poles') return false;                 // Kéora: the power runs in the tubes
     const ins = CO.input.get().inspected;
     if (ins && !ins.dead && (ins.kind === 'pole' || ins.kind === 'generator' || ins.kind === 'port')) return true;
     for (let i = 0; i < ov.ghosts.length; i++) {
@@ -129,6 +130,13 @@
   }
   Rn.drawZonesTop = drawZonesTop;
 
+  /** Sides a tube of Kéora's network connects to (same bits as pipes), and whether its network is busy. */
+  Rn.tubeMask = function (b) {
+    let m = 0;
+    for (let d = 0; d < 4; d++) if (CO.tubes.links(b, world.at(b.x + DX[d], b.y + DY[d]))) m |= 1 << d;
+    return m;
+  };
+  Rn.tubeGlow = function (b) { return b.knet && b.knet.flow > 0.05 ? 1 : 0; };
   /** Sides a pipe connects to: 1 E, 2 S, 4 W, 8 N. */
   Rn.pipeMask = function (b) {
     let m = 0;
@@ -296,6 +304,8 @@
         spr = sprites.belt(tier, b.dir, beltShape(b), Math.floor(time * b.def.speed * 16) % 16);
       } else if (b.kind === 'pipe') {
         spr = sprites.pipe(Rn.pipeMask(b), b.fnet && b.fnet.amount > 0 ? b.fnet.fluid : null);
+      } else if (b.kind === 'ktube') {
+        spr = sprites.tube(Rn.tubeMask(b), Rn.tubeGlow(b));
       } else if (b.kind === 'driver') {
         spr = sprites.building(b.type, b.dir, 1);         // base only: the barrel is drawn aimed at the target
       } else {
@@ -393,6 +403,11 @@
         ctx.fillStyle = led; ctx.fillRect(px + ts * 0.12, py + ts * 0.12, s, s);
       } else if ((k === 'router' || k === 'unloader') && b.filter) {
         drawIcon(b.filter, cx, cy, ts * 0.36);
+      } else if (k === 'ksilo' || k === 'kaccu') {                 // stock gauge along the bottom edge
+        const f = k === 'ksilo' ? b.q.length / b.def.capacity : b.charge / b.def.capacity;
+        ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, b.w * ts - ts * 0.6, Math.max(2, ts * 0.09));
+        ctx.fillStyle = k === 'kaccu' ? '#5fe0a8' : f > 0.9 ? '#e55454' : '#5ef0ff';
+        ctx.fillRect(px + ts * 0.3, py + b.h * ts - ts * 0.2, (b.w * ts - ts * 0.6) * f, Math.max(2, ts * 0.09));
       } else if (k === 'chest') {
         const f = b.q.length / CO.chestCap(b.def);
         ctx.fillStyle = OUT; ctx.fillRect(px + ts * 0.15, py + ts * 0.84, ts * 0.7, Math.max(2, ts * 0.09));
@@ -596,12 +611,12 @@
     ctx.save(); ctx.lineWidth = Math.max(1, ts / 14); ctx.setLineDash([ts * 0.3, ts * 0.25]);
     for (let i = 0; i < list.length; i++) {
       const b = list[i];
-      if (b.kind !== 'driver' || !b.target) continue;
-      const tg = CO.sim.driverTarget(b);
+      if ((b.kind !== 'driver' && b.kind !== 'krelay') || !b.target) continue;
+      const tg = b.kind === 'krelay' ? CO.tubes.relayTarget(b) : CO.sim.driverTarget(b);
       if (!tg) continue;
       const hot = ov && (ov.hover === b || ov.hover === tg || ov.selected.indexOf(b) >= 0 || ov.selected.indexOf(tg) >= 0);
       const a = centre(b), c = centre(tg);
-      ctx.strokeStyle = hot ? 'rgba(255,211,127,0.75)' : 'rgba(255,211,127,0.22)';
+      ctx.strokeStyle = b.kind === 'krelay' ? (hot ? 'rgba(94,240,255,0.85)' : 'rgba(94,240,255,0.35)') : hot ? 'rgba(255,211,127,0.75)' : 'rgba(255,211,127,0.22)';
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(c[0], c[1]); ctx.stroke();
     }
     ctx.restore();
@@ -674,7 +689,7 @@
     // placement ghosts
     for (let i = 0; i < ov.ghosts.length; i++) {
       const g = ov.ghosts[i], def = CO.BUILDINGS[g.type], px = ox + g.x * ts, py = oy + g.y * ts;
-      if (def.kind === 'driver' && ov.ghosts.length === 1) rangeCircle({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
+      if ((def.kind === 'driver' || def.kind === 'krelay') && ov.ghosts.length === 1) rangeCircle({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
       const spr = sprites.building(g.type, g.dir, 0);
       ctx.globalAlpha = 0.72;
       ctx.drawImage(spr, 0, 0, spr.width, spr.height, px, py, def.w * ts, def.h * ts);

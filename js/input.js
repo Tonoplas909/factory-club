@@ -57,7 +57,7 @@
   // ------------------------------------------------------- mass driver link
   /** Start choosing the target of mass driver `b` (next click on another driver in range). */
   I.startLink = function (b) {
-    if (!b || b.dead || b.kind !== 'driver') return;
+    if (!b || b.dead || (b.kind !== 'driver' && b.kind !== 'krelay')) return;
     tool = 'link'; drag = null; linkSrc = b; inspected = b; selection = { rect: null, blds: [] };
     CO.emit('tool'); CO.emit('selection');
   };
@@ -69,6 +69,12 @@
   }
   /** Would `b` → `t` be a valid link? Returns '' when fine, else the reason (French). */
   function linkProblem(b, t) {
+    if (b.kind === 'krelay') {                           // relays: a two-way bridge between two networks
+      if (!t || t.kind !== 'krelay') return 'Clique sur un autre relais quantique.';
+      if (t === b) return 'Un relais ne peut pas se relier à lui-même.';
+      if (CO.sim.driverDist(b, t) > b.def.range) return 'Hors de portée (' + b.def.range + ' cases au maximum).';
+      return '';
+    }
     if (!t || t.kind !== 'driver') return 'Clique sur une autre catapulte magnétique.';
     if (t === b) return 'Une catapulte ne peut pas se viser elle-même.';
     if (CO.sim.driverDist(b, t) > b.def.range) return 'Hors de portée (' + b.def.range + ' cases au maximum).';
@@ -166,7 +172,7 @@
     if (!cur) return [];
     const def = BUILDINGS[buildType];
     if (drag && drag.kind === 'build') {
-      if (def.kind === 'belt') return beltPlacements(beltPath(drag));
+      if (def.kind === 'belt' || def.path) return beltPlacements(beltPath(drag));
       return linePlacements(def, drag.startAnchor, anchor(def, cur.x, cur.y));
     }
     const a = anchor(def, cur.x, cur.y);
@@ -252,7 +258,7 @@
       w: x1 - x0, h: y1 - y0,
       items: list.map(function (b) {
         // A driver keeps its link only when its target is copied too (stored relative to the blueprint).
-        const t = b.kind === 'driver' ? CO.sim.driverTarget(b) : null;
+        const t = b.kind === 'driver' ? CO.sim.driverTarget(b) : b.kind === 'krelay' ? CO.tubes.relayTarget(b) : null;
         const tr = t && list.indexOf(t) >= 0 ? { rx: t.x - x0, ry: t.y - y0, w: t.w, h: t.h } : null;
         return { type: b.type, rx: b.x - x0, ry: b.y - y0, dir: b.dir, cfg: { recipe: b.recipe || null, filter: b.filter || null, lvl: b.lvl > 1 ? b.lvl : undefined }, tr: tr };
       })
@@ -339,7 +345,7 @@
       if (tool === 'paste') o.ghosts = validate(pastePlacements());
       o.tunnels = tunnelHints(o.ghosts);
       if (tool === 'link' && linkSrc && !linkSrc.dead) {
-        const t = hb && hb !== linkSrc && hb.kind === 'driver' ? hb : null;
+        const t = hb && hb !== linkSrc && hb.kind === linkSrc.kind ? hb : null;
         const inRange = CO.sim.driverDist(linkSrc, { x: cur.x, y: cur.y, w: 0, h: 0 }) <= linkSrc.def.range;
         o.link = { src: linkSrc, cur: cur, target: t, valid: t ? !linkProblem(linkSrc, t) : inRange };
       }
@@ -464,7 +470,7 @@
         if (cell.x !== drag.start.x || cell.y !== drag.start.y) drag.moved = true;
         break;
       case 'build':
-        if (BUILDINGS[buildType].kind === 'belt') {
+        if (BUILDINGS[buildType].kind === 'belt' || BUILDINGS[buildType].path) {
           extendPath(drag.path, cell);                  // free-hand track (Alt), kept up to date in every mode
           if (!drag.axis && (cell.x !== drag.path[0].x || cell.y !== drag.path[0].y))
             drag.axis = Math.abs(cell.x - drag.path[0].x) >= Math.abs(cell.y - drag.path[0].y) ? 'h' : 'v';

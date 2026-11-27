@@ -192,9 +192,14 @@
       case 'launch_pad': return CO.orbit.padIn(t, item);
       case 'seller': { const p = ITEMS[item].price; CO.addMoney(p); t.pend += p; sim.countSold(item, 1); return true; }
       case 'port': return portIn(t, item);
+      case 'ktube': case 'kbooster': case 'krelay': return CO.tubes.put(t, item);   // into Kéora's network
+      case 'ksilo':
+        if (t.q.length >= t.def.capacity) return false;
+        t.q.push(item); return true;
     }
     return false; // drills and tunnel exits accept nothing from belts
   }
+  sim.insert = insert;
 
   function beltIn(b, item, dir, carry) {
     if (dir === ((b.dir + 2) & 3)) return false;            // head-on
@@ -592,6 +597,7 @@
       if (f) f(list[i], dt);
     }
     if (sim.shots.length) updateShots(dt);
+    CO.tubes.update(dt);                             // Kéora's quantum network hands the items over
     CO.drones.update(dt);
     updateWorkers(dt);
     tAcc += dt;

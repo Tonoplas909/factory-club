@@ -119,7 +119,7 @@
   }
   function heightOf(b) {
     if (b.kind === 'belt') return 0.25;
-    if (b.kind === 'pipe') return 0.5;
+    if (b.kind === 'pipe' || b.kind === 'ktube') return 0.5;
     return V.building(b.type, b.dir || 0, 0).top;
   }
   function drawIcon(id, x, y, size) {
@@ -203,7 +203,7 @@
     for (let i = 0; i < list.length; i++) {
       const b = list[i], c = P(b.x + b.w / 2, b.y + b.h / 2), r = (b.w + b.h) * hw;
       if (c[0] < -r - m || c[0] > cw + r + m || c[1] < -r - m * 2 || c[1] > ch + r + m) continue;
-      (b.kind === 'belt' || b.kind === 'tunnel_in' || b.kind === 'tunnel_out' || b.kind === 'pipe' ? flat : tall).push(b);
+      (b.kind === 'belt' || b.kind === 'tunnel_in' || b.kind === 'tunnel_out' || b.kind === 'pipe' || b.kind === 'ktube' ? flat : tall).push(b);
     }
     flat.sort(function (a, b) { return (a.x + a.y) - (b.x + b.y) || a.x - b.x; });
     tall.sort(function (a, b) { return (a.x + a.w + a.y + a.h) - (b.x + b.w + b.y + b.h) || (a.x + a.y) - (b.x + b.y); });
@@ -214,6 +214,7 @@
       const spr = b.kind === 'belt'
         ? V.belt(b.def.tier || 0, b.dir, beltShape(b), Math.floor(time * b.def.speed * V.VT) % 4)
         : b.kind === 'pipe' ? V.pipe(CO.render.pipeMask(b), b.fnet && b.fnet.amount > 0 ? b.fnet.fluid : null)
+        : b.kind === 'ktube' ? V.tube(CO.render.tubeMask(b), CO.render.tubeGlow(b))
         : V.building(b.type, b.dir, 0);
       drawBody(b, spr, time);
       if (b.items && !b.site) {
@@ -380,12 +381,12 @@
     ctx.save(); ctx.lineWidth = Math.max(1, ts / 14); ctx.setLineDash([ts * 0.3, ts * 0.25]);
     for (let i = 0; i < list.length; i++) {
       const b = list[i];
-      if (b.kind !== 'driver' || !b.target) continue;
-      const tg = CO.sim.driverTarget(b);
+      if ((b.kind !== 'driver' && b.kind !== 'krelay') || !b.target) continue;
+      const tg = b.kind === 'krelay' ? CO.tubes.relayTarget(b) : CO.sim.driverTarget(b);
       if (!tg) continue;
       const hot = ov && (ov.hover === b || ov.hover === tg || ov.selected.indexOf(b) >= 0 || ov.selected.indexOf(tg) >= 0);
-      const a = centre(b, 0.8), c = centre(tg, 0.8);
-      ctx.strokeStyle = hot ? 'rgba(255,211,127,0.75)' : 'rgba(255,211,127,0.22)';
+      const a = centre(b, b.kind === 'krelay' ? 2.2 : 0.8), c = centre(tg, b.kind === 'krelay' ? 2.2 : 0.8);
+      ctx.strokeStyle = b.kind === 'krelay' ? (hot ? 'rgba(94,240,255,0.85)' : 'rgba(94,240,255,0.35)') : hot ? 'rgba(255,211,127,0.75)' : 'rgba(255,211,127,0.22)';
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(c[0], c[1]); ctx.stroke();
     }
     ctx.restore();
@@ -552,7 +553,7 @@
     const gh = ov.ghosts.slice().sort(function (a, b) { return (a.x + a.y) - (b.x + b.y); });
     for (let i = 0; i < gh.length; i++) {
       const g = gh[i], def = CO.BUILDINGS[g.type], box = { x: g.x, y: g.y, w: def.w, h: def.h, dir: g.dir };
-      if (def.kind === 'driver' && gh.length === 1) rangeEllipse({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
+      if ((def.kind === 'driver' || def.kind === 'krelay') && gh.length === 1) rangeEllipse({ x: g.x, y: g.y, w: def.w, h: def.h, def: def }, g.valid);
       foot(box, !g.valid ? 'rgba(229,84,84,0.45)' : g.ghost ? 'rgba(110,160,255,0.3)' : 'rgba(255,211,127,0.14)',
         !g.valid ? 'rgba(229,84,84,0.95)' : g.ghost ? 'rgba(150,190,255,0.95)' : 'rgba(255,211,127,0.95)', lw);
       const spr = def.kind === 'belt' ? V.belt(def.tier || 0, g.dir, 0, 0) : V.building(g.type, g.dir, 0);

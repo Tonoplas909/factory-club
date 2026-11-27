@@ -136,7 +136,8 @@
       row('Recherche', '« + File d’attente » enchaîne les recherches ; les laboratoires mettent en réserve ce qui servira plus tard'),
       row('Programme orbital', 'Recherche Astronautique : le Pas de tir reçoit 10 Modules de fusée et un Satellite ou une Sonde profonde, assemble la fusée et la lance. Les missions (onglet Station) donnent des bonus permanents : machines, foreuses, terrains moins chers, générateurs'),
       row('Drones', 'Recherche Drones logistiques : un Port de drones (portée 24 cases) envoie ses 4 drones chercher les objets des Coffres d’envoi (remplis par convoyeur) pour les porter aux Coffres de demande (objet choisi dans Infos, jusqu’à 40), qui les sortent par leur flèche'),
-      row('Planètes', 'Les 8 extensions de la station terminées, la flèche ▶ au-dessus de l’image (onglet Station) emmène sur Kéora : autre carte, autres minerais et liquides, autres machines et recherches, avec un portail stellaire à construire. La flèche ◀ ramène sur la Terre ; la planète quittée est en pause. Argent, ouvriers et recherches acquises suivent'),
+      row('Planètes', 'Les 8 extensions de la station terminées, la flèche ▶ au-dessus de l’image (onglet Station) emmène sur Kéora, où rien de la Terre n’existe : autre carte, autres minerais, liquides en cartouches, autres machines et recherches, et un portail stellaire à construire. La flèche ◀ ramène sur la Terre ; la planète quittée est en pause. Argent et ouvriers suivent'),
+      row('Réseau quantique (Kéora)', 'Les tubes qui se touchent forment un réseau ; tout bâtiment qui touche un tube y est relié et reçoit ce dont il a besoin. Une flèche de sortie pointée sur un tube dépose la production dans le réseau. Le réseau porte aussi le courant. 6 transferts/s, plus avec les accélérateurs ; silos pour le surplus, relais pour relier deux réseaux au loin'),
       row('Contrats', 'Après ta première livraison, le Port propose des contrats (onglet Station) : livre une quantité d’un objet avant la fin du temps pour une grosse récompense. Deux à la fois ; les livraisons au Port les remplissent avant la station'),
       row('Améliorations', 'Recherches Améliorations I et II : dans Infos, un bouton fait passer foreuses, machines, pompes et générateurs au niveau II (×1,5, coûte 2× le bâtiment) puis III (×2, 4× le bâtiment). Ils consomment plus de courant. Marche aussi sur toute une sélection'),
       row('Fluides', 'Recherche Hydraulique : une Pompe à eau posée sur un lac remplit les tuyaux qui la touchent. Les tuyaux qui se touchent partagent leur contenu (un seul fluide par réseau). La Centrale à vapeur (eau + charbon) donne 400 kW ; la Raffinerie transforme le pétrole en plastique et carburant'),
@@ -185,7 +186,7 @@
         if (!recOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
         else if (!machOk) right.appendChild(h('div', { class: 'lock', text: '🔒 Machine à débloquer : ' + TECHS[mach.tech].name }));
       } else {
-        const dr = CO.planet().drill, rate = BUILDINGS[dr].rate * CO.mods.drill;
+        const dr = CO.BUILD_ORDER.filter(function (t) { return BUILDINGS[t].yields === id; })[0] || CO.planet().drill, rate = BUILDINGS[dr].rate * CO.mods.drill;
         right.appendChild(h('div', { class: 'gline' }, h('span', { class: 'garrow', 'data-bld': dr }, thumb(dr, 30), h('small', { text: BUILDINGS[dr].name })), h('span', { class: 'gop', text: '➜' }), chip(id, 1)));
         right.appendChild(h('div', { class: 'small', text: 'Se récolte sur un gisement de ce minerai : ' + fmtRate(rate / 4) + ' par case couverte (' + fmtRate(rate) + ' pour une foreuse 2×2 entière).' }));
       }
@@ -296,7 +297,10 @@
     $('power-val').textContent = CO.fmt(Math.round(PWR.demand)) + '/' + CO.fmt(Math.round(PWR.supply)) + ' kW';
     pc.classList.toggle('short', PWR.demand > PWR.supply && PWR.supply > 0);
     pc.classList.toggle('dead', PWR.unpowered > 0);
-    $('power-warn').textContent = PWR.unpowered ? PWR.unpowered + ' sans courant' : '';
+    const light = CO.daylight(), day = CO.planet().day;
+    $('power-warn').textContent = [PWR.unpowered ? PWR.unpowered + ' sans courant' : '', day ? (light > 0 ? '☀ ' + Math.round(light * 100) + ' %' : '☾ nuit') : ''].filter(Boolean).join(' · ');
+    const filter = day ? 'brightness(' + (0.55 + 0.45 * light).toFixed(2) + ')' : '';
+    if ($('game').style.filter !== filter) $('game').style.filter = filter;
     const gs = CO.ghostStats(), paidWait = wait - gs.n;
     $('workers-wait').textContent = [paidWait > 0 ? paidWait + ' en attente' : '', gs.n ? gs.n + ' fantôme(s)' : ''].filter(Boolean).join(' · ');
     const P = CO.planet(), total = CO.PHASES.length;
@@ -311,6 +315,7 @@
     const st = CO.state;
     // The tutorial ends with the first delivery to the Port (or on any save already past step 1):
     // deleting every drill later on must not bring the beginner hints back.
+    if (st.planet === 1) return keoraHint();
     if (st.planet > 0 || st.phase > 0 || st.stats.delivered > 0) return '';
     let drills = 0, belts = 0, smelters = 0, labs = 0;
     for (let i = 0; i < CO.world.list.length; i++) {
@@ -325,6 +330,18 @@
     if (!smelters) return '④ Un lingot vaut plus qu’un minerai : intercale une Fonderie (la flèche jaune = sa sortie).';
     if (!labs) return '⑤ Construis un Laboratoire, puis ouvre l’onglet Recherche pour débloquer de nouvelles machines.';
     if (!st.stats.delivered) return '⑥ Livre des plaques de fer et des engrenages au Port : c’est la première pièce de la station.';
+    return '';
+  }
+  /** First steps on Kéora, until the first delivery to its Spatioport. */
+  function keoraHint() {
+    const st = CO.state;
+    if (st.phase > 0 || Object.keys(st.phaseHave).length) return '';
+    const list = CO.world.list, has = function (t) { return list.some(function (b) { return b.type === t; }); };
+    if (!has('k_tube')) return '① Pose des Tubes quantiques (catégorie Réseau) depuis le Spatioport : glisse pour tracer une ligne. Tout bâtiment qui touche un tube y est relié.';
+    if (!has('k_drill')) return '② Pose une Foreuse à plasma sur un gisement contre le réseau, sa flèche jaune pointée sur un tube.';
+    if (CO.power.unpowered > 0) return '⚡ Un bâtiment n’a pas de courant : il doit toucher un tube du réseau relié au Spatioport (ou à un générateur).';
+    if (!has('k_forge')) return '③ Une Forge à induction qui touche le réseau reçoit seule le minerai. Pointe sa flèche sur un tube pour y renvoyer les lingots.';
+    if (!has('k_workshop')) return '④ Un Atelier de précision relié au réseau (recette : tôle de cobalt ou rotor). Le Spatioport prend lui-même ce que l’étape demande.';
     return '';
   }
   function updateHint() {
@@ -544,9 +561,10 @@
       CO.drawStation(cv, 0, 0, 0, k);
       openModal('Bienvenue sur ' + Q.name, h('div', null, cv,
         h('p', { text: Q.desc }),
-        h('p', { class: 'small', text: 'Nouvelle carte, nouveaux minerais, nouveaux liquides et nouvelles machines : la palette ne montre que ce qui existe ici. L’onglet Recherche a ses propres technologies ; ce que tu as appris sur ' + CO.PLANETS[k - 1].the + ' (convoyeurs, aiguillages, coffres, poteaux, améliorations) reste acquis.' }),
-        h('p', { class: 'small', text: 'Objectif : ' + Q.phases.length + ' étapes ' + Q.goalOf + ', à livrer au Port. Ton argent et tes ouvriers t’ont suivi ; pendant ton absence, l’usine de ' + CO.PLANETS[k - 1].the + ' est en pause et reprend à ton retour (flèche ◀ au-dessus de l’image).' }),
-        h('p', { class: 'small', text: 'Pour commencer : ' + BUILDINGS[Q.drill].name + ' sur un gisement près du Port, des convoyeurs, ' + BUILDINGS[Q.smelter].name + ', puis ' + BUILDINGS[Q.gen].name + ' (' + ITEMS[BUILDINGS[Q.gen].fuel].name.toLowerCase() + ' par convoyeur) quand le courant du Port ne suffit plus.' })),
+        h('p', { class: 'small', text: 'Rien de ' + CO.PLANETS[k - 1].the + ' n’existe ici : ni convoyeurs, ni poteaux, ni tuyaux, ni machines, ni recherches. Ton argent et tes ouvriers t’ont suivi ; l’usine de ' + CO.PLANETS[k - 1].the + ' est en pause et reprend à ton retour (flèche ◀ au-dessus de l’image).' }),
+        h('p', { class: 'small', text: 'Le réseau quantique : les Tubes quantiques qui se touchent forment un réseau, et tout bâtiment qui touche un tube y est relié. Pointe la flèche d’une foreuse ou d’une machine sur un tube : sa production entre dans le réseau, qui l’apporte seul aux machines qui en ont besoin, au laboratoire et au Spatioport. Le même réseau transporte le courant (le Spatioport en fournit 150 kW). Un réseau fait ' + CO.tubes.BASE + ' transferts/s ; les Accélérateurs de flux en ajoutent, les Silos gardent le surplus, les Relais quantiques relient deux réseaux au loin.' }),
+        h('p', { class: 'small', text: 'Les liquides se mettent en cartouches (extracteurs posés sur les lacs). Les jours sont courts : la nuit, les collecteurs photoniques s’éteignent, les accumulateurs prennent le relais.' }),
+        h('p', { class: 'small', text: 'Pour commencer : des tubes depuis le Spatioport, ' + BUILDINGS[Q.drill].name + ' sur un gisement (flèche vers un tube), ' + BUILDINGS[Q.smelter].name + ' contre le réseau, puis ' + BUILDINGS[Q.gen].name + ' quand le courant manque. Objectif : ' + Q.phases.length + ' étapes ' + Q.goalOf + '.' })),
         [{ label: 'C’est parti !', primary: true }]);
       UI.modalAnim = { cv: cv, phase: 0, planet: k };
     }); }, 200);
@@ -789,6 +807,7 @@
     if (CO.render.noPower(b)) return pill('off', b.net ? 'Réseau sans puissance' : 'Pas de courant');
     switch (b.kind) {
       case 'generator':
+        if (b.def.light && CO.daylight() <= 0) return pill('info', 'Nuit : à l’arrêt');
         if (!b.def.fuel) return b.status === 'work' ? pill('good', 'Produit') : pill('info', 'Prête (aucune demande)');
         return b.status === 'work' ? pill('good', 'Brûle : ' + itemName(b.def.fuel).toLowerCase()) : b.status === 'nofuel' ? pill('bad', 'Plus de ' + itemName(b.def.fuel).toLowerCase())
           : b.status === 'nowater' ? pill('bad', 'Manque : ' + itemName(b.def.cool || 'water').toLowerCase()) : pill('info', 'En veille (aucune demande)');
@@ -809,6 +828,17 @@
       case 'pipe': case 'fluid_tank': {
         const n = b.fnet;
         return n && n.amount > 0 ? pill('info', itemName(n.fluid) + ' · ' + Math.round(n.amount / n.cap * 100) + ' %') : pill('info', 'Vide');
+      }
+      case 'ktube': {
+        const n = b.knet;
+        return !n ? pill('info', 'Isolé') : n.full ? pill('bad', 'Réseau saturé') : pill(n.flow > 0.05 ? 'good' : 'info', fmtNum(n.flow, 1) + ' / ' + fmtNum(n.rate, 1) + ' transferts/s');
+      }
+      case 'ksilo': return pill('info', b.q.length + ' / ' + b.def.capacity);
+      case 'kbooster': return pill('good', '+' + fmtNum(b.def.rate * (b.pw || 0), 1) + ' transferts/s');
+      case 'krelay': return CO.tubes.relayTarget(b) ? pill('good', 'Relié') : pill('warn', b.target ? 'Cible introuvable' : 'Aucune liaison');
+      case 'kaccu': {
+        const pct = Math.round(b.charge / b.def.capacity * 100) + ' %';
+        return b.mode === 'charge' ? pill('good', 'Se charge · ' + pct) : b.mode === 'discharge' ? pill('warn', 'Se décharge · ' + pct) : pill('info', pct);
       }
       case 'pole': return b.net ? pill(b.net.sat >= 1 ? 'good' : b.net.sat > 0 ? 'warn' : 'bad', 'Réseau ' + Math.round(b.net.sat * 100) + ' %') : pill('info', 'Isolé');
       case 'machine':
@@ -844,6 +874,18 @@
   function statusHelp(b) {
     if (b.site && !b.site.paid) return 'Posé sans assez de crédits : un ouvrier viendra le payer (' + CO.fmt(b.def.cost) + ' ¢) et le construire dès que tu les auras.';
     if (b.site) return b.site.w ? 'Un ouvrier s’en occupe : ' + fmtTime(b.site.t) + ' de travail une fois sur place.' : 'Tous les ouvriers sont occupés : il sera construit dès qu’un se libère (recrute-en d’autres dans l’onglet Station).';
+    if (CO.planet().grid === 'tubes') {
+      const linked = !!b.knet;
+      if (CO.render.noPower(b)) return linked ? 'Son réseau n’a pas d’énergie : relie-lui le Spatioport, un générateur (et son combustible) ou un accumulateur chargé.'
+        : 'Il ne touche aucun tube : pose un Tube quantique contre lui, relié au Spatioport ou à un générateur.';
+      if (b.kind === 'generator' && b.status === 'nofuel') return linked ? 'Le réseau lui apporte du ' + itemName(b.def.fuel).toLowerCase() + ' dès qu’il en circule : pointe la flèche d’une foreuse (ou d’un extracteur) sur un tube du même réseau.'
+        : 'Il ne touche aucun tube : pose un tube contre lui pour qu’il reçoive son combustible et donne son courant.';
+      if ((b.kind === 'machine' || b.kind === 'drill') && b.status === 'blocked') return 'Sa production ne sort pas : pointe sa flèche jaune sur un tube (ou sur un bâtiment qui la prend). Si le réseau est saturé, relie un silo ou un comptoir d’échange.';
+      if (b.kind === 'machine' && b.recipe && b.status === 'idle') return linked ? 'Il attend ses matières : le réseau les lui apporte dès qu’elles y circulent (ou qu’un silo en a).' : 'Il ne touche aucun tube : pose un tube contre lui pour qu’il reçoive ses matières.';
+      if (b.kind === 'krelay' && !CO.tubes.relayTarget(b)) return '« Choisir la cible » ci-dessous, puis clique sur un autre relais (64 cases au plus) : les deux réseaux n’en feront qu’un.';
+      if (b.kind === 'ktube' && b.knet && b.knet.full) return 'Le réseau est plein : personne ne prend ce qu’il contient. Relie un silo, un comptoir d’échange ou le Spatioport.';
+      if (b.kind === 'lab' && !linked) return 'Il ne touche aucun tube : le réseau ne peut ni l’alimenter ni lui apporter les objets de la recherche.';
+    }
     if (CO.render.noPower(b)) return b.net ? 'Son réseau ne produit rien : ajoute un générateur (et son combustible), ou relie le réseau au Port avec des poteaux.'
       : 'Aucun réseau électrique ne l’atteint : pose un Poteau électrique à moins de 2 cases de lui, relié au Port ou à un générateur.';
     if (b.kind === 'generator' && b.status === 'nofuel') return 'Amène du ' + itemName(b.def.fuel).toLowerCase() + ' par convoyeur, sur n’importe quel côté.';
@@ -987,7 +1029,7 @@
         h('div', { class: 'ititle', text: b.def.name }),
         h('div', { class: 'hero-meta' },
           h('span', { class: 'tag', text: b.w + '×' + b.h }),
-          b.def.fixed || b.kind === 'lab' || b.kind === 'seller' ? null : h('span', { class: 'tag', text: b.kind === 'driver' && b.target ? 'Lanceur' : 'Sortie ' + CO.DIR_ARROWS[b.dir] }),
+          b.def.fixed || b.def.nodir || b.kind === 'lab' || b.kind === 'seller' ? null : h('span', { class: 'tag', text: b.kind === 'driver' && b.target ? 'Lanceur' : 'Sortie ' + CO.DIR_ARROWS[b.dir] }),
           b.def.fixed ? null : h('span', { class: 'tag gold', text: b.def.cost + ' ¢' })))));
     const help = statusHelp(b);
     body.appendChild(h('div', { class: 'icard' }, statusPill(b), help ? h('div', { class: 'help', text: help }) : null,
@@ -1051,6 +1093,25 @@
       const f = b.q.length / def.capacity;
       body.appendChild(section('Stock (' + b.q.length + ' / ' + def.capacity + ')', h('div', null,
         h('div', { class: 'bar' }, h('i', { style: 'width:' + (f * 100) + '%' })), stockChips(countBy(b.q)))));
+    } else if (b.kind === 'ksilo') {
+      const f = b.q.length / b.def.capacity;
+      body.appendChild(section('Contenu (' + b.q.length + ' / ' + b.def.capacity + ')', h('div', null,
+        h('div', { class: 'bar' }, h('i', { style: 'width:' + (f * 100) + '%' })), stockChips(countBy(b.q)))));
+    } else if (b.kind === 'krelay') {
+      const tg = CO.tubes.relayTarget(b);
+      body.appendChild(section('Liaison', h('div', { class: 'icard flat' },
+        h('div', { class: 'small', text: tg ? 'Relié au relais en ' + tg.x + ', ' + tg.y + ' (' + Math.round(CO.sim.driverDist(b, tg)) + ' cases) : les deux réseaux n’en font qu’un, objets et courant.'
+          : b.target ? 'Le relais visé a disparu ou est hors de portée.' : 'Aucune liaison (il peut aussi être la cible d’un autre relais).' }),
+        kv('Portée', b.def.range + ' cases'),
+        h('div', { class: 'actions' },
+          h('button', { class: 'btn primary', text: '⌖ Choisir la cible', onclick: function () { CO.input.startLink(b); } }),
+          b.target ? h('button', { class: 'btn', text: 'Couper la liaison', onclick: function () { CO.history.configure(b, null); renderSide(true); } }) : null))));
+    } else if (b.kind === 'kaccu') {
+      const f = b.charge / b.def.capacity;
+      body.appendChild(section('Réserve d’énergie', h('div', { class: 'icard flat' },
+        h('div', { class: 'bar' }, h('i', { style: 'width:' + (f * 100) + '%;background:#5fe0a8' })),
+        kv('Stock', CO.fmt(Math.round(b.charge)) + ' / ' + CO.fmt(b.def.capacity) + ' kJ'), kv('Débit', b.def.rate + ' kW au plus'),
+        kv('État', b.mode === 'charge' ? 'se charge' : b.mode === 'discharge' ? 'se décharge' : 'au repos'))));
     } else if (b.kind === 'port') {
       const p = CO.getPhase(CO.state.phase);
       body.appendChild(section('Étape en cours', h('div', { class: 'icard flat' }, h('b', { text: p.name }), costRow(p.need, CO.state.phaseHave))));
@@ -1089,10 +1150,11 @@
 
     upgradeInfo(body, b);
     powerInfo(body, b);
+    networkInfo(body, b);
     fluidInfo(body, b);
     if (b.def.fixed) return;
     body.appendChild(h('div', { class: 'actions' },
-      h('button', { class: 'btn', text: '↻ Tourner (R)', onclick: function () { CO.history.rotate(b); renderSide(true); } }),
+      b.def.nodir ? null : h('button', { class: 'btn', text: '↻ Tourner (R)', onclick: function () { CO.history.rotate(b); renderSide(true); } }),
       h('button', { class: 'btn', text: '★ Plan', 'data-tip': 'Garder comme plan|Ajoute ce bâtiment (avec sa recette) à tes plans', onclick: UI.savePlan }),
       h('button', { class: 'btn danger', text: '✖ Supprimer', onclick: function () { CO.input.deleteSelected(); } })));
   }
@@ -1149,23 +1211,27 @@
     body.appendChild(wrap);
   }
 
-  /** Power of a building: what it uses, or the network it belongs to (poles, generators, Port). */
+  /** Power of a building: what it uses, or the network it belongs to (poles, generators, Port; tubes on Kéora). */
   function powerInfo(body, b) {
     if (b.site) return;
-    const net = b.net;
+    const net = b.net, tubes = CO.planet().grid === 'tubes';
     const netRows = function (n) {
       return [kv('Production', CO.fmt(Math.round(n.supply)) + ' kW'), kv('Demande', CO.fmt(Math.round(n.demand)) + ' kW'),
         kv('Alimentation', Math.round(n.sat * 100) + ' %'),
-        h('div', { class: 'small', text: 'Réseau : ' + n.gens.length + ' source(s) · ' + n.cons.length + ' machine(s) · ' + (n.nodes.length - n.gens.length) + ' poteau(x)' })];
+        n.cap ? kv('Accumulateurs', CO.fmt(Math.round(n.stored)) + ' / ' + CO.fmt(n.cap) + ' kJ') : null,
+        h('div', { class: 'small', text: tubes ? 'Réseau quantique : ' + n.gens.length + ' source(s) · ' + n.cons.length + ' machine(s) · ' + n.accus.length + ' accumulateur(s)'
+          : 'Réseau : ' + n.gens.length + ' source(s) · ' + n.cons.length + ' machine(s) · ' + (n.nodes.length - n.gens.length) + ' poteau(x)' })];
     };
     if (b.def.power) {
       const rows = [kv('Consommation', b.def.power + ' kW en marche')];
       if (net) rows.push(kv('Vitesse', Math.round((b.pw || 0) * 100) + ' %'));
-      else rows.push(h('div', { class: 'small', style: 'color:#b9a8ff', text: 'Non raccordé : aucun poteau, générateur ou Port ne le touche.' }));
+      else rows.push(h('div', { class: 'small', style: 'color:#b9a8ff', text: tubes ? 'Non raccordé : il ne touche aucun tube relié à une source d’énergie.' : 'Non raccordé : aucun poteau, générateur ou Port ne le touche.' }));
       body.appendChild(section('Énergie', h('div', { class: 'icard flat' }, rows.concat(net ? netRows(net) : []))));
-    } else if (b.kind === 'generator' || b.kind === 'pole' || b.kind === 'port') {
+    } else if (b.kind === 'generator' || b.kind === 'pole' || b.kind === 'port' || b.kind === 'kaccu') {
       const rows = [];
-      if (b.def.gen) rows.push(kv('Puissance', CO.fmt(Math.round(b.def.gen * (b.kind === 'port' ? 1 : CO.lvlSpeed(b)))) + ' kW'));
+      if (b.def.gen) rows.push(kv('Puissance', CO.fmt(Math.round(b.def.gen * (b.kind === 'port' ? 1 : CO.lvlSpeed(b)))) + ' kW' + (b.def.light ? ' en plein jour' : '')));
+      if (b.def.light) rows.push(kv('Lumière', Math.round(CO.daylight() * 100) + ' %'));
+      if (tubes && !net) rows.push(h('div', { class: 'small', style: 'color:#b9a8ff', text: 'Il ne touche aucun tube : son énergie ne va nulle part.' }));
       if (b.def.fuel) rows.push(kv(itemName(b.def.fuel), b.fuel + ' / ' + CO.power.FUEL_CAP + (b.burn > 0 ? ' · en cours : ' + fmtNum(b.burn, 1) + ' s' : '')));
       if (b.kind === 'pole') rows.push(kv('Portée', 'zone ' + (b.def.cover * 2 + 1) + '×' + (b.def.cover * 2 + 1) + ' · liaisons ' + b.def.reach + ' cases'));
       body.appendChild(section('Réseau électrique', h('div', { class: 'icard flat' }, rows.concat(net ? netRows(net) : []))));
@@ -1181,13 +1247,30 @@
       kv(b.kind === 'generator' ? 'Production' : 'Vitesse', '×' + fmtNum(U.speed[l - 1], 1)),
       b.def.power ? kv('Consommation', '×' + fmtNum(U.power[l - 1], 1)) : null);
     if (l < max) {
-      const next = CO.nextLevel(b), price = CO.upgradePrice(b), tech = TECHS[U.tech[l]];
+      const next = CO.nextLevel(b), price = CO.upgradePrice(b), tech = TECHS[CO.upgradeTech(l + 1)];
       if (!next) box.appendChild(h('div', { class: 'small lock', text: '🔒 Niveau ' + U.names[l] + ' : recherche ' + tech.name }));
       else box.appendChild(h('button', { class: 'btn primary', disabled: CO.state.money < price,
         text: '⬆ Niveau ' + U.names[l] + ' (×' + fmtNum(U.speed[l], 1) + ') · ' + CO.fmt(price) + ' ¢',
         onclick: function () { if (CO.history.upgrade([b])) CO.emit('toast', b.def.name + ' amélioré au niveau ' + U.names[b.lvl - 1] + '.', 'good'); renderSide(true); } }));
     }
     body.appendChild(section('Amélioration', box));
+  }
+
+  /** Kéora: the quantum network a building is part of (tubes, silos...) or touches (users). */
+  function networkInfo(body, b) {
+    if (b.site || CO.planet().grid !== 'tubes') return;
+    const n = b.knet, mem = CO.tubes.member(b);
+    if (!n) { body.appendChild(section('Réseau quantique', h('div', { class: 'small', style: 'color:#b9a8ff', text: 'Ne touche aucun tube : ni objets ni courant.' }))); return; }
+    const box = h('div', { class: 'icard flat' },
+      kv('Transferts', fmtNum(n.flow, 1) + ' / ' + fmtNum(n.rate, 1) + ' par seconde'),
+      kv('En circulation', n.pool.length + ' / ' + CO.tubes.capOf(n) + ' objets'),
+      h('div', { class: 'small', text: n.tubes + ' tube(s) · ' + n.users.length + ' bâtiment(s) relié(s) · ' + n.silos.length + ' silo(s) · ' + n.boosters.length + ' accélérateur(s)' + (n.relays.length ? ' · ' + n.relays.length + ' relais' : '') }));
+    if (mem) { const c = CO.tubes.contents(n); if (Object.keys(c).length) box.appendChild(stockChips(c)); }
+    else {
+      const w = CO.tubes.wantedBy(b);
+      if (w.length) box.appendChild(h('div', { class: 'small', text: 'Demande au réseau : ' + w.map(itemName).join(', ') }));
+    }
+    body.appendChild(section('Réseau quantique', box));
   }
 
   /** Pipe networks a building belongs to (pipes, tanks) or uses (pumps, steam plants, refineries). */
@@ -1225,7 +1308,9 @@
         const lpSig = b.kind === 'launch_pad' ? b.parts + b.phase + b.payload + JSON.stringify(st.orbit) : '';
         const drSig = lpSig + (b.drones ? b.drones.map(function (d) { return d.state[0]; }).join('') : '');
         const pwSig = drSig + flSig + ':' + Math.round((b.pw || 0) * 100) + (b.net ? ':' + Math.round(b.net.supply) + '/' + Math.round(b.net.demand) + '/' + b.net.cons.length + '/' + b.net.nodes.length : '') + (b.fuel != null ? ':' + b.fuel : '');
-        return pwSig + ':L' + b.lvl + (CO.nextLevel(b) ? 'u' + (CO.state.money >= CO.upgradePrice(b)) : '') + b.id + ':' + (b.site ? 'S' + !!b.site.w + b.site.paid : '') + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest + labSig + drvSig;
+        const kSig = (b.knet ? ':' + b.knet.pool.length + ':' + Math.round(b.knet.flow * 10) + ':' + Math.round(b.knet.rate) : '') + (b.charge != null ? ':' + Math.round(b.charge / 300) + b.mode : '')
+          + (b.kind === 'krelay' ? ':' + !!CO.tubes.relayTarget(b) : '') + (b.def.light ? ':' + Math.round(CO.daylight() * 20) : '');
+        return pwSig + kSig + ':L' + b.lvl + (CO.nextLevel(b) ? 'u' + (CO.state.money >= CO.upgradePrice(b)) : '') + b.id + ':' + (b.site ? 'S' + !!b.site.w + b.site.paid : '') + ':' + b.dir + ':' + b.recipe + ':' + b.filter + ':' + b.status + ':' + (b.items ? b.items.length : b.q ? b.q.length : '') + ':' + JSON.stringify(b.inBuf || 0) + ':' + (b.outBuf ? b.outBuf.length : b.out ? b.out.length : '') + ':' + (st.research || '') + ':' + CO.mods.machine + ':' + CO.mods.drill + ':' + CO.mods.chest + labSig + drvSig;
       }
     }
     return '';
@@ -1324,11 +1409,11 @@
       const id = CO.ORE_IDS[hv.ore];
       tipEl.innerHTML = '';
       tipEl.appendChild(itemIcon(id, 3));
-      const P = CO.planet(), pump = CO.BUILD_ORDER.filter(function (t) { return BUILDINGS[t].fluid === id; })[0];
+      const P = CO.planet(), pump = CO.BUILD_ORDER.filter(function (t) { return BUILDINGS[t].fluid === id || BUILDINGS[t].fluidOre === id; })[0], pd = pump && BUILDINGS[pump];
       tipEl.appendChild(CO.isFluidOre(hv.ore)
-        ? h('span', null, h('b', { text: oreLabel(hv.ore) }), h('small', { text: pump
-          ? BUILDINGS[pump].name + ' : ' + fmtNum(BUILDINGS[pump].rate, 0) + ' ' + itemName(id).toLowerCase() + '/s (pleine couverture), à relier par des tuyaux · recherche ' + TECHS[BUILDINGS[pump].tech].name
-          : 'Liquide : à pomper' }))
+        ? h('span', null, h('b', { text: oreLabel(hv.ore) }), h('small', { text: !pd ? 'Liquide'
+          : pd.yields ? pd.name + ' : ' + fmtRate(pd.rate * CO.mods.drill) + ' ' + itemName(pd.yields).toLowerCase() + ' (pleine couverture) · recherche ' + TECHS[pd.tech].name
+          : pd.name + ' : ' + fmtNum(pd.rate, 0) + ' ' + itemName(id).toLowerCase() + '/s (pleine couverture), à relier par des tuyaux · recherche ' + TECHS[pd.tech].name }))
         : h('span', null, h('b', { text: itemName(id) }), h('small', { text: 'Gisement · ' + BUILDINGS[P.drill].name + ' : ' + fmtRate(BUILDINGS[P.drill].rate * CO.mods.drill) + ', ' + BUILDINGS[P.drillHeavy].name + ' : ' + fmtRate(BUILDINGS[P.drillHeavy].rate * CO.mods.drill) + ' (pleine couverture)' })));
     }
     tipEl.hidden = false;
@@ -1381,7 +1466,9 @@
       if (!CO.isRecipeUnlocked(id)) lines.push(h('small', { class: 'tip-lock', text: '🔒 Recherche requise : ' + TECHS[rec.tech].name }));
     } else {
       const P = CO.planet(it.planet || 0), r = BUILDINGS[P.drill].rate * CO.mods.drill;
-      lines.push('Matière première · ' + BUILDINGS[P.drill].name + ' : ' + fmtRate(r) + ' (' + BUILDINGS[P.drillHeavy].name + ' : ' + fmtRate(BUILDINGS[P.drillHeavy].rate * CO.mods.drill) + ')');
+      const ex = Object.keys(BUILDINGS).filter(function (t) { return BUILDINGS[t].yields === id; })[0];
+      if (ex) lines.push('Rempli par : ' + BUILDINGS[ex].name + ' · ' + fmtRate(BUILDINGS[ex].rate * CO.mods.drill) + ' à pleine couverture');
+      else lines.push('Matière première · ' + BUILDINGS[P.drill].name + ' : ' + fmtRate(r) + ' (' + BUILDINGS[P.drillHeavy].name + ' : ' + fmtRate(BUILDINGS[P.drillHeavy].rate * CO.mods.drill) + ')');
     }
     return tipBody(itemIcon(id, 3), it.name, lines);
   }
@@ -1409,7 +1496,7 @@
         const r = def.rate * CO.mods.drill;
         out.push('Extraction : ' + fmtRate(r) + ' à pleine couverture (' + fmtRate(r / (def.w * def.h)) + ' par case)');
         const P = CO.planet(def.planet || 0);
-        out.push('Alimente ' + fmtNum(r * CO.craftTime(RECIPES[P.refRecipe]), 2) + ' × ' + BUILDINGS[P.smelter].name + ' à pleine couverture');
+        if (!def.yields) out.push('Alimente ' + fmtNum(r * CO.craftTime(RECIPES[P.refRecipe]), 2) + ' × ' + BUILDINGS[P.smelter].name + ' à pleine couverture');
         break;
       }
       case 'machine':
@@ -1421,7 +1508,13 @@
         });
         break;
       case 'lab': out.push('Consomme sans limite les objets de la recherche active (le surplus utile part en réserve)'); break;
-      case 'seller': out.push('Achète tout ce qui arrive, sans limite de débit'); break;
+      case 'seller': out.push(def.planet ? 'Relié au réseau, achète ce qui y reste sans preneur' : 'Achète tout ce qui arrive, sans limite de débit'); break;
+      case 'ktube': out.push('Réseau : ' + CO.tubes.BASE + ' transferts/s, + ' + BUILDINGS.k_booster.rate + ' par accélérateur · objets et courant'); break;
+      case 'ksilo': out.push('Capacité : ' + def.capacity + ' objets, pris et rendus par le réseau'); break;
+      case 'kbooster': out.push('+' + def.rate + ' transferts/s pour son réseau · ' + def.power + ' kW'); break;
+      case 'krelay': out.push('Portée : ' + def.range + ' cases · relie deux réseaux (objets et courant)'); break;
+      case 'kaccu': out.push('Réserve ' + CO.fmt(def.capacity) + ' kJ · ' + def.rate + ' kW au plus, en charge comme en décharge'); break;
+      case 'generator': out.push((def.light ? 'Jusqu’à ' : '') + def.gen + ' kW' + (def.fuel ? ' · ' + itemName(def.fuel) + ' : 1 toutes les ' + def.burn + ' s à pleine charge' : def.light ? ' le jour, rien la nuit' : ' en continu')); break;
       case 'port': out.push('Accepte tout, sans limite de débit (le surplus est revendu)'); break;
     }
     return out;

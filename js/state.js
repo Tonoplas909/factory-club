@@ -102,13 +102,14 @@
   CO.state = freshState(1);
 
   // ------------------------------------------------------------ unlocks
+  /** Bonuses of the planet being played: its own research only, and the orbital program on the Terre. */
   CO.recalcMods = function () {
     let m = 0, d = 0, c = 0;
     for (const id in CO.state.tech) {
       const t = CO.TECHS[id];
-      if (t && t.effect) { m += t.effect.machineSpeed || 0; d += t.effect.drillSpeed || 0; c += t.effect.chestCap || 0; }
+      if (t && t.effect && CO.onPlanet(t)) { m += t.effect.machineSpeed || 0; d += t.effect.drillSpeed || 0; c += t.effect.chestCap || 0; }
     }
-    const ob = CO.orbitBonus ? CO.orbitBonus() : {};
+    const ob = CO.orbitBonus && CO.planetIndex() === 0 ? CO.orbitBonus() : {};
     m += ob.machine || 0; d += ob.drill || 0;
     CO.mods.machine = 1 + m; CO.mods.drill = 1 + d; CO.mods.chest = c;
     CO.mods.land = 1 + (ob.land || 0); CO.mods.power = 1 + (ob.power || 0);
@@ -161,8 +162,10 @@
     if (!CO.canUpgradeKind(b) || b.site) return 0;
     const l = (b.lvl || 1) + 1;
     if (l > CO.UPGRADE.speed.length) return 0;
-    return CO.state.tech[CO.UPGRADE.tech[l - 1]] ? l : 0;
+    return CO.state.tech[CO.upgradeTech(l)] ? l : 0;
   };
+  /** Research that opens upgrade level `l` (2 or 3) on the current planet. */
+  CO.upgradeTech = function (l) { return CO.planet().upTech[l - 1]; };
   /** Price of the next level of `b`. */
   CO.upgradePrice = function (b) { return CO.UPGRADE.cost[b.lvl || 1] * b.def.cost; };
   /** Seconds one craft takes with current research. */
@@ -288,6 +291,13 @@
     CO.emit('phase', st.phase - 1, p);
   };
 
+  /** Light of the planet's star, 0 (night) to 1 (full day): Kéora's days are short. */
+  CO.daylight = function () {
+    const day = CO.planet().day;
+    if (!day) return 1;
+    return CO.clamp(0.35 + 0.9 * Math.sin((CO.state.time % day) / day * Math.PI * 2), 0, 1);
+  };
+
   // ------------------------------------------------------------ planets
   /** May the player go to planet `k`? */
   CO.planetOpen = function (k) { return k >= 0 && k < CO.PLANETS.length && k <= CO.state.reached; };
@@ -324,6 +334,7 @@
     st.contracts = CO.contracts.restore(pk.contracts);
     const away = isFinite(pk.leftAt) ? Math.max(0, st.time - pk.leftAt) : 0;      // contract clocks stop while away
     if (away) { st.contracts.next += away; st.contracts.active.forEach(function (a) { a.deadline += away; }); }
+    CO.recalcMods();
     CO.world.reset(st.seed, k);
     if (k === 0 && !st.startTitanium) CO.world.clearStartTitanium();
     CO.world.restore(Array.isArray(pk.buildings) ? pk.buildings : []);

@@ -6,6 +6,14 @@
 (function (CO) {
   'use strict';
   CO.CHANGELOG = [
+    { v: 8, date: '27 novembre 2026', title: 'Kéora : un monde à part', items: [
+      'Plus rien de la Terre sur Kéora : ni convoyeurs, ni aiguillages, ni coffres, ni poteaux, ni tuyaux. Chaque bâtiment appartient à une seule planète.',
+      'Le réseau quantique : les tubes qui se touchent forment un réseau, et tout bâtiment qui touche un tube y est relié. Une flèche de sortie pointée sur un tube y dépose la production ; le réseau l’apporte seul aux machines qui en ont besoin, au laboratoire et au Spatioport.',
+      'Le réseau fait 6 transferts/s (plus avec les Accélérateurs de flux) ; les Silos gardent le surplus et le rendent ; les Relais quantiques relient deux réseaux jusqu’à 64 cases.',
+      'L’énergie passe par les mêmes tubes. Les journées sont courtes : le Collecteur photonique s’éteint la nuit, les Accumulateurs prennent le relais. Turbine au méthane (500 kW).',
+      'Les liquides voyagent en cartouches : Extracteur d’ammoniac et Puits de méthane les remplissent.',
+      'Laboratoire, comptoir, Spatioport, recherches (dont les niveaux d’amélioration) et bonus de vitesse propres à Kéora.'
+    ] },
     { v: 7, date: '27 novembre 2026', title: 'Un nouveau monde : Kéora', items: [
       'Les 8 extensions de la station terminées, la station est complète : une flèche ▶ au-dessus de son image (onglet Station) emmène sur Kéora, avec une petite transition. La flèche ◀ ramène sur la Terre.',
       'Kéora a sa propre carte : cobalt, lithium, quartz, soufre, roche volcanique et iridium, lacs d’ammoniac et poches de méthane liquide.',

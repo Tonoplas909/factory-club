@@ -147,7 +147,38 @@
   /** Output marker: a yellow lip on the East face. */
   function lip(m, n, z) { m.box(n - 1, (n >> 1) - 2, z, 1, 4, 1, ACC); }
 
+  // Kéora's quantum network: violet metal, cyan light.
+  const KB = '#3a3550', KB2 = '#4a4466', KL = '#8a84b0', KC = '#5ef0ff', KV = '#c060f0';
+  function kPlinth(m, n) { m.box(0, 0, 0, n, n, 1, KB); m.box(1, 1, 1, n - 2, n - 2, 1, KB2); return m; }
+
   const MODELS = {
+    k_silo: function () {                              // tall capsule silo with light rings
+      const m = kPlinth(new Model(16), 16);
+      m.cyl(8, 8, 2, 6.5, 12, KB2).cyl(8, 8, 14, 5, 1, KL).cyl(8, 8, 15, 2, 1, KB);
+      m.cyl(8, 8, 5, 6.55, 1, KC).cyl(8, 8, 10, 6.55, 1, KV);
+      return m;
+    },
+    k_booster: function (f) {                          // magnetic coil around a glowing core
+      const m = kPlinth(new Model(16), 16);
+      for (let z = 2; z < 9; z += 2) m.cyl(8, 8, z, 6, 1, z === 4 + 2 * (f % 2) ? KC : KL);
+      m.cyl(8, 8, 2, 3, 8, KB).cyl(8, 8, 10, 2, 2, f % 2 ? KC : '#2f8a9a');
+      return m;
+    },
+    k_relay: function (f) {                            // crystal emitter on a tripod
+      const m = kPlinth(new Model(16), 16);
+      m.box(3, 3, 2, 2, 2, 6, KL).box(11, 3, 2, 2, 2, 6, KL).box(7, 12, 2, 2, 2, 6, KL);
+      m.box(5, 5, 8, 6, 6, 2, KB2).box(6, 6, 10, 4, 4, 6, KV).box(7, 7, 16, 2, 2, 2, f % 2 ? KC : '#ffffff');
+      return m;
+    },
+    k_accu: function (f) {                             // four battery cells with charge lights
+      const m = kPlinth(new Model(16), 16);
+      for (let k = 0; k < 4; k++) {
+        const x = 2 + (k % 2) * 7, y = 2 + Math.floor(k / 2) * 7;
+        m.box(x, y, 2, 5, 5, 7, KB2).box(x + 1, y + 1, 9, 3, 3, 1, KL);
+        m.box(x, y, 3 + ((f + k) % 3) * 2, 5, 5, 1, '#5fe0a8');
+      }
+      return m;
+    },
     drill: function (f, heavy) {
       const n = heavy ? 24 : 16, m = new Model(n), c = n / 2;
       plinth(m, n, 2);
@@ -421,12 +452,13 @@
       return m;
     }
   };
-  V.frames = { launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 4, refinery: 4, generator: 4, drill: 2, drill_heavy: 2, smelter: 4, assembler: 4, steelmill: 4, fabricator: 4, spaceyard: 2, lab: 4, port: 2 };
+  V.frames = { k_booster: 2, k_relay: 2, k_accu: 3, launch_pad: 2, drone_hub: 2, pump: 2, oil_well: 2, steam_plant: 4, refinery: 4, generator: 4, drill: 2, drill_heavy: 2, smelter: 4, assembler: 4, steelmill: 4, fabricator: 4, spaceyard: 2, lab: 4, port: 2 };
   for (const t in BUILDINGS) if (BUILDINGS[t].art && V.frames[BUILDINGS[t].art]) V.frames[t] = V.frames[BUILDINGS[t].art];
 
   const cache = new Map();
   V.building = function (type, dir, frame) {
     if (type === 'pipe') return V.pipe(dir & 1 ? 10 : 5, null);
+    if (BUILDINGS[type].kind === 'ktube') return V.tube(5, 0);
     const def = BUILDINGS[type], nf = V.frames[type] || 1, f = (frame || 0) % nf, d = def.fixed ? 0 : dir || 0;
     const k = 'b' + type + d + ':' + f;
     let s = cache.get(k);
@@ -470,6 +502,22 @@
       if (mask & 4) m.box(0, 2, 1, 3, 4, 3, M2).box(0, 2, 1, 1, 4, 3, M3);
       if (mask & 8) m.box(2, 0, 1, 4, 3, 3, M2).box(2, 0, 1, 4, 1, 3, M3);
       m.box(2, 2, 0, 4, 4, 1, M0).box(2, 2, 1, 4, 4, 3, M1).box(3, 3, 4, 2, 2, 1, fluid ? ITEMS[fluid].color : DARK);
+      s = raster(m);
+      cache.set(k, s);
+    }
+    return s;
+  };
+  /** Tube of Kéora's network: hub and arms towards the connected sides; `glow` 1 when the network is busy. */
+  V.tube = function (mask, glow) {
+    const k = 'K' + mask + ':' + glow;
+    let s = cache.get(k);
+    if (!s) {
+      const m = new Model(8), core = glow ? KC : '#3a6a78';
+      if (mask & 1) m.box(5, 2, 1, 3, 4, 3, KB2).box(5, 3, 4, 3, 2, 1, core);
+      if (mask & 2) m.box(2, 5, 1, 4, 3, 3, KB2).box(3, 5, 4, 2, 3, 1, core);
+      if (mask & 4) m.box(0, 2, 1, 3, 4, 3, KB2).box(0, 3, 4, 3, 2, 1, core);
+      if (mask & 8) m.box(2, 0, 1, 4, 3, 3, KB2).box(3, 0, 4, 2, 3, 1, core);
+      m.box(2, 2, 0, 4, 4, 1, KB).box(2, 2, 1, 4, 4, 3, '#5a5480').box(3, 3, 4, 2, 2, 1, glow ? '#e0ffff' : core);
       s = raster(m);
       cache.set(k, s);
     }

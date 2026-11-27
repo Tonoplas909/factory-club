@@ -86,7 +86,7 @@
         b.recipe = c.r; b.crafting = false; b.prog = 0;
       }
     } else if (b.kind === 'router' || b.kind === 'unloader' || b.kind === 'drone_requester') b.filter = c.f;
-    else if (b.kind === 'driver') world.setTarget(b, c.k || null);
+    else if (b.kind === 'driver' || b.kind === 'krelay') world.setTarget(b, c.k || null);
   }
 
   // Never refused for lack of credits: a re-added piece that cannot be paid comes back as a ghost.
@@ -172,7 +172,7 @@
   /** Change recipe (machines), filter (splitters) or target ("x,y", mass drivers). `value` = id/key or null. */
   H.configure = function (b, value) {
     const a = cfgOf(b), c = { r: a.r, f: a.f, k: a.k };
-    if (b.kind === 'machine') c.r = value; else if (b.kind === 'router' || b.kind === 'unloader' || b.kind === 'drone_requester') c.f = value; else if (b.kind === 'driver') c.k = value; else return;
+    if (b.kind === 'machine') c.r = value; else if (b.kind === 'router' || b.kind === 'unloader' || b.kind === 'drone_requester') c.f = value; else if (b.kind === 'driver' || b.kind === 'krelay') c.k = value; else return;
     if (c.r === a.r && c.f === a.f && c.k === a.k) return;
     const op = { k: 'cfg', x: b.x, y: b.y, a: a, b: c };
     applyOp(op, false); push([op]);

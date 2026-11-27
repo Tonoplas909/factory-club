@@ -10,7 +10,7 @@
   const KEY = 'chantier-orbital-minimap';
   const W = CO.MAP_W, H = CO.MAP_H;
   const C_FREE = [16, 16, 20], C_OWNED = [48, 49, 58], C_EDGE = [190, 158, 96];
-  const C_CAT = { Transport: [150, 152, 166], Production: [255, 211, 127], 'Énergie': [111, 224, 160], Fluides: [95, 176, 255], Autres: [127, 170, 255] };
+  const C_CAT = { Transport: [150, 152, 166], Production: [255, 211, 127], 'Énergie': [111, 224, 160], Fluides: [95, 176, 255], Autres: [127, 170, 255], 'Réseau': [94, 240, 255] };
   const C_PORT = [93, 224, 230];
   let cv, ctx, base, bctx, img, bakedKey = '', bakeWait = 0, shown = true, down = false;
   const oreRGB = [];

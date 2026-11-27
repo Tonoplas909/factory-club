@@ -56,7 +56,25 @@
     return n !== p && linkOf(p, n) >= 0;
   };
 
+  /** Kéora: no poles nor wires, the power travels in the tubes of the quantum network (tubes.js). */
+  function rebuildTubes() {
+    PW.ver = world.version;
+    CO.tubes.ensure();
+    const nets = CO.tubes.nets.map(function (tn) { return { id: tn.id, nodes: [], gens: [], cons: [], accus: [], supply: 0, demand: 0, sat: 0, load: 0, tnet: tn }; });
+    const list = world.list;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i], net = b.knet && !b.site ? nets[b.knet.id] : null;
+      b.net = null;
+      if (b.site) continue;
+      if (b.def.gen) { if (net) { net.gens.push(b); net.nodes.push(b); b.net = net; } }
+      else if (b.kind === 'kaccu') { if (net) { net.accus.push(b); net.nodes.push(b); b.net = net; } }
+      else if (PW.isConsumer(b)) { b.pw = 0; if (net) { net.cons.push(b); b.net = net; } }
+    }
+    PW.nets = nets; PW.links = [];
+  }
+
   function rebuild() {
+    if (CO.planet(world.planet).grid === 'tubes') { rebuildTubes(); return; }
     PW.ver = world.version;
     const list = world.list, nodes = [], cons = [];
     for (let i = 0; i < list.length; i++) {
@@ -116,14 +134,14 @@
 
   /** What generator `g` can give right now (kW). */
   function available(g) {
-    const gen = g.def.gen * (g.kind === 'port' ? 1 : CO.lvlSpeed(g) * (CO.mods.power || 1));
+    const gen = g.def.gen * (g.kind === 'port' ? 1 : CO.lvlSpeed(g) * (CO.mods.power || 1)) * (g.def.light ? CO.daylight() : 1);
     if (!g.def.fuel) return gen;
     if (g.def.water && !(CO.fluid.amount(g, g.def.cool || 'water') > 0)) return 0;   // a steam plant also needs water
     return g.burn > 0 || g.fuel > 0 ? gen : 0;
   }
 
   PW.update = function (dt) {
-    if (world.version !== PW.ver) rebuild();
+    if (world.version !== PW.ver || (world.planet && CO.tubes.ver !== world.version)) rebuild();
     const research = !!CO.state.research;
     let ts = 0, td = 0, off = 0;
     for (let n = 0; n < PW.nets.length; n++) {
@@ -135,9 +153,27 @@
         if (c.kind === 'lab') c.wants = research;
         if (c.wants) demand += c.def.power * CO.lvlPower(c);
       }
-      net.supply = supply; net.demand = demand;
-      net.sat = supply <= 0 ? 0 : demand <= 0 ? 1 : Math.min(1, supply / demand);
-      net.load = supply > 0 ? Math.min(1, demand / supply) : 0;
+      // Accumulators (Kéora) store the surplus of the generators and give it back when they fall short.
+      let charge = 0, discharge = 0;
+      const A = net.accus;
+      if (A && A.length) {
+        let stored = 0, cap = 0, rate = 0;
+        for (let i = 0; i < A.length; i++) { stored += A[i].charge; cap += A[i].def.capacity; rate += A[i].def.rate; }
+        if (supply >= demand) charge = Math.min(supply - demand, rate, dt > 0 ? (cap - stored) / dt : 0);
+        else discharge = Math.min(demand - supply, rate, dt > 0 ? stored / dt : 0);
+        const delta = (charge - discharge) * dt;
+        for (let i = 0; i < A.length; i++) {
+          const a = A[i];
+          a.charge = Math.max(0, Math.min(a.def.capacity, a.charge + delta * a.def.capacity / cap));
+          a.mode = charge > 1e-6 ? 'charge' : discharge > 1e-6 ? 'discharge' : 'idle';
+          a.status = a.mode === 'idle' ? 'idle' : 'work';
+        }
+        net.stored = stored; net.cap = cap;
+      }
+      net.charge = charge; net.discharge = discharge;
+      net.supply = supply + discharge; net.demand = demand;
+      net.sat = supply + discharge <= 0 ? 0 : demand <= 0 ? 1 : Math.min(1, (supply + discharge) / demand);
+      net.load = supply > 0 ? Math.min(1, Math.max(0, demand - discharge + charge) / supply) : 0;
       for (let i = 0; i < net.gens.length; i++) {
         const g = net.gens[i];
         if (!g.def.fuel) { g.status = net.load > 0 ? 'work' : 'idle'; continue; }

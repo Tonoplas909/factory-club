@@ -10,7 +10,7 @@
   const W = CO.MAP_W, H = CO.MAP_H, DX = CO.DX, DY = CO.DY, BUILDINGS = CO.BUILDINGS;
 
   // Logistics pieces that a bigger building may simply be built over.
-  const REPLACEABLE = { belt: true, tunnel_in: true, tunnel_out: true, router: true, junction: true };
+  const REPLACEABLE = { belt: true, tunnel_in: true, tunnel_out: true, router: true, junction: true, ktube: true };
 
   const world = CO.world = {
     W: W, H: H,
@@ -36,7 +36,7 @@
       this.planet = planet || 0;
       this.seed = this.planet ? (seed * 31 + 7919 * this.planet) % 2147483647 : seed;
       if (this.planet === 1) this.generateKeora(this.seed); else this.generateOre(seed);
-      this.port = this.create('port', CO.MAP_CX - 2, CO.MAP_CY - 2, 0, null);
+      this.port = this.create(CO.planet(this.planet).port, CO.MAP_CX - 2, CO.MAP_CY - 2, 0, null);
     },
 
     /**
@@ -224,11 +224,13 @@
           }
         }
       }
-      if (def.kind === 'drill' && this.countOre(x, y, def.w, def.h).n === 0) return { ok: false, reason: 'Doit couvrir un gisement' };
+      if (def.kind === 'drill' && def.fluidOre) {
+        if (this.countOre(x, y, def.w, def.h, CO.ORE_IDS.indexOf(def.fluidOre)).n === 0) return { ok: false, reason: 'Doit couvrir ' + CO.ITEMS[def.fluidOre].where };
+      } else if (def.kind === 'drill' && this.countOre(x, y, def.w, def.h).n === 0) return { ok: false, reason: 'Doit couvrir un gisement' };
       if (def.kind === 'pump' && this.countOre(x, y, def.w, def.h, CO.ORE_IDS.indexOf(def.fluid)).n === 0)
         return { ok: false, reason: 'Doit couvrir ' + CO.ITEMS[def.fluid].where };
       const replace = replaces[0] || null;
-      if (replaces.length === 1 && def.w === 1 && def.h === 1 && replace.type === type && replace.dir === dir) return { ok: false, same: true, reason: 'Déjà posé' };
+      if (replaces.length === 1 && def.w === 1 && def.h === 1 && replace.type === type && (replace.dir === dir || def.nodir)) return { ok: false, same: true, reason: 'Déjà posé' };
       return { ok: true, replace: replace, replaces: replaces };
     },
 
@@ -259,10 +261,21 @@
         case 'driver':
           b.q = []; b.incoming = 0; b.cd = 0; b.status = 'idle'; b.rr = 0; b.aim = null;
           this.setTarget(b, cfg && cfg.target); break;
-        case 'drill': {
-          const oc = this.countOre(x, y, def.w, def.h);
-          b.ore = CO.ORE_IDS[oc.id] || null; b.n = oc.n; b.acc = 0; b.out = []; b.status = 'idle'; b.rr = 0; break;
+        case 'drill': {                                // an extractor fills cartridges from the liquid it covers
+          const oc = def.fluidOre ? this.countOre(x, y, def.w, def.h, CO.ORE_IDS.indexOf(def.fluidOre)) : this.countOre(x, y, def.w, def.h);
+          b.ore = def.yields ? (oc.n ? def.yields : null) : CO.ORE_IDS[oc.id] || null;
+          b.n = oc.n; b.acc = 0; b.out = []; b.status = 'idle'; b.rr = 0; break;
         }
+        case 'ktube':                                  // kq: items of the network kept here between two rebuilds (tubes.js)
+          b.kq = []; break;
+        case 'ksilo':
+          b.q = []; break;
+        case 'kbooster':
+          b.status = 'idle'; break;
+        case 'krelay':
+          b.status = 'idle'; this.setTarget(b, cfg && cfg.target); break;
+        case 'kaccu':
+          b.charge = 0; b.status = 'idle'; break;
         case 'machine':
           b.recipe = (cfg && cfg.recipe) || null; b.inBuf = {}; b.outBuf = []; b.prog = 0; b.crafting = false; b.status = 'idle'; b.rr = 0; break;
         case 'generator':                              // fuel: items waiting, burn: seconds left on the one burning
@@ -318,6 +331,7 @@
       const m = typeof key === 'string' ? /^(-?\d+),(-?\d+)$/.exec(key) : null;
       b.target = m ? key : null;
       b.tx = m ? +m[1] : 0; b.ty = m ? +m[2] : 0;
+      this.version++;                                  // a relay link changes Kéora's networks
     },
 
     /** Cache the cells just in front of a building (where it outputs). Flat [x,y,x,y...]. */
@@ -354,6 +368,8 @@
         const c = CO.fluid.contentOf(b);
         if (c.a > 0) { o.fa = Math.round(c.a * 10) / 10; o.ff = c.f; }
       }
+      if (b.kind === 'ktube' && CO.tubes) { const q = CO.tubes.share(b); if (q.length) o.q = q; }
+      if (b.kind === 'kaccu' && b.charge > 0) o.ch = Math.round(b.charge);
       if (b.kind === 'driver') {                       // items still flying are saved back into their launcher
         const fly = CO.sim ? CO.sim.inFlightFrom(b) : [];
         if (fly.length) o.q = (o.q || []).concat(fly);
@@ -380,6 +396,8 @@
         if (o.s != null) this.makeSite(b, Number(o.s) || 0, !o.g);
         if (o.i && b.items) b.items = o.i.filter(function (a) { return CO.ITEMS[a[0]]; }).map(function (a) { return { t: a[0], p: a[1], f: a[2] }; });
         if (o.q && b.q) b.q = o.q.filter(function (t) { return CO.ITEMS[t]; });
+        if (o.q && b.kq) b.kq = o.q.filter(function (t) { return CO.ITEMS[t] && !CO.ITEMS[t].fluid; });
+        if (b.kind === 'kaccu') b.charge = CO.clamp(Number(o.ch) || 0, 0, b.def.capacity);
         if (o.ib && b.inBuf) b.inBuf = o.ib;
         if (b.kind === 'launch_pad') {
           b.parts = Math.max(0, Math.min(b.def.parts, o.rp | 0));
